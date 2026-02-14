@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: yotto_user
+      POSTGRES_PASSWORD: ***REDACTED***
+      POSTGRES_DB: yotto_db
+    volumes:
+      - yotto-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yotto_user -d yotto_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: yotto-app:latest
+    ports:
+      - "80:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/yotto_db
+      SPRING_DATASOURCE_USERNAME: yotto_user
+      SPRING_DATASOURCE_PASSWORD: ***REDACTED***
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  yotto-postgres-data:
