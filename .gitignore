@@ -12,7 +12,8 @@
 .vscode/
 *.swp
 
-# Server config (contains domain/cert paths)
+
+# Server config
 config/
 
 # OS
