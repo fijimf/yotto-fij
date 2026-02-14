@@ -1,2 +1,20 @@
-# Project exclude paths
+# Build output
 /target/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# Server config (contains domain/cert paths)
+config/
+
+# OS
+.DS_Store
+Thumbs.db

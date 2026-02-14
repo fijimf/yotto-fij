@@ -1,10 +1,21 @@
 #!/bin/bash
 
+# Load environment from .env file
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/../.env"
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: .env file not found at ${ENV_FILE}"
+    echo "Copy .env.example to .env and fill in your credentials."
+    exit 1
+fi
+
+set -a
+source "$ENV_FILE"
+set +a
+
 # PostgreSQL Docker Configuration
-CONTAINER_NAME="basketball-postgres"
-POSTGRES_USER="basketball_user"
-POSTGRES_PASSWORD="***REDACTED***"
-POSTGRES_DB="basketball_db"
+CONTAINER_NAME="yotto-postgres"
 POSTGRES_PORT="5432"
 
 # Check if container already exists
@@ -24,7 +35,7 @@ else
         -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
         -e POSTGRES_DB=${POSTGRES_DB} \
         -p ${POSTGRES_PORT}:5432 \
-        -v basketball-postgres-data:/var/lib/postgresql/data \
+        -v yotto-postgres-data:/var/lib/postgresql/data \
         postgres:16-alpine
 fi
 
@@ -39,7 +50,6 @@ for i in {1..30}; do
         echo "  Port:     ${POSTGRES_PORT}"
         echo "  Database: ${POSTGRES_DB}"
         echo "  Username: ${POSTGRES_USER}"
-        echo "  Password: ${POSTGRES_PASSWORD}"
         echo ""
         echo "Run the application with: ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev"
         exit 0
