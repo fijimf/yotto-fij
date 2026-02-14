@@ -4,9 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="${SCRIPT_DIR}/.."
 
-REMOTE_USER="${DEPLOY_USER:-ubuntu}"
-REMOTE_HOST="${DEPLOY_HOST:?Set DEPLOY_HOST to your server address}"
-REMOTE_DIR="${DEPLOY_DIR:-/opt/yotto-fij}"
+REMOTE_USER="${DEPLOY_USER:-admin}"
+REMOTE_HOST="${DEPLOY_HOST:-fijimf.com}"
+REMOTE_DIR="${DEPLOY_DIR:-/home/admin/deepfij}"
 
 IMAGE_NAME="yotto-app:latest"
 
