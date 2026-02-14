@@ -11,7 +11,7 @@ REMOTE_DIR="${DEPLOY_DIR:-/home/admin/deepfij}"
 IMAGE_NAME="yotto-app:latest"
 
 echo "==> Building Docker image..."
-docker build -t "${IMAGE_NAME}" "${PROJECT_DIR}"
+docker build --platform linux/amd64 -t "${IMAGE_NAME}" "${PROJECT_DIR}"
 
 echo "==> Transferring image to ${REMOTE_HOST}..."
 docker save "${IMAGE_NAME}" | gzip | ssh "${REMOTE_USER}@${REMOTE_HOST}" 'gunzip | docker load'
