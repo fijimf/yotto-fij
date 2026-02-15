@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONTAINER_NAME="basketball-postgres"
+CONTAINER_NAME="yotto-postgres"
 
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "Stopping PostgreSQL container '${CONTAINER_NAME}'..."
