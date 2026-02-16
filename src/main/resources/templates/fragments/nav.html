@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<header class="site-header" th:fragment="nav">
+    <nav class="nav">
+        <a class="nav__brand" th:href="@{/}">Yotto FIJ</a>
+        <button class="nav__toggle" aria-label="Toggle navigation">&#9776;</button>
+        <ul class="nav__links">
+            <li><a class="nav__link" th:href="@{/}" th:classappend="${#strings.equals(currentPage, 'home')} ? 'nav__link--active'">Home</a></li>
+            <li><a class="nav__link" th:href="@{/teams}" th:classappend="${#strings.equals(currentPage, 'teams')} ? 'nav__link--active'">Teams</a></li>
+            <li><a class="nav__link" th:href="@{/conferences}" th:classappend="${#strings.equals(currentPage, 'conferences')} ? 'nav__link--active'">Conferences</a></li>
+            <li><a class="nav__link" th:href="@{/games}" th:classappend="${#strings.equals(currentPage, 'games')} ? 'nav__link--active'">Games</a></li>
+            <li><a class="nav__link" th:href="@{/seasons}" th:classappend="${#strings.equals(currentPage, 'seasons')} ? 'nav__link--active'">Seasons</a></li>
+        </ul>
+    </nav>
+</header>
+
+</body>
+</html>
