@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Home</title>
+</head>
+<body>
+
+<main layout:fragment="content">
+    <h1 class="page-title">College Basketball Statistics</h1>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+        <a th:href="@{/teams}" class="card" style="text-decoration: none; color: inherit;">
+            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Teams</h2>
+            <p style="color: var(--color-text-muted); font-size: 0.9rem;">Browse all teams and their rosters</p>
+        </a>
+        <a th:href="@{/conferences}" class="card" style="text-decoration: none; color: inherit;">
+            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Conferences</h2>
+            <p style="color: var(--color-text-muted); font-size: 0.9rem;">View conference standings and membership</p>
+        </a>
+        <a th:href="@{/games}" class="card" style="text-decoration: none; color: inherit;">
+            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Games</h2>
+            <p style="color: var(--color-text-muted); font-size: 0.9rem;">Scores, schedules, and results</p>
+        </a>
+        <a th:href="@{/seasons}" class="card" style="text-decoration: none; color: inherit;">
+            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Seasons</h2>
+            <p style="color: var(--color-text-muted); font-size: 0.9rem;">Historical season data</p>
+        </a>
+    </div>
+</main>
+
+</body>
+</html>

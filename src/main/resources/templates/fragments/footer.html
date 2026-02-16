@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<footer class="site-footer" th:fragment="footer">
+    <span th:text="'Yotto FIJ &mdash; College Basketball Statistics &copy; ' + ${#dates.year(#dates.createNow())}">
+        Yotto FIJ &mdash; College Basketball Statistics &copy; 2026
+    </span>
+</footer>
+
+</body>
+</html>
