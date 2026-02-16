@@ -2,7 +2,8 @@
 
 ## Project Overview
 
-Spring Boot 3.2.2 REST API for college basketball statistics. Java 17, PostgreSQL 16, Flyway migrations.
+Spring Boot 3.2.2 supporting both a REST API as well as a rich web UI powered by Thymeleaf and HTMX for college basketball statistics. Java 17, PostgreSQL 16, Flyway migrations.
+Deployed on a server running Ubuntu 24.04.4 LTS.
 
 **Artifact:** `deepfij` (0.0.1-SNAPSHOT)
 **Base package:** `com.yotto.basketball`
@@ -28,6 +29,13 @@ export DEPLOY_HOST=your-server
 ## Architecture
 
 Standard layered Spring Boot: Controller -> Service -> Repository -> Entity
+
+## UI
+- Thymeleaf templates in `src/main/resources/templates`
+- HTMX for AJAX requests
+- CSS in `src/main/resources/static/css`
+- JS in `src/main/resources/static/js`
+See [UI.md](UI.md) for more details and guidelines. 
 
 ### Entities (7)
 - **Conference** - name (unique), abbreviation, division
