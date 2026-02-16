@@ -25,9 +25,8 @@ public class GameController {
     public ResponseEntity<Game> create(@Valid @RequestBody Game game,
                                        @RequestParam Long homeTeamId,
                                        @RequestParam Long awayTeamId,
-                                       @RequestParam Long seasonId,
-                                       @RequestParam(required = false) Long tournamentId) {
-        return new ResponseEntity<>(gameService.create(game, homeTeamId, awayTeamId, seasonId, tournamentId), HttpStatus.CREATED);
+                                       @RequestParam Long seasonId) {
+        return new ResponseEntity<>(gameService.create(game, homeTeamId, awayTeamId, seasonId), HttpStatus.CREATED);
     }
 
     @GetMapping("/{id}")

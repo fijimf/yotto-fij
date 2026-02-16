@@ -38,18 +38,11 @@ public class TeamService {
         return teamRepository.findByNameContainingIgnoreCase(name);
     }
 
-    @Transactional(readOnly = true)
-    public List<Team> findByState(String state) {
-        return teamRepository.findByState(state);
-    }
-
     public Team update(Long id, Team team) {
         Team existing = findById(id);
         existing.setName(team.getName());
         existing.setNickname(team.getNickname());
         existing.setMascot(team.getMascot());
-        existing.setCity(team.getCity());
-        existing.setState(team.getState());
         return teamRepository.save(existing);
     }
 

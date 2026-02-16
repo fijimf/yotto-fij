@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Admin Login</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Admin Login</h1>
+
+            <div th:if="${param.error}" class="alert alert--danger">
+                Invalid username or password.
+            </div>
+
+            <div th:if="${param.logout}" class="alert alert--success">
+                You have been logged out.
+            </div>
+
+            <form th:action="@{/admin/login}" method="post" class="auth-form">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" id="username" name="username"
+                           class="form-input" required autofocus />
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" name="password"
+                           class="form-input" required />
+                </div>
+
+                <button type="submit" class="btn btn--primary btn--full">Sign In</button>
+            </form>
+        </div>
+    </div>
+</main>
+</body>
+</html>

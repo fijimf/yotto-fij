@@ -15,6 +15,9 @@ public class Conference {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "espn_id", unique = true)
+    private String espnId;
+
     @NotBlank
     @Column(unique = true)
     private String name;
@@ -23,18 +26,13 @@ public class Conference {
 
     private String division;
 
+    @Column(name = "logo_url")
+    private String logoUrl;
+
     @OneToMany(mappedBy = "conference", cascade = CascadeType.ALL)
     private List<ConferenceMembership> memberships = new ArrayList<>();
 
     public Conference() {
-    }
-
-    public Conference(Long id, String name, String abbreviation, String division, List<ConferenceMembership> memberships) {
-        this.id = id;
-        this.name = name;
-        this.abbreviation = abbreviation;
-        this.division = division;
-        this.memberships = memberships != null ? memberships : new ArrayList<>();
     }
 
     public Long getId() {
@@ -43,6 +41,14 @@ public class Conference {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getEspnId() {
+        return espnId;
+    }
+
+    public void setEspnId(String espnId) {
+        this.espnId = espnId;
     }
 
     public String getName() {
@@ -67,6 +73,14 @@ public class Conference {
 
     public void setDivision(String division) {
         this.division = division;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.logoUrl = logoUrl;
     }
 
     public List<ConferenceMembership> getMemberships() {
@@ -94,6 +108,7 @@ public class Conference {
     public String toString() {
         return "Conference{" +
                 "id=" + id +
+                ", espnId='" + espnId + '\'' +
                 ", name='" + name + '\'' +
                 ", abbreviation='" + abbreviation + '\'' +
                 ", division='" + division + '\'' +

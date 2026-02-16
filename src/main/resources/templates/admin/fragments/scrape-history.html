@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="scrape-table">
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Season</th>
+                    <th>Type</th>
+                    <th>Started</th>
+                    <th>Duration</th>
+                    <th>Created</th>
+                    <th>Updated</th>
+                    <th>Dates OK</th>
+                    <th>Dates Failed</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="batch : ${batches}">
+                    <td th:text="${batch.seasonYear}">2025</td>
+                    <td th:text="${batch.scrapeType}">GAMES</td>
+                    <td th:text="${#temporals.format(batch.startedAt, 'MMM d HH:mm')}">Feb 15 14:30</td>
+                    <td>
+                        <span th:if="${batch.completedAt != null}"
+                              th:text="${T(java.time.Duration).between(batch.startedAt, batch.completedAt).toMinutes() + 'm ' + T(java.time.Duration).between(batch.startedAt, batch.completedAt).toSecondsPart() + 's'}">5m 30s</span>
+                        <span th:if="${batch.completedAt == null}">-</span>
+                    </td>
+                    <td th:text="${batch.recordsCreated}">0</td>
+                    <td th:text="${batch.recordsUpdated}">0</td>
+                    <td th:text="${batch.datesSucceeded}">0</td>
+                    <td th:text="${batch.datesFailed}">0</td>
+                    <td>
+                        <span class="status-badge"
+                              th:classappend="${'status-badge--' + batch.status.name().toLowerCase()}"
+                              th:text="${batch.status}">COMPLETED</span>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(batches)}">
+                    <td colspan="9" style="text-align: center; color: var(--color-text-muted);">
+                        No scrape history yet.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

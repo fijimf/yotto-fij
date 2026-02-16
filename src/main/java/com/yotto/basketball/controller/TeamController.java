@@ -39,11 +39,6 @@ public class TeamController {
         return ResponseEntity.ok(teamService.searchByName(name));
     }
 
-    @GetMapping("/state/{state}")
-    public ResponseEntity<List<Team>> findByState(@PathVariable String state) {
-        return ResponseEntity.ok(teamService.findByState(state));
-    }
-
     @PutMapping("/{id}")
     public ResponseEntity<Team> update(@PathVariable Long id, @Valid @RequestBody Team team) {
         return ResponseEntity.ok(teamService.update(id, team));

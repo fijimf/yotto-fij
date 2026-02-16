@@ -9,6 +9,8 @@ import java.util.Optional;
 @Repository
 public interface ConferenceRepository extends JpaRepository<Conference, Long> {
 
+    Optional<Conference> findByEspnId(String espnId);
+
     Optional<Conference> findByName(String name);
 
     Optional<Conference> findByAbbreviation(String abbreviation);

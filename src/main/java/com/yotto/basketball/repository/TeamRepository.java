@@ -10,9 +10,7 @@ import java.util.Optional;
 @Repository
 public interface TeamRepository extends JpaRepository<Team, Long> {
 
-    Optional<Team> findByNameAndCity(String name, String city);
-
-    List<Team> findByState(String state);
+    Optional<Team> findByEspnId(String espnId);
 
     List<Team> findByNameContainingIgnoreCase(String name);
 }

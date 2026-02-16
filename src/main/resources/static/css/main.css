@@ -205,6 +205,184 @@ tbody tr:hover {
     color: var(--color-primary);
 }
 
+/* ── Forms ── */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    font-family: var(--font-family);
+    font-size: 0.95rem;
+    transition: border-color 0.15s;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.form-input--sm {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+.btn--full {
+    width: 100%;
+    justify-content: center;
+}
+
+.btn--sm {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+}
+
+.btn--danger {
+    background: var(--color-danger);
+    color: var(--color-text-inverse);
+}
+
+.btn--danger:hover {
+    background: #c0392b;
+}
+
+.btn--success {
+    background: var(--color-success);
+    color: var(--color-text-inverse);
+}
+
+.btn--success:hover {
+    background: #27ae60;
+}
+
+/* ── Alerts ── */
+.alert {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.alert--danger {
+    background: rgba(231, 76, 60, 0.15);
+    border: 1px solid var(--color-danger);
+    color: var(--color-danger);
+}
+
+.alert--success {
+    background: rgba(46, 204, 113, 0.15);
+    border: 1px solid var(--color-success);
+    color: var(--color-success);
+}
+
+.alert--warning {
+    background: rgba(241, 196, 15, 0.15);
+    border: 1px solid #f1c40f;
+    color: #f1c40f;
+}
+
+/* ── Auth pages ── */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 3rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem;
+}
+
+.auth-card__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Admin Dashboard ── */
+.admin-section {
+    margin-bottom: 2.5rem;
+}
+
+.admin-section__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.admin-section__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.admin-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.status-badge--running {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+}
+
+.status-badge--completed {
+    background: rgba(46, 204, 113, 0.2);
+    color: var(--color-success);
+}
+
+.status-badge--failed {
+    background: rgba(231, 76, 60, 0.2);
+    color: var(--color-danger);
+}
+
+.status-badge--partial {
+    background: rgba(241, 196, 15, 0.2);
+    color: #f1c40f;
+}
+
+.inline-form {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
 /* ── HTMX indicator ── */
 .htmx-indicator {
     display: none;

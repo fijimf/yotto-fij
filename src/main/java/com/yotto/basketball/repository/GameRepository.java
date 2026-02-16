@@ -8,13 +8,14 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface GameRepository extends JpaRepository<Game, Long> {
 
-    List<Game> findBySeasonId(Long seasonId);
+    Optional<Game> findByEspnId(String espnId);
 
-    List<Game> findByTournamentId(Long tournamentId);
+    List<Game> findBySeasonId(Long seasonId);
 
     List<Game> findByHomeTeamIdOrAwayTeamId(Long homeTeamId, Long awayTeamId);
 
@@ -27,4 +28,10 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     @Query("SELECT g FROM Game g WHERE g.conferenceGame = true AND g.season.id = :seasonId")
     List<Game> findConferenceGamesBySeason(@Param("seasonId") Long seasonId);
+
+    @Query("SELECT g FROM Game g WHERE g.season.id = :seasonId AND g.status <> :status")
+    List<Game> findBySeasonIdAndStatusNot(@Param("seasonId") Long seasonId, @Param("status") Game.GameStatus status);
+
+    @Query("SELECT g FROM Game g WHERE g.season.id = :seasonId AND g.status = 'FINAL' AND g.bettingOdds IS NULL")
+    List<Game> findFinalGamesWithoutOdds(@Param("seasonId") Long seasonId);
 }

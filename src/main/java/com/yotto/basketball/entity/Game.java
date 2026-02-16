@@ -3,6 +3,7 @@ package com.yotto.basketball.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -13,6 +14,9 @@ public class Game {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "espn_id", unique = true)
+    private String espnId;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
@@ -36,8 +40,6 @@ public class Game {
     @Enumerated(EnumType.STRING)
     private GameStatus status;
 
-    private Integer attendance;
-
     private Boolean neutralSite;
 
     private Boolean conferenceGame;
@@ -46,12 +48,10 @@ public class Game {
     @JoinColumn(name = "season_id")
     private Season season;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tournament_id")
-    private Tournament tournament;
-
     @OneToOne(mappedBy = "game", cascade = CascadeType.ALL)
     private BettingOdds bettingOdds;
+
+    private LocalDate scrapeDate;
 
     public enum GameStatus {
         SCHEDULED,
@@ -64,30 +64,20 @@ public class Game {
     public Game() {
     }
 
-    public Game(Long id, Team homeTeam, Team awayTeam, LocalDateTime gameDate, String venue,
-                Integer homeScore, Integer awayScore, GameStatus status, Integer attendance,
-                Boolean neutralSite, Boolean conferenceGame, Season season, Tournament tournament) {
-        this.id = id;
-        this.homeTeam = homeTeam;
-        this.awayTeam = awayTeam;
-        this.gameDate = gameDate;
-        this.venue = venue;
-        this.homeScore = homeScore;
-        this.awayScore = awayScore;
-        this.status = status;
-        this.attendance = attendance;
-        this.neutralSite = neutralSite;
-        this.conferenceGame = conferenceGame;
-        this.season = season;
-        this.tournament = tournament;
-    }
-
     public Long getId() {
         return id;
     }
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getEspnId() {
+        return espnId;
+    }
+
+    public void setEspnId(String espnId) {
+        this.espnId = espnId;
     }
 
     public Team getHomeTeam() {
@@ -146,14 +136,6 @@ public class Game {
         this.status = status;
     }
 
-    public Integer getAttendance() {
-        return attendance;
-    }
-
-    public void setAttendance(Integer attendance) {
-        this.attendance = attendance;
-    }
-
     public Boolean getNeutralSite() {
         return neutralSite;
     }
@@ -178,20 +160,20 @@ public class Game {
         this.season = season;
     }
 
-    public Tournament getTournament() {
-        return tournament;
-    }
-
-    public void setTournament(Tournament tournament) {
-        this.tournament = tournament;
-    }
-
     public BettingOdds getBettingOdds() {
         return bettingOdds;
     }
 
     public void setBettingOdds(BettingOdds bettingOdds) {
         this.bettingOdds = bettingOdds;
+    }
+
+    public LocalDate getScrapeDate() {
+        return scrapeDate;
+    }
+
+    public void setScrapeDate(LocalDate scrapeDate) {
+        this.scrapeDate = scrapeDate;
     }
 
     @Override
@@ -211,6 +193,7 @@ public class Game {
     public String toString() {
         return "Game{" +
                 "id=" + id +
+                ", espnId='" + espnId + '\'' +
                 ", gameDate=" + gameDate +
                 ", venue='" + venue + '\'' +
                 ", homeScore=" + homeScore +

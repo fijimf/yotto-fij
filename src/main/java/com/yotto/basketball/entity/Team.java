@@ -15,6 +15,9 @@ public class Team {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "espn_id", unique = true)
+    private String espnId;
+
     @NotBlank
     private String name;
 
@@ -22,9 +25,20 @@ public class Team {
 
     private String mascot;
 
-    private String city;
+    private String abbreviation;
 
-    private String state;
+    private String slug;
+
+    private String color;
+
+    @Column(name = "alternate_color")
+    private String alternateColor;
+
+    @Column(columnDefinition = "boolean default true")
+    private Boolean active;
+
+    @Column(name = "logo_url")
+    private String logoUrl;
 
     @OneToMany(mappedBy = "team", cascade = CascadeType.ALL)
     private List<ConferenceMembership> conferenceMemberships = new ArrayList<>();
@@ -38,21 +52,20 @@ public class Team {
     public Team() {
     }
 
-    public Team(Long id, String name, String nickname, String mascot, String city, String state) {
-        this.id = id;
-        this.name = name;
-        this.nickname = nickname;
-        this.mascot = mascot;
-        this.city = city;
-        this.state = state;
-    }
-
     public Long getId() {
         return id;
     }
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getEspnId() {
+        return espnId;
+    }
+
+    public void setEspnId(String espnId) {
+        this.espnId = espnId;
     }
 
     public String getName() {
@@ -79,20 +92,52 @@ public class Team {
         this.mascot = mascot;
     }
 
-    public String getCity() {
-        return city;
+    public String getAbbreviation() {
+        return abbreviation;
     }
 
-    public void setCity(String city) {
-        this.city = city;
+    public void setAbbreviation(String abbreviation) {
+        this.abbreviation = abbreviation;
     }
 
-    public String getState() {
-        return state;
+    public String getSlug() {
+        return slug;
     }
 
-    public void setState(String state) {
-        this.state = state;
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color;
+    }
+
+    public String getAlternateColor() {
+        return alternateColor;
+    }
+
+    public void setAlternateColor(String alternateColor) {
+        this.alternateColor = alternateColor;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.logoUrl = logoUrl;
     }
 
     public List<ConferenceMembership> getConferenceMemberships() {
@@ -136,11 +181,10 @@ public class Team {
     public String toString() {
         return "Team{" +
                 "id=" + id +
+                ", espnId='" + espnId + '\'' +
                 ", name='" + name + '\'' +
                 ", nickname='" + nickname + '\'' +
-                ", mascot='" + mascot + '\'' +
-                ", city='" + city + '\'' +
-                ", state='" + state + '\'' +
+                ", abbreviation='" + abbreviation + '\'' +
                 '}';
     }
 }

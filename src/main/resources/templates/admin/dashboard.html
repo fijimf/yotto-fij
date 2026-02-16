@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <h1 class="page-title">Admin Dashboard</h1>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <!-- Season Management -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Seasons</h2>
+            <form th:action="@{/admin/seasons}" method="post" class="inline-form">
+                <input type="number" name="year" placeholder="Year" class="form-input form-input--sm"
+                       style="width: 6rem;" required min="2000" max="2099" />
+                <button type="submit" class="btn btn--primary btn--sm">Add Season</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="season : ${seasons}">
+                        <td th:text="${season.year}">2025</td>
+                        <td th:text="${season.startDate}">2024-11-01</td>
+                        <td th:text="${season.endDate}">2025-04-30</td>
+                        <td class="admin-actions">
+                            <form th:action="@{/admin/scrape/full/{year}(year=${season.year})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--primary btn--sm">Full Scrape</button>
+                            </form>
+                            <form th:action="@{/admin/scrape/current/{year}(year=${season.year})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Re-scrape</button>
+                            </form>
+                            <form th:action="@{/admin/scrape/odds/{year}(year=${season.year})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Odds Backfill</button>
+                            </form>
+                            <form th:action="@{/admin/seasons/{year}(year=${season.year})}" method="post" class="inline-form">
+                                <input type="hidden" name="_method" value="DELETE" />
+                                <button type="submit" class="btn btn--danger btn--sm"
+                                        onclick="return confirm('Remove season?')">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(seasons)}">
+                        <td colspan="4" style="text-align: center; color: var(--color-text-muted);">
+                            No seasons configured. Add one to get started.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Scrape History -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Scrape History</h2>
+            <span class="htmx-indicator" id="history-spinner">Loading...</span>
+        </div>
+
+        <div id="scrape-history"
+             hx-get="/admin/scrape-history"
+             hx-trigger="every 5s"
+             hx-indicator="#history-spinner">
+            <div th:replace="~{admin/fragments/scrape-history :: scrape-table}"></div>
+        </div>
+    </section>
+</main>
+</body>
+</html>

@@ -30,9 +30,6 @@ public class Season {
     private List<Game> games = new ArrayList<>();
 
     @OneToMany(mappedBy = "season", cascade = CascadeType.ALL)
-    private List<Tournament> tournaments = new ArrayList<>();
-
-    @OneToMany(mappedBy = "season", cascade = CascadeType.ALL)
     private List<ConferenceMembership> conferenceMemberships = new ArrayList<>();
 
     public Season() {
@@ -92,14 +89,6 @@ public class Season {
 
     public void setGames(List<Game> games) {
         this.games = games;
-    }
-
-    public List<Tournament> getTournaments() {
-        return tournaments;
-    }
-
-    public void setTournaments(List<Tournament> tournaments) {
-        this.tournaments = tournaments;
     }
 
     public List<ConferenceMembership> getConferenceMemberships() {
