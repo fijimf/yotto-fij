@@ -13,7 +13,14 @@
             <h1 class="auth-card__title">Admin Login</h1>
 
             <div th:if="${param.error}" class="alert alert--danger">
-                Invalid username or password.
+                <span th:if="${session != null and session.SPRING_SECURITY_LAST_EXCEPTION != null
+                    and session.SPRING_SECURITY_LAST_EXCEPTION.message != null
+                    and session.SPRING_SECURITY_LAST_EXCEPTION.message.contains('locked')}"
+                      th:text="${session.SPRING_SECURITY_LAST_EXCEPTION.message}">Account locked</span>
+                <span th:unless="${session != null and session.SPRING_SECURITY_LAST_EXCEPTION != null
+                    and session.SPRING_SECURITY_LAST_EXCEPTION.message != null
+                    and session.SPRING_SECURITY_LAST_EXCEPTION.message.contains('locked')}">
+                    Invalid username or password.</span>
             </div>
 
             <div th:if="${param.logout}" class="alert alert--success">

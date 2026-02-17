@@ -42,6 +42,10 @@ public class AdminController {
 
     @PostMapping("/seasons")
     public String addSeason(@RequestParam Integer year, RedirectAttributes redirectAttributes) {
+        if (year < 2000 || year > 2099) {
+            redirectAttributes.addFlashAttribute("error", "Year must be between 2000 and 2099");
+            return "redirect:/admin";
+        }
         if (seasonRepository.findByYear(year).isPresent()) {
             redirectAttributes.addFlashAttribute("error", "Season " + year + " already exists");
             return "redirect:/admin";
