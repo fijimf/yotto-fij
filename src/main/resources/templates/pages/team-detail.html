@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${team.name} + ' ' + (${team.mascot} ?: '')">Team</title>
+</head>
+<body>
+
+<main layout:fragment="content">
+
+    <!-- Team header -->
+    <div class="team-hero">
+        <div class="team-hero__logo-wrap"
+             th:if="${team.logoUrl}"
+             th:style="'background-color: #' + (${team.color} ?: '333')">
+            <img th:src="${team.logoUrl}" th:alt="${team.name}" class="team-hero__logo" />
+        </div>
+        <div class="team-hero__info">
+            <h1 class="team-hero__name" th:text="${team.name}">Alabama</h1>
+            <p class="team-hero__mascot" th:text="${team.mascot}">Crimson Tide</p>
+            <div class="team-hero__meta">
+                <span th:if="${currentConference}" class="team-hero__conference"
+                      th:text="${currentConference.name}">SEC</span>
+                <a th:if="${team.espnId}" class="team-hero__espn-link"
+                   th:href="'https://www.espn.com/mens-college-basketball/team/_/id/' + ${team.espnId} + '/' + (${team.slug} ?: '')"
+                   target="_blank" rel="noopener">ESPN</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule section -->
+    <div class="schedule-section" th:if="${!schedulesBySeason.isEmpty()}">
+        <h2 class="schedule-section__title">Schedule</h2>
+
+        <!-- Season tabs -->
+        <div class="season-tabs">
+            <button th:each="entry : ${schedulesBySeason}"
+                    class="season-tabs__tab"
+                    th:classappend="${entry.key == currentSeasonYear} ? 'season-tabs__tab--active'"
+                    th:data-season="${entry.key}"
+                    th:text="${entry.key}"
+                    onclick="switchSeasonTab(this)">2026</button>
+        </div>
+
+        <!-- Season panels -->
+        <div th:each="entry : ${schedulesBySeason}"
+             class="season-panel"
+             th:id="'season-' + ${entry.key}"
+             th:style="${entry.key != currentSeasonYear} ? 'display:none'">
+
+            <!-- Season record summary -->
+            <div class="season-summary">
+                <span class="season-summary__record">
+                    <strong th:text="${entry.value.record()}">22-5</strong> Overall
+                </span>
+                <span class="season-summary__record" th:if="${entry.value.conferenceName}">
+                    <strong th:text="${entry.value.conferenceRecord()}">10-3</strong>
+                    <span th:text="${entry.value.conferenceName}">SEC</span>
+                </span>
+            </div>
+
+            <!-- Games table -->
+            <div class="schedule-table-wrap">
+                <table class="schedule-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th></th>
+                            <th>Opponent</th>
+                            <th>Result</th>
+                            <th class="schedule-table__hide-mobile">Spread</th>
+                            <th class="schedule-table__hide-mobile">O/U</th>
+                            <th class="schedule-table__hide-mobile">Venue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="game : ${entry.value.games}"
+                            th:classappend="${game.result == 'W'} ? 'schedule-row-win' : (${game.result == 'L'} ? 'schedule-row-loss' : '')">
+                            <td class="schedule-table__date"
+                                th:text="${#temporals.format(game.gameDate, 'MMM d')}">Jan 15</td>
+                            <td class="schedule-table__loc"
+                                th:text="${game.location}">vs</td>
+                            <td class="schedule-table__opponent">
+                                <a th:href="@{'/teams/' + ${game.opponentId}}" class="schedule-table__opp-link">
+                                    <img th:if="${game.opponentLogoUrl}"
+                                         th:src="${game.opponentLogoUrl}"
+                                         class="schedule-table__opp-logo"
+                                         loading="lazy" width="20" height="20" />
+                                    <span th:text="${game.opponentName}">Auburn</span>
+                                </a>
+                                <span th:if="${game.conferenceGame}" class="schedule-table__conf-marker" title="Conference game">*</span>
+                            </td>
+                            <td class="schedule-table__result">
+                                <span th:if="${game.result != null and game.result == 'W'}" class="schedule-table__result-badge schedule-table__result-badge--win"
+                                      th:text="${game.result}">W</span>
+                                <span th:if="${game.result != null and game.result == 'L'}" class="schedule-table__result-badge schedule-table__result-badge--loss"
+                                      th:text="${game.result}">L</span>
+                                <span th:if="${game.teamScore != null}" class="schedule-table__score"
+                                      th:text="${game.scoreDisplay()}">85-72</span>
+                                <span th:if="${game.result == null}" class="schedule-table__time"
+                                      th:text="${#temporals.format(game.gameDate, 'h:mm a')}">7:00 PM</span>
+                            </td>
+                            <td class="schedule-table__hide-mobile schedule-table__odds"
+                                th:text="${game.spread != null} ? ${game.spread} : ''">-3.5</td>
+                            <td class="schedule-table__hide-mobile schedule-table__odds"
+                                th:text="${game.overUnder != null} ? ${game.overUnder} : ''">145.5</td>
+                            <td class="schedule-table__hide-mobile schedule-table__venue"
+                                th:text="${game.venue}">Coleman Coliseum</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${schedulesBySeason.isEmpty()}" class="teams-empty">
+        No games found for this team.
+    </div>
+
+</main>
+
+</body>
+</html>

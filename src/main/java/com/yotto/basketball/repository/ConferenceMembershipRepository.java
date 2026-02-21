@@ -24,7 +24,7 @@ public interface ConferenceMembershipRepository extends JpaRepository<Conference
 
     boolean existsByTeamIdAndSeasonId(Long teamId, Long seasonId);
 
-    @Query("SELECT cm FROM ConferenceMembership cm WHERE cm.team.id = :teamId ORDER BY cm.season.year DESC")
+    @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.conference JOIN FETCH cm.season WHERE cm.team.id = :teamId ORDER BY cm.season.year DESC")
     List<ConferenceMembership> findByTeamIdOrderBySeasonDesc(@Param("teamId") Long teamId);
 
     @Query("SELECT cm FROM ConferenceMembership cm WHERE cm.team.id = :teamId AND cm.season.year = " +

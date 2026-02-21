@@ -554,6 +554,243 @@ tbody tr:hover {
     font-variant-numeric: tabular-nums;
 }
 
+/* ── Team detail page ── */
+.team-hero {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.team-hero__logo-wrap {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0.5rem;
+}
+
+.team-hero__logo {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+}
+
+.team-hero__name {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1.2;
+}
+
+.team-hero__mascot {
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    margin-top: 0.15rem;
+}
+
+.team-hero__meta {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.team-hero__conference {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.team-hero__espn-link {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    text-decoration: none;
+    border: 1px solid var(--color-border);
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius);
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.team-hero__espn-link:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+/* Schedule section */
+.schedule-section {
+    margin-bottom: 2rem;
+}
+
+.schedule-section__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+}
+
+/* Season tabs */
+.season-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+}
+
+.season-tabs__tab {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.season-tabs__tab:hover {
+    color: var(--color-text);
+}
+
+.season-tabs__tab--active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+/* Season summary */
+.season-summary {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+}
+
+.season-summary__record strong {
+    color: var(--color-text);
+}
+
+/* Schedule table */
+.schedule-table-wrap {
+    overflow-x: auto;
+}
+
+.schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.schedule-table thead th {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.schedule-table tbody td {
+    padding: 0.5rem 0.75rem;
+}
+
+.schedule-table__date {
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    width: 5rem;
+}
+
+.schedule-table__loc {
+    width: 2rem;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+
+.schedule-table__opponent {
+    white-space: nowrap;
+}
+
+.schedule-table__opp-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.schedule-table__opp-link:hover {
+    color: var(--color-primary);
+}
+
+.schedule-table__opp-logo {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.schedule-table__conf-marker {
+    color: var(--color-primary);
+    font-weight: 700;
+    margin-left: 0.2rem;
+}
+
+.schedule-table__result {
+    white-space: nowrap;
+}
+
+.schedule-table__result-badge {
+    display: inline-block;
+    width: 1.4rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+    margin-right: 0.3rem;
+}
+
+.schedule-table__result-badge--win {
+    color: var(--color-success);
+}
+
+.schedule-table__result-badge--loss {
+    color: var(--color-danger);
+}
+
+.schedule-table__score {
+    font-variant-numeric: tabular-nums;
+}
+
+.schedule-table__time {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+}
+
+.schedule-table__odds {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+}
+
+.schedule-table__venue {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schedule-row-win {
+    border-left: 2px solid var(--color-success);
+}
+
+.schedule-row-loss {
+    border-left: 2px solid var(--color-danger);
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .nav__toggle {
@@ -591,5 +828,23 @@ tbody tr:hover {
     .teams-header {
         flex-direction: column;
         gap: 0.25rem;
+    }
+
+    .team-hero__logo-wrap {
+        width: 60px;
+        height: 60px;
+    }
+
+    .team-hero__logo {
+        width: 48px;
+        height: 48px;
+    }
+
+    .team-hero__name {
+        font-size: 1.35rem;
+    }
+
+    .schedule-table__hide-mobile {
+        display: none;
     }
 }
