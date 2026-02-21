@@ -2,8 +2,8 @@
     --color-bg: #1a1a2e;
     --color-bg-surface: #16213e;
     --color-bg-surface-hover: #1f3056;
-    --color-primary: #e94560;
-    --color-primary-hover: #d63851;
+    --color-primary: #9393a3;
+    --color-primary-hover: #b3b3d3;
     --color-text: #e0e0e0;
     --color-text-muted: #a0a0b0;
     --color-text-inverse: #1a1a2e;
@@ -72,6 +72,14 @@ a:hover {
     color: var(--color-primary);
     margin-right: 2.5rem;
     letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav__logo {
+    height: 28px;
+    width: auto;
 }
 
 .nav__links {

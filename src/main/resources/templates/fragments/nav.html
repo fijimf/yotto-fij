@@ -4,7 +4,10 @@
 
 <header class="site-header" th:fragment="nav">
     <nav class="nav">
-        <a class="nav__brand" th:href="@{/}">Yotto FIJ</a>
+        <a class="nav__brand" th:href="@{/}">
+            <img th:src="@{/img/deepfij.png}" alt="DeepFIJ" class="nav__logo" />
+            Yotto FIJ
+        </a>
         <button class="nav__toggle" aria-label="Toggle navigation">&#9776;</button>
         <ul class="nav__links">
             <li><a class="nav__link" th:href="@{/}" th:classappend="${#strings.equals(currentPage, 'home')} ? 'nav__link--active'">Home</a></li>
