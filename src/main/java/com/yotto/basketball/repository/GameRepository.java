@@ -29,6 +29,9 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT g FROM Game g WHERE g.conferenceGame = true AND g.season.id = :seasonId")
     List<Game> findConferenceGamesBySeason(@Param("seasonId") Long seasonId);
 
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam WHERE g.season.id = :seasonId AND g.status = :status")
+    List<Game> findBySeasonIdAndStatus(@Param("seasonId") Long seasonId, @Param("status") Game.GameStatus status);
+
     @Query("SELECT g FROM Game g WHERE g.season.id = :seasonId AND g.status <> :status")
     List<Game> findBySeasonIdAndStatusNot(@Param("seasonId") Long seasonId, @Param("status") Game.GameStatus status);
 

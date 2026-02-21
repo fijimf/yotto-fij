@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Teams</title>
+</head>
+<body>
+
+<main layout:fragment="content">
+    <div class="teams-header">
+        <h1 class="page-title">Teams</h1>
+        <div class="teams-header__meta">
+            <span class="teams-header__count" th:text="${teamCount} + ' teams'">362 teams</span>
+            <span th:if="${seasonYear}" class="teams-header__season"
+                  th:text="'&middot; ' + ${seasonYear} + ' season'">2026 season</span>
+        </div>
+    </div>
+
+    <div class="teams-search">
+        <input type="text"
+               id="team-search"
+               class="form-input teams-search__input"
+               placeholder="Search teams by name or mascot..."
+               autocomplete="off" />
+        <span id="search-count" class="teams-search__count"></span>
+    </div>
+
+    <div id="no-results" class="teams-empty" style="display: none;">
+        No teams match your search.
+    </div>
+
+    <div id="teams-list">
+        <div th:each="entry : ${conferenceGroups}" class="conference-group" th:data-conference="${entry.key.name}">
+            <h2 class="conference-group__title">
+                <img th:if="${entry.key.logoUrl}"
+                     th:src="${entry.key.logoUrl}"
+                     th:alt="${entry.key.name}"
+                     class="conference-group__logo"
+                     loading="lazy"
+                     width="24" height="24" />
+                <span th:text="${entry.key.name}">Big Ten</span>
+            </h2>
+            <div class="team-grid">
+                <a th:each="team : ${entry.value}"
+                   th:href="@{'/teams/' + ${team.id}}"
+                   class="team-card card"
+                   th:data-name="${team.name}"
+                   th:data-mascot="${team.mascot}"
+                   th:data-nickname="${team.nickname}"
+                   th:data-conference="${team.conferenceName}">
+                    <div class="team-card__logo-wrap">
+                        <img th:if="${team.logoUrl}"
+                             th:src="${team.logoUrl}"
+                             th:alt="${team.name}"
+                             class="team-card__logo"
+                             loading="lazy"
+                             width="48" height="48" />
+                        <div th:unless="${team.logoUrl}"
+                             class="team-card__logo-placeholder"
+                             th:style="'background-color: #' + (${team.color} ?: '666')">
+                            <span th:text="${#strings.substring(team.name, 0, 1)}">T</span>
+                        </div>
+                    </div>
+                    <div class="team-card__info">
+                        <span class="team-card__name" th:text="${team.name}">Alabama</span>
+                        <span class="team-card__mascot" th:text="${team.mascot}">Crimson Tide</span>
+                    </div>
+                    <div class="team-card__records" th:if="${team.wins != null}">
+                        <span class="team-card__record" th:text="${team.record()}"
+                              title="Overall">22-5</span>
+                        <span class="team-card__conf-record" th:if="${team.conferenceWins != null}"
+                              th:text="${team.conferenceRecord()}"
+                              title="Conference">10-3</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>

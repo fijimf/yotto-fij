@@ -12,4 +12,6 @@ public interface SeasonRepository extends JpaRepository<Season, Long> {
     Optional<Season> findByYear(Integer year);
 
     boolean existsByYear(Integer year);
+
+    Optional<Season> findTopByOrderByYearDesc();
 }
