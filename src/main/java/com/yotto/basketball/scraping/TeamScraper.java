@@ -102,7 +102,22 @@ public class TeamScraper {
 
         JsonNode logos = node.path("logos");
         if (logos.isArray() && !logos.isEmpty()) {
-            team.setLogoUrl(logos.path(0).path("href").asText(null));
+            String defaultUrl = null;
+            String darkUrl = null;
+            for (JsonNode logo : logos) {
+                String href = logo.path("href").asText(null);
+                JsonNode rel = logo.path("rel");
+                boolean isDark = false;
+                if (rel.isArray()) {
+                    for (JsonNode r : rel) {
+                        if ("dark".equals(r.asText())) { isDark = true; break; }
+                    }
+                }
+                if (isDark) { if (darkUrl == null) darkUrl = href; }
+                else         { if (defaultUrl == null) defaultUrl = href; }
+            }
+            team.setLogoUrl(defaultUrl);
+            team.setDarkLogoUrl(darkUrl);
         }
     }
 }

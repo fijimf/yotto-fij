@@ -45,4 +45,14 @@ public class AsyncScrapeService {
             log.error("Async odds backfill failed for {}", seasonYear, e);
         }
     }
+
+    @Async("scrapeExecutor")
+    public void scrapeTeamsAsync(int seasonYear) {
+        log.info("Async team scrape started for {}", seasonYear);
+        try {
+            orchestrator.scrapeTeams(seasonYear);
+        } catch (Exception e) {
+            log.error("Async team scrape failed for {}", seasonYear, e);
+        }
+    }
 }

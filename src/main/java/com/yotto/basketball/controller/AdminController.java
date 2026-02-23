@@ -89,6 +89,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/scrape/teams/{year}")
+    public String scrapeTeams(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
+        asyncScrapeService.scrapeTeamsAsync(year);
+        redirectAttributes.addFlashAttribute("success", "Team scrape started for " + year);
+        return "redirect:/admin";
+    }
+
     @PostMapping("/scrape/odds/{year}")
     public String backfillOdds(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
         asyncScrapeService.backfillOddsAsync(year);

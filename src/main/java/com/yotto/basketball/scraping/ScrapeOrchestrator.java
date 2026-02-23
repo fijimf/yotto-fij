@@ -63,6 +63,10 @@ public class ScrapeOrchestrator {
         log.info("Current season re-scrape completed for {}", seasonYear);
     }
 
+    public void scrapeTeams(int seasonYear) {
+        teamScraper.scrape(seasonYear);
+    }
+
     public void scrapeConferencesAndTeams(int seasonYear) {
         conferenceScraper.scrape(seasonYear);
         teamScraper.scrape(seasonYear);

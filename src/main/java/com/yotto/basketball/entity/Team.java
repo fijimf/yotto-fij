@@ -40,6 +40,9 @@ public class Team {
     @Column(name = "logo_url")
     private String logoUrl;
 
+    @Column(name = "dark_logo_url")
+    private String darkLogoUrl;
+
     @OneToMany(mappedBy = "team", cascade = CascadeType.ALL)
     private List<ConferenceMembership> conferenceMemberships = new ArrayList<>();
 
@@ -138,6 +141,44 @@ public class Team {
 
     public void setLogoUrl(String logoUrl) {
         this.logoUrl = logoUrl;
+    }
+
+    public String getDarkLogoUrl() {
+        return darkLogoUrl;
+    }
+
+    public void setDarkLogoUrl(String darkLogoUrl) {
+        this.darkLogoUrl = darkLogoUrl;
+    }
+
+    /**
+     * Returns the dark logo when the background color is light (high luminance),
+     * otherwise falls back to the default logo.
+     */
+    public String getEffectiveLogoUrl() {
+        if (darkLogoUrl != null && !isBackgroundLight()) {
+            return darkLogoUrl;
+        }
+        return logoUrl;
+    }
+
+    public boolean isBackgroundLight() {
+        return luminance(getLogoBackgroundColor()) > 160;
+    }
+
+    /** Returns whichever of color/alternateColor is lighter, for use as a logo background. */
+    public String getLogoBackgroundColor() {
+        String primary = color != null ? color : "333333";
+        if (alternateColor == null || alternateColor.isBlank()) return primary;
+        return luminance(alternateColor) > luminance(primary) ? alternateColor : primary;
+    }
+
+    private static double luminance(String hex) {
+        if (hex == null || hex.length() < 6) return 0;
+        int r = Integer.parseInt(hex.substring(0, 2), 16);
+        int g = Integer.parseInt(hex.substring(2, 4), 16);
+        int b = Integer.parseInt(hex.substring(4, 6), 16);
+        return 0.299 * r + 0.587 * g + 0.114 * b;
     }
 
     public List<ConferenceMembership> getConferenceMemberships() {

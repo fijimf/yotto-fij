@@ -46,6 +46,9 @@
                             <form th:action="@{/admin/scrape/current/{year}(year=${season.year})}" method="post" class="inline-form">
                                 <button type="submit" class="btn btn--outline btn--sm">Re-scrape</button>
                             </form>
+                            <form th:action="@{/admin/scrape/teams/{year}(year=${season.year})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Teams</button>
+                            </form>
                             <form th:action="@{/admin/scrape/odds/{year}(year=${season.year})}" method="post" class="inline-form">
                                 <button type="submit" class="btn btn--outline btn--sm">Odds Backfill</button>
                             </form>

@@ -14,8 +14,8 @@
     <div class="team-hero">
         <div class="team-hero__logo-wrap"
              th:if="${team.logoUrl}"
-             th:style="'background-color: #' + (${team.color} ?: '333')">
-            <img th:src="${team.logoUrl}" th:alt="${team.name}" class="team-hero__logo" />
+             th:style="'background-color: #' + ${team.logoBackgroundColor}">
+            <img th:src="${team.effectiveLogoUrl}" th:alt="${team.name}" class="team-hero__logo" />
         </div>
         <div class="team-hero__info">
             <h1 class="team-hero__name" th:text="${team.name}">Alabama</h1>
