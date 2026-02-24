@@ -52,6 +52,8 @@
                               th:text="${game.result}">L</span>
                         <span th:if="${game.teamScore != null}" class="schedule-table__score"
                               th:text="${game.scoreDisplay()}">85-72</span>
+                        <span th:if="${!game.overtimeLabel().isEmpty()}" class="schedule-table__ot"
+                              th:text="${game.overtimeLabel()}">OT</span>
                         <span th:if="${game.result == null}" class="schedule-table__time"
                               th:text="${#temporals.format(game.gameDate, 'h:mm a')}">7:00 PM</span>
                     </td>

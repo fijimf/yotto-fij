@@ -775,6 +775,14 @@ tbody tr:hover {
     font-variant-numeric: tabular-nums;
 }
 
+.schedule-table__ot {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    margin-left: 0.2rem;
+    vertical-align: middle;
+}
+
 .schedule-table__time {
     color: var(--color-text-muted);
     font-size: 0.82rem;

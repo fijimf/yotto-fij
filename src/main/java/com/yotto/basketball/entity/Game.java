@@ -51,6 +51,8 @@ public class Game {
     @OneToOne(mappedBy = "game", cascade = CascadeType.ALL)
     private BettingOdds bettingOdds;
 
+    private Integer periods;
+
     private LocalDate scrapeDate;
 
     public enum GameStatus {
@@ -166,6 +168,14 @@ public class Game {
 
     public void setBettingOdds(BettingOdds bettingOdds) {
         this.bettingOdds = bettingOdds;
+    }
+
+    public Integer getPeriods() {
+        return periods;
+    }
+
+    public void setPeriods(Integer periods) {
+        this.periods = periods;
     }
 
     public LocalDate getScrapeDate() {

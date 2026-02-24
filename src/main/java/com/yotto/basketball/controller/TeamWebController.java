@@ -243,7 +243,8 @@ public class TeamWebController {
                 game.getVenue(),
                 Boolean.TRUE.equals(game.getConferenceGame()),
                 spread,
-                overUnder
+                overUnder,
+                game.getPeriods()
         );
     }
 
@@ -292,11 +293,18 @@ public class TeamWebController {
             String venue,
             boolean conferenceGame,
             BigDecimal spread,
-            BigDecimal overUnder
+            BigDecimal overUnder,
+            Integer periods
     ) {
         public String scoreDisplay() {
             if (teamScore == null || opponentScore == null) return "";
             return teamScore + "-" + opponentScore;
+        }
+
+        public String overtimeLabel() {
+            if (periods == null || periods <= 2) return "";
+            int ots = periods - 2;
+            return ots == 1 ? "OT" : ots + "OT";
         }
     }
 }

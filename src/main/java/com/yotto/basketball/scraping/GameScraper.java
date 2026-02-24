@@ -197,6 +197,9 @@ public class GameScraper {
         game.setStatus(status);
         game.setScrapeDate(scrapeDate);
 
+        int periods = event.path("period").asInt(0);
+        game.setPeriods(periods > 0 ? periods : null);
+
         if (!homeScore.isEmpty()) {
             try {
                 game.setHomeScore(Integer.parseInt(homeScore));
