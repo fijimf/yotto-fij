@@ -49,19 +49,15 @@ function initApp() {
     }
 }
 
-// Season tab switching (team detail page)
-function switchSeasonTab(btn) {
-    var season = btn.dataset.season;
-    document.querySelectorAll('.season-tabs__tab').forEach(function(t) {
-        t.classList.remove('season-tabs__tab--active');
-    });
-    btn.classList.add('season-tabs__tab--active');
-    document.querySelectorAll('.season-panel').forEach(function(p) {
-        p.style.display = 'none';
-    });
-    var panel = document.getElementById('season-' + season);
-    if (panel) panel.style.display = '';
-}
+// Season tab active state — driven by HTMX requests (team detail page)
+document.addEventListener('htmx:beforeRequest', function(evt) {
+    if (evt.detail.elt.classList.contains('season-tabs__tab')) {
+        document.querySelectorAll('.season-tabs__tab').forEach(function(t) {
+            t.classList.remove('season-tabs__tab--active');
+        });
+        evt.detail.elt.classList.add('season-tabs__tab--active');
+    }
+});
 
 // Run on initial page load
 document.addEventListener("DOMContentLoaded", initApp);

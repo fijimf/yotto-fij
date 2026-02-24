@@ -103,6 +103,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/scrape/stats/{year}")
+    public String calculateStats(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
+        asyncScrapeService.calculateStatsAsync(year);
+        redirectAttributes.addFlashAttribute("success", "Stats calculation started for " + year);
+        return "redirect:/admin";
+    }
+
     @GetMapping("/scrape-history")
     public String scrapeHistory(Model model) {
         List<ScrapeBatch> batches = scrapeBatchRepository.findTop20ByOrderByStartedAtDesc();

@@ -122,30 +122,23 @@ public class StandingsScraper {
 
         for (JsonNode stat : statsArray) {
             String type = stat.path("type").asText();
-            String name = stat.path("name").asText();
             int value = stat.path("value").asInt(0);
 
+            // ESPN returns individual stat entries with compound type keys
+            // e.g. type="wins", type="home_wins", type="vsconf_losses", etc.
             switch (type) {
-                case "total" -> {
-                    if ("wins".equals(name)) stats.setWins(value);
-                    else if ("losses".equals(name)) stats.setLosses(value);
-                    else if ("pointsFor".equals(name)) stats.setPointsFor(value);
-                    else if ("pointsAgainst".equals(name)) stats.setPointsAgainst(value);
-                    else if ("streak".equals(name)) stats.setStreak(value);
-                    else if ("playoffSeed".equals(name)) stats.setConferenceStanding(value);
-                }
-                case "home" -> {
-                    if ("wins".equals(name)) stats.setHomeWins(value);
-                    else if ("losses".equals(name)) stats.setHomeLosses(value);
-                }
-                case "road", "away" -> {
-                    if ("wins".equals(name)) stats.setRoadWins(value);
-                    else if ("losses".equals(name)) stats.setRoadLosses(value);
-                }
-                case "vsconf", "vsConf" -> {
-                    if ("wins".equals(name)) stats.setConferenceWins(value);
-                    else if ("losses".equals(name)) stats.setConferenceLosses(value);
-                }
+                case "wins"           -> stats.setWins(value);
+                case "losses"         -> stats.setLosses(value);
+                case "pointsfor"      -> stats.setPointsFor(value);
+                case "pointsagainst"  -> stats.setPointsAgainst(value);
+                case "streak"         -> stats.setStreak(value);
+                case "playoffseed"    -> stats.setConferenceStanding(value);
+                case "home_wins"      -> stats.setHomeWins(value);
+                case "home_losses"    -> stats.setHomeLosses(value);
+                case "road_wins"      -> stats.setRoadWins(value);
+                case "road_losses"    -> stats.setRoadLosses(value);
+                case "vsconf_wins"    -> stats.setConferenceWins(value);
+                case "vsconf_losses"  -> stats.setConferenceLosses(value);
             }
         }
     }

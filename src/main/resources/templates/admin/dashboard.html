@@ -8,7 +8,10 @@
 </head>
 <body>
 <main layout:fragment="content">
-    <h1 class="page-title">Admin Dashboard</h1>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">Admin Dashboard</h1>
+        <a href="/admin/qa" class="btn btn--outline btn--sm">Scraping QA</a>
+    </div>
 
     <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
     <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
@@ -51,6 +54,9 @@
                             </form>
                             <form th:action="@{/admin/scrape/odds/{year}(year=${season.year})}" method="post" class="inline-form">
                                 <button type="submit" class="btn btn--outline btn--sm">Odds Backfill</button>
+                            </form>
+                            <form th:action="@{/admin/scrape/stats/{year}(year=${season.year})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Calc Stats</button>
                             </form>
                             <form th:action="@{/admin/seasons/{year}(year=${season.year})}" method="post" class="inline-form">
                                 <input type="hidden" name="_method" value="DELETE" />

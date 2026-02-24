@@ -55,4 +55,14 @@ public class AsyncScrapeService {
             log.error("Async team scrape failed for {}", seasonYear, e);
         }
     }
+
+    @Async("scrapeExecutor")
+    public void calculateStatsAsync(int seasonYear) {
+        log.info("Async stats calculation started for {}", seasonYear);
+        try {
+            orchestrator.calculateStats(seasonYear);
+        } catch (Exception e) {
+            log.error("Async stats calculation failed for {}", seasonYear, e);
+        }
+    }
 }

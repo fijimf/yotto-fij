@@ -1,12 +1,10 @@
 package com.yotto.basketball.controller;
 
 import com.yotto.basketball.entity.*;
-import com.yotto.basketball.repository.ConferenceMembershipRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonRepository;
+import com.yotto.basketball.repository.SeasonStatisticsRepository;
 import com.yotto.basketball.repository.TeamRepository;
-import com.yotto.basketball.service.RecordCalculationService;
-import com.yotto.basketball.service.RecordCalculationService.TeamRecord;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -25,20 +23,17 @@ public class TeamWebController {
 
     private final TeamRepository teamRepository;
     private final SeasonRepository seasonRepository;
-    private final ConferenceMembershipRepository membershipRepository;
     private final GameRepository gameRepository;
-    private final RecordCalculationService recordCalculationService;
+    private final SeasonStatisticsRepository seasonStatisticsRepository;
 
     public TeamWebController(TeamRepository teamRepository,
                              SeasonRepository seasonRepository,
-                             ConferenceMembershipRepository membershipRepository,
                              GameRepository gameRepository,
-                             RecordCalculationService recordCalculationService) {
+                             SeasonStatisticsRepository seasonStatisticsRepository) {
         this.teamRepository = teamRepository;
         this.seasonRepository = seasonRepository;
-        this.membershipRepository = membershipRepository;
         this.gameRepository = gameRepository;
-        this.recordCalculationService = recordCalculationService;
+        this.seasonStatisticsRepository = seasonStatisticsRepository;
     }
 
     // ── Teams listing ──
@@ -54,20 +49,17 @@ public class TeamWebController {
             Season season = latestSeason.get();
             seasonYear = season.getYear();
 
-            Map<Long, TeamRecord> records = recordCalculationService.calculateRecords(season.getId());
-
-            List<ConferenceMembership> memberships = membershipRepository.findBySeasonId(season.getId());
-            Map<Long, Conference> conferenceByTeamId = new HashMap<>();
-            for (ConferenceMembership cm : memberships) {
-                conferenceByTeamId.put(cm.getTeam().getId(), cm.getConference());
-            }
+            List<SeasonStatistics> statsForSeason =
+                    seasonStatisticsRepository.findBySeasonIdWithTeamAndConference(season.getId());
+            Map<Long, SeasonStatistics> statsByTeamId = statsForSeason.stream()
+                    .collect(Collectors.toMap(ss -> ss.getTeam().getId(), ss -> ss));
 
             List<Team> allTeams = teamRepository.findAll();
 
             teamSummaries = allTeams.stream()
                     .map(team -> {
-                        TeamRecord rec = records.get(team.getId());
-                        Conference conf = conferenceByTeamId.get(team.getId());
+                        SeasonStatistics ss = statsByTeamId.get(team.getId());
+                        Conference conf = ss != null ? ss.getConference() : null;
                         return new TeamSummary(
                                 team.getId(),
                                 team.getName(),
@@ -78,10 +70,10 @@ public class TeamWebController {
                                 conf != null ? conf.getName() : null,
                                 conf != null ? conf.getAbbreviation() : null,
                                 conf != null ? conf.getLogoUrl() : null,
-                                rec != null ? rec.getWins() : null,
-                                rec != null ? rec.getLosses() : null,
-                                rec != null ? rec.getConferenceWins() : null,
-                                rec != null ? rec.getConferenceLosses() : null
+                                resolveInt(ss != null ? ss.getCalcWins() : null, ss != null ? ss.getWins() : null),
+                                resolveInt(ss != null ? ss.getCalcLosses() : null, ss != null ? ss.getLosses() : null),
+                                resolveInt(ss != null ? ss.getCalcConferenceWins() : null, ss != null ? ss.getConferenceWins() : null),
+                                resolveInt(ss != null ? ss.getCalcConferenceLosses() : null, ss != null ? ss.getConferenceLosses() : null)
                         );
                     })
                     .sorted(Comparator.comparing(
@@ -122,52 +114,82 @@ public class TeamWebController {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Team not found: " + id));
 
-        // Conference memberships (most recent first)
-        List<ConferenceMembership> memberships = membershipRepository.findByTeamIdOrderBySeasonDesc(id);
-        Conference currentConference = memberships.isEmpty() ? null : memberships.get(0).getConference();
-
         // Seasons this team has games in
         List<Season> seasons = gameRepository.findSeasonsByTeamId(id);
         Season currentSeason = seasons.isEmpty() ? null : seasons.get(0);
 
-        // Build schedule per season
-        Map<Integer, SeasonSchedule> schedulesBySeason = new LinkedHashMap<>();
-        for (Season season : seasons) {
-            List<Game> games = gameRepository.findByTeamAndSeasonWithDetails(id, season.getId());
-            Map<Long, TeamRecord> records = recordCalculationService.calculateRecords(season.getId());
-            TeamRecord rec = records.get(id);
+        // All stats rows for this team across all seasons (single query)
+        List<SeasonStatistics> teamStats = seasonStatisticsRepository.findByTeamIdWithSeasonAndConference(id);
+        Map<Integer, SeasonStatistics> statsByYear = teamStats.stream()
+                .collect(Collectors.toMap(ss -> ss.getSeason().getYear(), ss -> ss));
 
-            // Find conference for this season
-            Conference seasonConf = null;
-            for (ConferenceMembership cm : memberships) {
-                if (cm.getSeason().getId().equals(season.getId())) {
-                    seasonConf = cm.getConference();
-                    break;
-                }
-            }
+        // Current conference from most recent stats row
+        Conference currentConference = teamStats.isEmpty() ? null : teamStats.get(0).getConference();
 
-            List<GameRow> gameRows = games.stream()
-                    .map(g -> toGameRow(g, id))
-                    .toList();
-
-            schedulesBySeason.put(season.getYear(), new SeasonSchedule(
-                    season.getYear(),
+        // Only load current season (lazy-load historical seasons via HTMX)
+        SeasonSchedule currentSeasonSchedule = null;
+        if (currentSeason != null) {
+            SeasonStatistics ss = statsByYear.get(currentSeason.getYear());
+            List<Game> games = gameRepository.findByTeamAndSeasonWithDetails(id, currentSeason.getId());
+            int wins = resolveInt(ss != null ? ss.getCalcWins() : null, ss != null ? ss.getWins() : null, 0);
+            int losses = resolveInt(ss != null ? ss.getCalcLosses() : null, ss != null ? ss.getLosses() : null, 0);
+            int confWins = resolveInt(ss != null ? ss.getCalcConferenceWins() : null, ss != null ? ss.getConferenceWins() : null, 0);
+            int confLosses = resolveInt(ss != null ? ss.getCalcConferenceLosses() : null, ss != null ? ss.getConferenceLosses() : null, 0);
+            Conference seasonConf = ss != null ? ss.getConference() : null;
+            currentSeasonSchedule = new SeasonSchedule(
+                    currentSeason.getYear(),
                     seasonConf != null ? seasonConf.getName() : null,
-                    rec != null ? rec.getWins() : 0,
-                    rec != null ? rec.getLosses() : 0,
-                    rec != null ? rec.getConferenceWins() : 0,
-                    rec != null ? rec.getConferenceLosses() : 0,
-                    gameRows
-            ));
+                    wins, losses, confWins, confLosses,
+                    games.stream().map(g -> toGameRow(g, id)).toList()
+            );
         }
 
         model.addAttribute("currentPage", "teams");
         model.addAttribute("team", team);
+        model.addAttribute("teamId", id);
         model.addAttribute("currentConference", currentConference);
-        model.addAttribute("schedulesBySeason", schedulesBySeason);
+        model.addAttribute("seasons", seasons);
+        model.addAttribute("schedule", currentSeasonSchedule);
         model.addAttribute("currentSeasonYear", currentSeason != null ? currentSeason.getYear() : null);
 
         return "pages/team-detail";
+    }
+
+    @GetMapping("/teams/{id}/season/{year}")
+    public String teamSeasonSchedule(@PathVariable Long id,
+                                     @PathVariable Integer year,
+                                     Model model) {
+        Season season = seasonRepository.findByYear(year)
+                .orElseThrow(() -> new EntityNotFoundException("Season not found: " + year));
+
+        SeasonStatistics ss = seasonStatisticsRepository.findByTeamIdAndSeasonId(id, season.getId()).orElse(null);
+        List<Game> games = gameRepository.findByTeamAndSeasonWithDetails(id, season.getId());
+
+        int wins = resolveInt(ss != null ? ss.getCalcWins() : null, ss != null ? ss.getWins() : null, 0);
+        int losses = resolveInt(ss != null ? ss.getCalcLosses() : null, ss != null ? ss.getLosses() : null, 0);
+        int confWins = resolveInt(ss != null ? ss.getCalcConferenceWins() : null, ss != null ? ss.getConferenceWins() : null, 0);
+        int confLosses = resolveInt(ss != null ? ss.getCalcConferenceLosses() : null, ss != null ? ss.getConferenceLosses() : null, 0);
+        Conference seasonConf = ss != null ? ss.getConference() : null;
+
+        model.addAttribute("schedule", new SeasonSchedule(
+                year,
+                seasonConf != null ? seasonConf.getName() : null,
+                wins, losses, confWins, confLosses,
+                games.stream().map(g -> toGameRow(g, id)).toList()
+        ));
+
+        return "fragments/team-season :: season-panel";
+    }
+
+    private static Integer resolveInt(Integer calc, Integer scraped) {
+        if (calc != null) return calc;
+        return scraped;
+    }
+
+    private static int resolveInt(Integer calc, Integer scraped, int defaultValue) {
+        if (calc != null) return calc;
+        if (scraped != null) return scraped;
+        return defaultValue;
     }
 
     private GameRow toGameRow(Game game, Long teamId) {

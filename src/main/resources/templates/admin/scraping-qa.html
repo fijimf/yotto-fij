@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Scraping QA</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <h1 class="page-title">Scraping QA</h1>
+
+    <!-- Season selector -->
+    <form method="get" action="/admin/qa" class="inline-form" style="margin-bottom: 1.5rem;">
+        <label for="season-select" style="color: var(--color-text-muted); margin-right: 0.5rem;">Season:</label>
+        <select id="season-select" name="season" class="form-input form-input--sm"
+                onchange="this.form.submit()">
+            <option th:each="s : ${seasons}"
+                    th:value="${s.year}"
+                    th:text="${s.year}"
+                    th:selected="${s.year == selectedSeason}"></option>
+        </select>
+    </form>
+
+    <!-- No seasons -->
+    <div th:if="${seasons.isEmpty()}" class="alert alert--danger">
+        No seasons configured. Add a season in the admin dashboard first.
+    </div>
+
+    <!-- Summary bar -->
+    <div th:if="${!seasons.isEmpty()}" class="qa-summary card" style="margin-bottom: 1.5rem;">
+        <span class="qa-badge qa-badge--ok" th:text="${matchCount} + ' match'"></span>
+        <span class="qa-badge qa-badge--warn" th:if="${!discrepancies.isEmpty()}"
+              th:text="${discrepancies.size()} + ' discrepanc' + (${discrepancies.size()} == 1 ? 'y' : 'ies')"></span>
+        <span class="qa-badge qa-badge--ok" th:if="${discrepancies.isEmpty() and noCalcCount == 0 and noScrapedCount == 0}">0 discrepancies</span>
+        <span class="qa-badge qa-badge--warn" th:if="${noCalcCount > 0}"
+              th:text="${noCalcCount} + ' missing calc data'"></span>
+        <span class="qa-badge qa-badge--warn" th:if="${noScrapedCount > 0}"
+              th:text="${noScrapedCount} + ' missing scraped data'"></span>
+    </div>
+
+    <!-- All clear -->
+    <div th:if="${!seasons.isEmpty() and discrepancies.isEmpty() and matchCount > 0 and noCalcCount == 0 and noScrapedCount == 0}"
+         class="alert alert--success">
+        All scraped values match calculated values for <span th:text="${selectedSeason}"></span>.
+    </div>
+
+    <!-- No calc data -->
+    <div th:if="${!seasons.isEmpty() and noCalcCount > 0 and matchCount == 0 and discrepancies.isEmpty() and noScrapedCount == 0}"
+         class="alert alert--danger">
+        No calculated data available for <span th:text="${selectedSeason}"></span>.
+        Run a full or current-season scrape to populate calc columns.
+    </div>
+
+    <!-- Calc data present but scraped data missing — can't compare -->
+    <div th:if="${!seasons.isEmpty() and noScrapedCount > 0}"
+         class="alert alert--warn">
+        <strong th:text="${noScrapedCount}"></strong> team(s) have calculated stats but no scraped baseline to compare against.
+        These teams were found in game results but were not in the ESPN standings response.
+    </div>
+
+    <!-- Partial calc data -->
+    <div th:if="${!seasons.isEmpty() and noCalcCount > 0 and (matchCount > 0 or !discrepancies.isEmpty())}"
+         class="alert alert--warn">
+        <strong th:text="${noCalcCount}"></strong> team(s) still have no calculated data for <span th:text="${selectedSeason}"></span>.
+    </div>
+
+    <!-- Discrepancy table -->
+    <div th:if="${!discrepancies.isEmpty()}">
+        <details th:each="disc : ${discrepancies}" class="qa-team-section card" style="margin-bottom: 0.75rem;">
+            <summary class="qa-team-summary">
+                <span th:text="${disc.teamName()}"></span>
+                <span class="qa-badge qa-badge--warn"
+                      th:text="${disc.diffs().size()} + ' mismatch' + (${disc.diffs().size()} > 1 ? 'es' : '')"></span>
+                <span style="color: var(--color-text-muted); font-size: 0.85rem;"
+                      th:text="${disc.conferenceName()}"></span>
+            </summary>
+            <table style="margin-top: 0.75rem;">
+                <thead>
+                    <tr>
+                        <th>Stat</th>
+                        <th>Scraped</th>
+                        <th>Calculated</th>
+                        <th>Δ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="diff : ${disc.diffs()}">
+                        <td th:text="${diff.field()}"></td>
+                        <td th:text="${diff.scraped()}"></td>
+                        <td th:text="${diff.calc()}"></td>
+                        <td class="qa-delta--mismatch"
+                            th:text="${diff.delta() > 0 ? '+' + diff.delta() : diff.delta()}"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </details>
+    </div>
+</main>
+</body>
+</html>

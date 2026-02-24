@@ -860,3 +860,71 @@ tbody tr:hover {
         display: none;
     }
 }
+
+/* ── QA Page ── */
+.qa-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1rem;
+}
+
+.qa-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.qa-badge--ok {
+    background: rgba(46, 204, 113, 0.15);
+    color: var(--color-success);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.qa-badge--warn {
+    background: rgba(243, 156, 18, 0.15);
+    color: #f39c12;
+    border: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.qa-delta--mismatch {
+    color: var(--color-danger);
+    font-weight: 600;
+}
+
+.qa-delta--match {
+    color: var(--color-text-muted);
+}
+
+.qa-team-section {
+    padding: 0.75rem 1rem;
+}
+
+.qa-team-section summary {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+}
+
+.qa-team-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.qa-team-section summary::before {
+    content: "▶";
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    transition: transform 0.15s;
+}
+
+.qa-team-section[open] summary::before {
+    transform: rotate(90deg);
+}

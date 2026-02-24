@@ -3,6 +3,7 @@ package com.yotto.basketball.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
@@ -41,6 +42,19 @@ public class SeasonStatistics {
     private Integer pointsAgainst;
     private Integer streak;
     private Integer conferenceStanding;
+
+    private Integer calcWins;
+    private Integer calcLosses;
+    private Integer calcConferenceWins;
+    private Integer calcConferenceLosses;
+    private Integer calcHomeWins;
+    private Integer calcHomeLosses;
+    private Integer calcRoadWins;
+    private Integer calcRoadLosses;
+    private Integer calcPointsFor;
+    private Integer calcPointsAgainst;
+    private Integer calcStreak;
+    private LocalDateTime calcLastUpdated;
 
     public SeasonStatistics() {
     }
@@ -171,6 +185,64 @@ public class SeasonStatistics {
 
     public void setConferenceStanding(Integer conferenceStanding) {
         this.conferenceStanding = conferenceStanding;
+    }
+
+    public Integer getCalcWins() { return calcWins; }
+    public void setCalcWins(Integer calcWins) { this.calcWins = calcWins; }
+
+    public Integer getCalcLosses() { return calcLosses; }
+    public void setCalcLosses(Integer calcLosses) { this.calcLosses = calcLosses; }
+
+    public Integer getCalcConferenceWins() { return calcConferenceWins; }
+    public void setCalcConferenceWins(Integer calcConferenceWins) { this.calcConferenceWins = calcConferenceWins; }
+
+    public Integer getCalcConferenceLosses() { return calcConferenceLosses; }
+    public void setCalcConferenceLosses(Integer calcConferenceLosses) { this.calcConferenceLosses = calcConferenceLosses; }
+
+    public Integer getCalcHomeWins() { return calcHomeWins; }
+    public void setCalcHomeWins(Integer calcHomeWins) { this.calcHomeWins = calcHomeWins; }
+
+    public Integer getCalcHomeLosses() { return calcHomeLosses; }
+    public void setCalcHomeLosses(Integer calcHomeLosses) { this.calcHomeLosses = calcHomeLosses; }
+
+    public Integer getCalcRoadWins() { return calcRoadWins; }
+    public void setCalcRoadWins(Integer calcRoadWins) { this.calcRoadWins = calcRoadWins; }
+
+    public Integer getCalcRoadLosses() { return calcRoadLosses; }
+    public void setCalcRoadLosses(Integer calcRoadLosses) { this.calcRoadLosses = calcRoadLosses; }
+
+    public Integer getCalcPointsFor() { return calcPointsFor; }
+    public void setCalcPointsFor(Integer calcPointsFor) { this.calcPointsFor = calcPointsFor; }
+
+    public Integer getCalcPointsAgainst() { return calcPointsAgainst; }
+    public void setCalcPointsAgainst(Integer calcPointsAgainst) { this.calcPointsAgainst = calcPointsAgainst; }
+
+    public Integer getCalcStreak() { return calcStreak; }
+    public void setCalcStreak(Integer calcStreak) { this.calcStreak = calcStreak; }
+
+    public LocalDateTime getCalcLastUpdated() { return calcLastUpdated; }
+    public void setCalcLastUpdated(LocalDateTime calcLastUpdated) { this.calcLastUpdated = calcLastUpdated; }
+
+    public boolean hasCalcData() { return calcLastUpdated != null; }
+
+    public boolean hasDiscrepancy() {
+        if (!hasCalcData()) return false;
+        return differs(wins, calcWins)
+                || differs(losses, calcLosses)
+                || differs(conferenceWins, calcConferenceWins)
+                || differs(conferenceLosses, calcConferenceLosses)
+                || differs(homeWins, calcHomeWins)
+                || differs(homeLosses, calcHomeLosses)
+                || differs(roadWins, calcRoadWins)
+                || differs(roadLosses, calcRoadLosses)
+                || differs(pointsFor, calcPointsFor)
+                || differs(pointsAgainst, calcPointsAgainst)
+                || differs(streak, calcStreak);
+    }
+
+    private static boolean differs(Integer scraped, Integer calc) {
+        if (scraped == null || calc == null) return false;
+        return !scraped.equals(calc);
     }
 
     @Override
