@@ -58,6 +58,9 @@
                             <form th:action="@{/admin/scrape/stats/{year}(year=${season.year})}" method="post" class="inline-form">
                                 <button type="submit" class="btn btn--outline btn--sm">Calc Stats</button>
                             </form>
+                            <form th:action="@{/admin/scrape/timeseries/{year}(year=${season.year})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Time Series</button>
+                            </form>
                             <form th:action="@{/admin/seasons/{year}(year=${season.year})}" method="post" class="inline-form">
                                 <input type="hidden" name="_method" value="DELETE" />
                                 <button type="submit" class="btn btn--danger btn--sm"

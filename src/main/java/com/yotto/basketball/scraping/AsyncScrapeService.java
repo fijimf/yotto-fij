@@ -65,4 +65,14 @@ public class AsyncScrapeService {
             log.error("Async stats calculation failed for {}", seasonYear, e);
         }
     }
+
+    @Async("scrapeExecutor")
+    public void calculateTimeSeriesAsync(int seasonYear) {
+        log.info("Async time-series calculation started for {}", seasonYear);
+        try {
+            orchestrator.calculateTimeSeries(seasonYear);
+        } catch (Exception e) {
+            log.error("Async time-series calculation failed for {}", seasonYear, e);
+        }
+    }
 }

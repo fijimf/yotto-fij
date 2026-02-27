@@ -8,7 +8,9 @@
 </head>
 <body>
 
-<main layout:fragment="content">
+<main layout:fragment="content"
+      th:data-team-id="${teamId}"
+      th:data-season-year="${currentSeasonYear}">
 
     <!-- Team header -->
     <div class="team-hero">
@@ -56,7 +58,174 @@
         No games found for this team.
     </div>
 
+    <!-- Analytics section -->
+    <div class="analytics-section" th:if="${currentSeasonYear != null}">
+        <div class="analytics-section__header">
+            <h2 class="section-title">Season Analytics</h2>
+            <div class="analytics-season-tabs">
+                <span th:each="season : ${seasons}"
+                      class="analytics-tab"
+                      th:classappend="${season.year == currentSeasonYear} ? 'analytics-tab--active'"
+                      th:data-year="${season.year}"
+                      th:text="${season.year}">2026</span>
+            </div>
+        </div>
+
+        <div class="analytics-charts">
+            <div class="analytics-chart-card">
+                <h3 class="analytics-chart-card__title">Win % Progression</h3>
+                <div class="analytics-chart-wrap">
+                    <canvas id="chart-win-pct"></canvas>
+                </div>
+            </div>
+            <div class="analytics-chart-card">
+                <h3 class="analytics-chart-card__title">Points Scored vs Allowed (game avg)</h3>
+                <div class="analytics-chart-wrap">
+                    <canvas id="chart-points"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-stats-row" id="analytics-summary">
+            <div class="stat-pill" id="stat-pill-margin">
+                <span class="stat-pill__label">Avg Margin</span>
+                <span class="stat-pill__value" id="stat-margin-value">—</span>
+            </div>
+            <div class="stat-pill" id="stat-pill-corr">
+                <span class="stat-pill__label">Pts Correlation</span>
+                <span class="stat-pill__value" id="stat-corr-value">—</span>
+            </div>
+            <div class="stat-pill">
+                <span class="stat-pill__label">Last 10</span>
+                <span class="stat-pill__value" id="stat-rolling-value">—</span>
+            </div>
+            <div class="stat-pill">
+                <span class="stat-pill__label">League Win% Z</span>
+                <span class="stat-pill__value" id="stat-zscore-value">—</span>
+            </div>
+        </div>
+
+        <p class="analytics-link">
+            <a th:href="@{'/seasons/' + ${currentSeasonYear} + '/stats'}" class="link">
+                View full league rankings &rarr;
+            </a>
+        </p>
+    </div>
+
 </main>
+
+<th:block layout:fragment="scripts">
+<script th:inline="javascript">
+(function () {
+    const main = document.querySelector('main');
+    const teamId = main ? main.dataset.teamId : null;
+    let currentYear = main ? main.dataset.seasonYear : null;
+
+    if (!teamId || !currentYear) return;
+
+    let winPctChart = null;
+    let pointsChart = null;
+
+    function fmt1(v) { return v != null ? v.toFixed(1) : '—'; }
+    function fmt3(v) { return v != null ? v.toFixed(3) : '—'; }
+    function fmtPct(v) { return v != null ? (v * 100).toFixed(1) + '%' : '—'; }
+
+    function renderCharts(data) {
+        if (!data || data.length === 0) {
+            document.getElementById('analytics-summary').style.display = 'none';
+            return;
+        }
+
+        const labels = data.map(d => d.snapshotDate);
+        const winPcts = data.map(d => d.winPct != null ? +(d.winPct * 100).toFixed(1) : null);
+        const meanFor = data.map(d => d.meanPtsFor != null ? +d.meanPtsFor.toFixed(1) : null);
+        const meanAgt = data.map(d => d.meanPtsAgainst != null ? +d.meanPtsAgainst.toFixed(1) : null);
+
+        const latest = data[data.length - 1];
+        document.getElementById('stat-margin-value').textContent = fmt1(latest.meanMargin);
+        document.getElementById('stat-corr-value').textContent = fmt3(latest.correlationPts);
+        const rw = latest.rollingWins, rl = latest.rollingLosses;
+        document.getElementById('stat-rolling-value').textContent =
+            (rw != null && rl != null) ? rw + '-' + rl : '—';
+        document.getElementById('stat-zscore-value').textContent = fmt3(latest.zscoreWinPct);
+
+        const commonOpts = {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: { x: { ticks: { maxTicksLimit: 10 } } }
+        };
+
+        if (winPctChart) winPctChart.destroy();
+        winPctChart = new Chart(document.getElementById('chart-win-pct'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Win %',
+                    data: winPcts,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    spanGaps: true
+                }]
+            },
+            options: { ...commonOpts, scales: { ...commonOpts.scales, y: { min: 0, max: 100 } } }
+        });
+
+        if (pointsChart) pointsChart.destroy();
+        pointsChart = new Chart(document.getElementById('chart-points'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Avg Scored',
+                        data: meanFor,
+                        borderColor: '#22c55e',
+                        backgroundColor: 'transparent',
+                        tension: 0.3,
+                        pointRadius: 3,
+                        spanGaps: true
+                    },
+                    {
+                        label: 'Avg Allowed',
+                        data: meanAgt,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'transparent',
+                        tension: 0.3,
+                        pointRadius: 3,
+                        spanGaps: true
+                    }
+                ]
+            },
+            options: commonOpts
+        });
+    }
+
+    function loadData(teamId, year) {
+        fetch('/api/statistics/team/' + teamId + '/season/' + year)
+            .then(r => r.ok ? r.json() : [])
+            .then(renderCharts)
+            .catch(() => {});
+    }
+
+    // Season tab switching
+    document.querySelectorAll('.analytics-tab').forEach(tab => {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.analytics-tab').forEach(t => t.classList.remove('analytics-tab--active'));
+            this.classList.add('analytics-tab--active');
+            currentYear = this.dataset.year;
+            loadData(teamId, currentYear);
+        });
+    });
+
+    loadData(teamId, currentYear);
+})();
+</script>
+</th:block>
 
 </body>
 </html>

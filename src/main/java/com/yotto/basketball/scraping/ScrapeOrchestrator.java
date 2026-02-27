@@ -2,6 +2,7 @@ package com.yotto.basketball.scraping;
 
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.service.StatsCalculationService;
+import com.yotto.basketball.service.StatisticsTimeSeriesService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,17 +18,20 @@ public class ScrapeOrchestrator {
     private final GameScraper gameScraper;
     private final OddsBackfillScraper oddsBackfillScraper;
     private final StatsCalculationService statsCalculationService;
+    private final StatisticsTimeSeriesService timeSeriesService;
 
     public ScrapeOrchestrator(ConferenceScraper conferenceScraper, TeamScraper teamScraper,
                               StandingsScraper standingsScraper, GameScraper gameScraper,
                               OddsBackfillScraper oddsBackfillScraper,
-                              StatsCalculationService statsCalculationService) {
+                              StatsCalculationService statsCalculationService,
+                              StatisticsTimeSeriesService timeSeriesService) {
         this.conferenceScraper = conferenceScraper;
         this.teamScraper = teamScraper;
         this.standingsScraper = standingsScraper;
         this.gameScraper = gameScraper;
         this.oddsBackfillScraper = oddsBackfillScraper;
         this.statsCalculationService = statsCalculationService;
+        this.timeSeriesService = timeSeriesService;
     }
 
     public void scrapeFullSeason(int seasonYear) {
@@ -53,6 +57,7 @@ public class ScrapeOrchestrator {
         gameScraper.scrapeFullSeason(seasonYear);
 
         statsCalculationService.calculateAndUpdateForSeason(seasonYear);
+        timeSeriesService.calculateAndStoreForSeason(seasonYear);
 
         oddsBackfillScraper.backfill(seasonYear);
 
@@ -65,6 +70,7 @@ public class ScrapeOrchestrator {
         standingsScraper.scrape(seasonYear);
         gameScraper.scrapeCurrentSeason(seasonYear);
         statsCalculationService.calculateAndUpdateForSeason(seasonYear);
+        timeSeriesService.calculateAndStoreForSeason(seasonYear);
         oddsBackfillScraper.backfill(seasonYear);
 
         log.info("Current season re-scrape completed for {}", seasonYear);
@@ -93,5 +99,9 @@ public class ScrapeOrchestrator {
 
     public void calculateStats(int seasonYear) {
         statsCalculationService.calculateAndUpdateForSeason(seasonYear);
+    }
+
+    public void calculateTimeSeries(int seasonYear) {
+        timeSeriesService.calculateAndStoreForSeason(seasonYear);
     }
 }

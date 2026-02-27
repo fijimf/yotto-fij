@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="stats-table">
+
+    <div th:if="${snapshots.isEmpty()}" class="teams-empty">
+        No statistics available for this date. Run a Time Series calculation first.
+    </div>
+
+    <div th:if="${!snapshots.isEmpty()}">
+
+        <!-- Population summary row -->
+        <div class="pop-summary" th:if="${!popStats.isEmpty()}">
+            <span class="pop-summary__label">League averages:</span>
+            <span th:if="${popStats['win_pct'] != null}">
+                Win% <strong th:text="${#numbers.formatDecimal(popStats['win_pct'].popMean * 100, 1, 1) + '%'}">50.0%</strong>
+                (&plusmn;<span th:text="${#numbers.formatDecimal(popStats['win_pct'].popStddev * 100, 1, 1) + '%'}">10.0%</span>)
+            </span>
+            <span th:if="${popStats['mean_pts_for'] != null}">
+                &nbsp;&middot;&nbsp; Pts Scored <strong th:text="${#numbers.formatDecimal(popStats['mean_pts_for'].popMean, 1, 1)}">70.0</strong>
+            </span>
+            <span th:if="${popStats['mean_pts_against'] != null}">
+                &nbsp;&middot;&nbsp; Pts Allowed <strong th:text="${#numbers.formatDecimal(popStats['mean_pts_against'].popMean, 1, 1)}">70.0</strong>
+            </span>
+            <span th:if="${popStats['mean_margin'] != null}">
+                &nbsp;&middot;&nbsp; Margin <strong th:text="${#numbers.formatDecimal(popStats['mean_margin'].popMean, 1, 1)}">0.0</strong>
+            </span>
+        </div>
+
+        <!-- Rankings table -->
+        <div class="schedule-table-wrap">
+            <table class="schedule-table stats-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Team</th>
+                        <th>GP</th>
+                        <th>W-L</th>
+                        <th>Win%</th>
+                        <th class="schedule-table__hide-mobile">Avg Scored</th>
+                        <th class="schedule-table__hide-mobile">Avg Allowed</th>
+                        <th class="schedule-table__hide-mobile">Margin</th>
+                        <th class="schedule-table__hide-mobile">Corr</th>
+                        <th class="schedule-table__hide-mobile">Last 10</th>
+                        <th class="schedule-table__hide-mobile" title="League win% z-score">Z(Win%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="snap, iterStat : ${snapshots}">
+                        <td th:text="${iterStat.count}" class="stats-table__rank">1</td>
+                        <td>
+                            <a th:href="@{'/teams/' + ${snap.team.id}}" class="schedule-table__opp-link">
+                                <img th:if="${snap.team.logoUrl}" th:src="${snap.team.logoUrl}"
+                                     class="schedule-table__opp-logo" loading="lazy" width="20" height="20" />
+                                <span th:text="${snap.team.name}">Team Name</span>
+                            </a>
+                        </td>
+                        <td th:text="${snap.gamesPlayed}">10</td>
+                        <td th:text="${snap.wins + '-' + snap.losses}">8-2</td>
+                        <td>
+                            <strong th:text="${snap.winPct != null ? #numbers.formatDecimal(snap.winPct * 100, 1, 1) + '%' : '—'}">80.0%</strong>
+                        </td>
+                        <td class="schedule-table__hide-mobile"
+                            th:text="${snap.meanPtsFor != null ? #numbers.formatDecimal(snap.meanPtsFor, 1, 1) : '—'}">75.2</td>
+                        <td class="schedule-table__hide-mobile"
+                            th:text="${snap.meanPtsAgainst != null ? #numbers.formatDecimal(snap.meanPtsAgainst, 1, 1) : '—'}">68.4</td>
+                        <td class="schedule-table__hide-mobile"
+                            th:text="${snap.meanMargin != null ? #numbers.formatDecimal(snap.meanMargin, 1, 1) : '—'}">+6.8</td>
+                        <td class="schedule-table__hide-mobile"
+                            th:text="${snap.correlationPts != null ? #numbers.formatDecimal(snap.correlationPts, 1, 3) : '—'}">0.421</td>
+                        <td class="schedule-table__hide-mobile"
+                            th:text="${(snap.rollingWins != null and snap.rollingLosses != null) ? snap.rollingWins + '-' + snap.rollingLosses : '—'}">7-3</td>
+                        <td class="schedule-table__hide-mobile"
+                            th:text="${snap.zscoreWinPct != null ? #numbers.formatDecimal(snap.zscoreWinPct, 1, 2) : '—'}">1.42</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>

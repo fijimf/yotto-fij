@@ -110,6 +110,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/scrape/timeseries/{year}")
+    public String calculateTimeSeries(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
+        asyncScrapeService.calculateTimeSeriesAsync(year);
+        redirectAttributes.addFlashAttribute("success", "Time-series stats calculation started for " + year);
+        return "redirect:/admin";
+    }
+
     @GetMapping("/scrape-history")
     public String scrapeHistory(Model model) {
         List<ScrapeBatch> batches = scrapeBatchRepository.findTop20ByOrderByStartedAtDesc();
