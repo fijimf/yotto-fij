@@ -1011,10 +1011,14 @@ tbody tr:hover {
 
 .analytics-chart-wrap {
     position: relative;
+}
+
+/* Fixed height only on team detail charts (time-series lines) */
+.analytics-section .analytics-chart-wrap {
     height: 220px;
 }
 
-.analytics-chart-wrap canvas {
+.analytics-section .analytics-chart-wrap canvas {
     max-height: 220px;
 }
 

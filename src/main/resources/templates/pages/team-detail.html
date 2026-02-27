@@ -165,10 +165,11 @@
                     label: 'Win %',
                     data: winPcts,
                     borderColor: '#3b82f6',
+                    borderWidth: 1,
                     backgroundColor: 'rgba(59,130,246,0.1)',
                     fill: true,
                     tension: 0.3,
-                    pointRadius: 3,
+                    pointRadius: 0,
                     spanGaps: true
                 }]
             },
@@ -185,18 +186,22 @@
                         label: 'Avg Scored',
                         data: meanFor,
                         borderColor: '#22c55e',
+                        borderWidth: 1,
                         backgroundColor: 'transparent',
                         tension: 0.3,
-                        pointRadius: 3,
+                        pointRadius: 0,
+                        lineWidth: 1,
                         spanGaps: true
                     },
                     {
                         label: 'Avg Allowed',
                         data: meanAgt,
                         borderColor: '#ef4444',
+                        borderWidth: 1,
                         backgroundColor: 'transparent',
                         tension: 0.3,
-                        pointRadius: 3,
+                        pointRadius: 0,
+                        lineWidth: 1,
                         spanGaps: true
                     }
                 ]

@@ -53,6 +53,9 @@ public class SeasonStatistics {
     private Integer calcRoadLosses;
     private Integer calcPointsFor;
     private Integer calcPointsAgainst;
+    private Double calcStddevPtsFor;
+    private Double calcStddevPtsAgainst;
+    private Double calcStddevMargin;
     private Integer calcStreak;
     private LocalDateTime calcLastUpdated;
 
@@ -216,6 +219,15 @@ public class SeasonStatistics {
 
     public Integer getCalcPointsAgainst() { return calcPointsAgainst; }
     public void setCalcPointsAgainst(Integer calcPointsAgainst) { this.calcPointsAgainst = calcPointsAgainst; }
+
+    public Double getCalcStddevPtsFor() { return calcStddevPtsFor; }
+    public void setCalcStddevPtsFor(Double calcStddevPtsFor) { this.calcStddevPtsFor = calcStddevPtsFor; }
+
+    public Double getCalcStddevPtsAgainst() { return calcStddevPtsAgainst; }
+    public void setCalcStddevPtsAgainst(Double calcStddevPtsAgainst) { this.calcStddevPtsAgainst = calcStddevPtsAgainst; }
+
+    public Double getCalcStddevMargin() { return calcStddevMargin; }
+    public void setCalcStddevMargin(Double calcStddevMargin) { this.calcStddevMargin = calcStddevMargin; }
 
     public Integer getCalcStreak() { return calcStreak; }
     public void setCalcStreak(Integer calcStreak) { this.calcStreak = calcStreak; }

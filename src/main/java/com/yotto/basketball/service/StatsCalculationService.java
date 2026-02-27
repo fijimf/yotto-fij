@@ -59,6 +59,8 @@ public class StatsCalculationService {
         Map<Long, int[]> homeRecord = new HashMap<>();  // [0]=homeWins, [1]=homeLosses
         Map<Long, int[]> roadRecord = new HashMap<>();  // [0]=roadWins, [1]=roadLosses
         Map<Long, int[]> points = new HashMap<>();      // [0]=pointsFor, [1]=pointsAgainst
+        // Running sums for stddev: [0]=sumX, [1]=sumY, [2]=sumX2, [3]=sumY2, [4]=sumXY, [5]=n
+        Map<Long, double[]> pointSums = new HashMap<>();
         Map<Long, List<Boolean>> resultsByDate = new HashMap<>(); // ordered list of wins (desc by date)
 
         for (Game game : finalGames) {
@@ -85,6 +87,7 @@ public class StatsCalculationService {
             confRecord.computeIfAbsent(homeId, k -> new int[2]);
             homeRecord.computeIfAbsent(homeId, k -> new int[2]);
             points.computeIfAbsent(homeId, k -> new int[2]);
+            pointSums.computeIfAbsent(homeId, k -> new double[6]);
             resultsByDate.computeIfAbsent(homeId, k -> new ArrayList<>()).add(homeWon);
 
             if (homeWon) {
@@ -98,12 +101,14 @@ public class StatsCalculationService {
             }
             points.get(homeId)[0] += homeScore;
             points.get(homeId)[1] += awayScore;
+            accumPointSums(pointSums.get(homeId), homeScore, awayScore);
 
             // Away team
             wins.computeIfAbsent(awayId, k -> new int[2]);
             confRecord.computeIfAbsent(awayId, k -> new int[2]);
             roadRecord.computeIfAbsent(awayId, k -> new int[2]);
             points.computeIfAbsent(awayId, k -> new int[2]);
+            pointSums.computeIfAbsent(awayId, k -> new double[6]);
             resultsByDate.computeIfAbsent(awayId, k -> new ArrayList<>()).add(!homeWon);
 
             if (!homeWon) {
@@ -117,6 +122,7 @@ public class StatsCalculationService {
             }
             points.get(awayId)[0] += awayScore;
             points.get(awayId)[1] += homeScore;
+            accumPointSums(pointSums.get(awayId), awayScore, homeScore);
         }
 
         // Load existing stats rows
@@ -170,6 +176,11 @@ public class StatsCalculationService {
             ss.setCalcPointsFor(pts[0]);
             ss.setCalcPointsAgainst(pts[1]);
 
+            double[] ps = pointSums.getOrDefault(teamId, new double[6]);
+            ss.setCalcStddevPtsFor(sampleStddev(ps[0], ps[2], (int) ps[5]));
+            ss.setCalcStddevPtsAgainst(sampleStddev(ps[1], ps[3], (int) ps[5]));
+            ss.setCalcStddevMargin(sampleStddevMargin(ps[0], ps[1], ps[2], ps[3], ps[4], (int) ps[5]));
+
             ss.setCalcStreak(computeStreak(resultsByDate.getOrDefault(teamId, List.of())));
             ss.setCalcLastUpdated(now);
 
@@ -189,5 +200,32 @@ public class StatsCalculationService {
             else break;
         }
         return firstWin ? count : -count;
+    }
+
+    /** Accumulates sumX, sumY, sumX2, sumY2, sumXY, n into a double[6]. */
+    private void accumPointSums(double[] ps, double x, double y) {
+        ps[0] += x;
+        ps[1] += y;
+        ps[2] += x * x;
+        ps[3] += y * y;
+        ps[4] += x * y;
+        ps[5]++;
+    }
+
+    /** Sample standard deviation of X given running sums. Returns null if n < 2. */
+    private Double sampleStddev(double sumX, double sumX2, int n) {
+        if (n < 2) return null;
+        double v = (sumX2 - sumX * sumX / n) / (n - 1);
+        return v >= 0 ? Math.sqrt(v) : 0.0;
+    }
+
+    /** Sample standard deviation of (X - Y) given running sums. Returns null if n < 2. */
+    private Double sampleStddevMargin(double sumX, double sumY, double sumX2,
+                                      double sumY2, double sumXY, int n) {
+        if (n < 2) return null;
+        double sumM  = sumX - sumY;
+        double sumM2 = sumX2 + sumY2 - 2 * sumXY;
+        double v = (sumM2 - sumM * sumM / n) / (n - 1);
+        return v >= 0 ? Math.sqrt(v) : 0.0;
     }
 }
