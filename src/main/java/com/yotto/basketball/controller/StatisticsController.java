@@ -115,6 +115,10 @@ public class StatisticsController {
             Double confZscoreMeanPtsFor,
             Double confZscoreMeanPtsAgainst,
             Double confZscoreMeanMargin,
+            Double rpi,
+            Double rpiWp,
+            Double rpiOwp,
+            Double rpiOowp,
             Long teamId,
             String teamName,
             String teamLogoUrl
@@ -132,6 +136,7 @@ public class StatisticsController {
                     s.getZscoreMeanMargin(),
                     s.getConfZscoreWinPct(), s.getConfZscoreMeanPtsFor(),
                     s.getConfZscoreMeanPtsAgainst(), s.getConfZscoreMeanMargin(),
+                    s.getRpi(), s.getRpiWp(), s.getRpiOwp(), s.getRpiOowp(),
                     s.getTeam().getId(), s.getTeam().getName(), s.getTeam().getLogoUrl()
             );
         }

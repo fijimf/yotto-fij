@@ -43,6 +43,7 @@
                         <th class="schedule-table__hide-mobile">Corr</th>
                         <th class="schedule-table__hide-mobile">Last 10</th>
                         <th class="schedule-table__hide-mobile" title="League win% z-score">Z(Win%)</th>
+                        <th title="Rating Percentage Index">RPI</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -72,6 +73,9 @@
                             th:text="${(snap.rollingWins != null and snap.rollingLosses != null) ? snap.rollingWins + '-' + snap.rollingLosses : '—'}">7-3</td>
                         <td class="schedule-table__hide-mobile"
                             th:text="${snap.zscoreWinPct != null ? #numbers.formatDecimal(snap.zscoreWinPct, 1, 2) : '—'}">1.42</td>
+                        <td>
+                            <strong th:text="${snap.rpi != null ? #numbers.formatDecimal(snap.rpi, 1, 4) : '—'}">0.5842</strong>
+                        </td>
                     </tr>
                 </tbody>
             </table>

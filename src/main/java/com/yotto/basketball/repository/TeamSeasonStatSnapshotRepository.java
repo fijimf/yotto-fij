@@ -17,7 +17,7 @@ public interface TeamSeasonStatSnapshotRepository extends JpaRepository<TeamSeas
     @Query("SELECT s FROM TeamSeasonStatSnapshot s JOIN FETCH s.team WHERE s.team.id = :teamId AND s.season.id = :seasonId ORDER BY s.snapshotDate ASC")
     List<TeamSeasonStatSnapshot> findByTeamAndSeason(@Param("teamId") Long teamId, @Param("seasonId") Long seasonId);
 
-    @Query("SELECT s FROM TeamSeasonStatSnapshot s JOIN FETCH s.team WHERE s.season.id = :seasonId AND s.snapshotDate = :date ORDER BY s.winPct DESC NULLS LAST")
+    @Query("SELECT s FROM TeamSeasonStatSnapshot s JOIN FETCH s.team WHERE s.season.id = :seasonId AND s.snapshotDate = :date ORDER BY s.rpi DESC NULLS LAST, s.winPct DESC NULLS LAST")
     List<TeamSeasonStatSnapshot> findBySeasonAndDate(@Param("seasonId") Long seasonId, @Param("date") LocalDate date);
 
     @Query("SELECT MAX(s.snapshotDate) FROM TeamSeasonStatSnapshot s WHERE s.season.id = :seasonId")

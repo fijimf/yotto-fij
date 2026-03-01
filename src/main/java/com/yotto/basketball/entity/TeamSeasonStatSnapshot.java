@@ -59,6 +59,12 @@ public class TeamSeasonStatSnapshot {
     private Double confZscoreMeanPtsAgainst;
     private Double confZscoreMeanMargin;
 
+    // RPI components
+    private Double rpi;
+    private Double rpiWp;
+    private Double rpiOwp;
+    private Double rpiOowp;
+
     public TeamSeasonStatSnapshot() {}
 
     public Long getId() { return id; }
@@ -144,6 +150,18 @@ public class TeamSeasonStatSnapshot {
 
     public Double getConfZscoreMeanMargin() { return confZscoreMeanMargin; }
     public void setConfZscoreMeanMargin(Double confZscoreMeanMargin) { this.confZscoreMeanMargin = confZscoreMeanMargin; }
+
+    public Double getRpi() { return rpi; }
+    public void setRpi(Double rpi) { this.rpi = rpi; }
+
+    public Double getRpiWp() { return rpiWp; }
+    public void setRpiWp(Double rpiWp) { this.rpiWp = rpiWp; }
+
+    public Double getRpiOwp() { return rpiOwp; }
+    public void setRpiOwp(Double rpiOwp) { this.rpiOwp = rpiOwp; }
+
+    public Double getRpiOowp() { return rpiOowp; }
+    public void setRpiOowp(Double rpiOowp) { this.rpiOowp = rpiOowp; }
 
     @Override
     public boolean equals(Object o) {

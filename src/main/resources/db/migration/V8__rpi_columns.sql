@@ -1,0 +1,5 @@
+ALTER TABLE team_season_stat_snapshots
+    ADD COLUMN rpi      DOUBLE PRECISION,
+    ADD COLUMN rpi_wp   DOUBLE PRECISION,
+    ADD COLUMN rpi_owp  DOUBLE PRECISION,
+    ADD COLUMN rpi_oowp DOUBLE PRECISION;
