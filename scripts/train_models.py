@@ -33,7 +33,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import brier_score_loss, mean_squared_error
+from sklearn.metrics import brier_score_loss, root_mean_squared_error
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType
 from xgboost import XGBClassifier, XGBRegressor
@@ -340,12 +340,27 @@ def main():
     hca_df      = load_hca_params(conn, all_seasons)
     conn.close()
 
+    # Validate that required data exists before proceeding
+    if games_df.empty:
+        print("[train] ERROR: No FINAL games found for seasons "
+              f"{all_seasons}. Run a full scrape first.")
+        sys.exit(1)
+    if massey_df.empty:
+        print("[train] ERROR: No Massey power rating snapshots found for seasons "
+              f"{all_seasons}. Run 'Calc Stats' and then 'Power Ratings' from the admin dashboard first.")
+        sys.exit(1)
+    if bt_df.empty:
+        print("[train] ERROR: No Bradley-Terry power rating snapshots found for seasons "
+              f"{all_seasons}. Run 'Calc Stats' and then 'Power Ratings' from the admin dashboard first.")
+        sys.exit(1)
+
     # Ensure date columns are Python date objects
     games_df["game_date"] = pd.to_datetime(games_df["game_date"]).dt.date
     games_df["season_start_date"] = pd.to_datetime(games_df["season_start_date"]).dt.date
     massey_df["snapshot_date"] = pd.to_datetime(massey_df["snapshot_date"]).dt.date
     bt_df["snapshot_date"] = pd.to_datetime(bt_df["snapshot_date"]).dt.date
-    hca_df["snapshot_date"] = pd.to_datetime(hca_df["snapshot_date"]).dt.date
+    if not hca_df.empty:
+        hca_df["snapshot_date"] = pd.to_datetime(hca_df["snapshot_date"]).dt.date
 
     print(f"[train] Building feature matrix from {len(games_df)} games...")
     rows_X, rows_y_spread, rows_y_total, rows_y_win, rows_season = [], [], [], [], []
@@ -384,7 +399,7 @@ def main():
                                objective="reg:squarederror", random_state=42))
     ])
     spread_model.fit(X_train, ys_train)
-    spread_rmse = mean_squared_error(ys_test, spread_model.predict(X_test), squared=False)
+    spread_rmse = root_mean_squared_error(ys_test, spread_model.predict(X_test))
     print(f"[train] Spread RMSE (test): {spread_rmse:.3f} pts")
 
     # ── Total model ────────────────────────────────────────────────────────────
@@ -395,7 +410,7 @@ def main():
                                objective="reg:squarederror", random_state=42))
     ])
     total_model.fit(X_train, yt_train)
-    total_rmse = mean_squared_error(yt_test, total_model.predict(X_test), squared=False)
+    total_rmse = root_mean_squared_error(yt_test, total_model.predict(X_test))
     print(f"[train] Total RMSE (test): {total_rmse:.3f} pts")
 
     # ── Win probability model ─────────────────────────────────────────────────
