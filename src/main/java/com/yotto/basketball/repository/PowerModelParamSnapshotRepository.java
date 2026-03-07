@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PowerModelParamSnapshotRepository extends JpaRepository<PowerModelParamSnapshot, Long> {
@@ -24,4 +26,16 @@ public interface PowerModelParamSnapshotRepository extends JpaRepository<PowerMo
     void deleteBySeasonIdAndModelType(
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType);
+
+    /** Most recent param value for a season/model/paramName strictly before the given date. */
+    @Query(value = "SELECT * FROM power_model_param_snapshots " +
+                   "WHERE season_id = :seasonId AND model_type = :modelType " +
+                   "  AND param_name = :paramName AND snapshot_date < :beforeDate " +
+                   "ORDER BY snapshot_date DESC LIMIT 1",
+           nativeQuery = true)
+    Optional<PowerModelParamSnapshot> findLatestParamBefore(
+            @Param("seasonId") Long seasonId,
+            @Param("modelType") String modelType,
+            @Param("paramName") String paramName,
+            @Param("beforeDate") LocalDate beforeDate);
 }

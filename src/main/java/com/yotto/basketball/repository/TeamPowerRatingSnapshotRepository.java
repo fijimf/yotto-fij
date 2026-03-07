@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+
 @Repository
 public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPowerRatingSnapshot, Long> {
 
@@ -48,4 +49,16 @@ public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPow
     void deleteBySeasonIdAndModelType(
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType);
+
+    /** Most recent snapshot for a team/season/model strictly before the given date. */
+    @Query(value = "SELECT * FROM team_power_rating_snapshots " +
+                   "WHERE team_id = :teamId AND season_id = :seasonId " +
+                   "  AND model_type = :modelType AND snapshot_date < :beforeDate " +
+                   "ORDER BY snapshot_date DESC LIMIT 1",
+           nativeQuery = true)
+    Optional<TeamPowerRatingSnapshot> findLatestBefore(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId,
+            @Param("modelType") String modelType,
+            @Param("beforeDate") LocalDate beforeDate);
 }

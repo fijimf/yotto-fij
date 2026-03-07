@@ -15,23 +15,27 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Massey linear regression power ratings.
+ * Massey linear regression power ratings (spread and total).
  *
- * <p>Model: margin_predicted = β_h − β_a + α, where β_i is a team strength
+ * <p>Spread model: margin_predicted = β_h − β_a + α, where β_i is a team strength
  * rating and α is a home court advantage in points. Fit by OLS with L2
  * regularization on team columns (λ = {@link #LAMBDA}).
  *
- * <p>The normal-equations matrix A = XᵀX and vector b = Xᵀy are maintained as
- * cumulative accumulators across game dates. Each new game is a rank-2
- * outer-product update to A, so no full rebuild is needed per date — only the
- * (T+1)-dimensional linear solve is repeated.
+ * <p>Total model: total_predicted = γ_h + γ_a + δ, where γ_i is a team
+ * scoring-strength and δ is a home-game scoring intercept. Both teams contribute
+ * +1 to the design vector (vs. +1/−1 for spread). Stored as {@link #MODEL_TYPE_TOTAL}.
+ *
+ * <p>Both systems share a single pass over game data with independent cumulative
+ * accumulators (A, b) and (A_total, b_total). The normal-equations matrix for
+ * each system is maintained as a rank-2 outer-product update per game.
  */
 @Service
 public class MasseyRatingService {
 
     private static final Logger log = LoggerFactory.getLogger(MasseyRatingService.class);
 
-    public static final String MODEL_TYPE = "MASSEY";
+    public static final String MODEL_TYPE       = "MASSEY";
+    public static final String MODEL_TYPE_TOTAL = "MASSEY_TOTAL";
     private static final double LAMBDA = 1.0;
 
     private final SeasonRepository seasonRepository;
@@ -60,7 +64,9 @@ public class MasseyRatingService {
         log.info("Calculating Massey ratings for season {}", seasonYear);
 
         ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTAL);
         paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTAL);
 
         List<Game> finalGames = gameRepository.findBySeasonIdAndStatus(season.getId(), Game.GameStatus.FINAL)
                 .stream()
@@ -90,9 +96,12 @@ public class MasseyRatingService {
         int T = teamIds.size();
         int size = T + 1; // last index is HCA
 
-        // Cumulative normal equations accumulators
+        // Cumulative normal equations accumulators — spread system
         double[][] A = new double[size][size];
         double[] b = new double[size];
+        // Cumulative normal equations accumulators — total system (both teams +1)
+        double[][] At = new double[size][size];
+        double[] bt = new double[size];
         Map<Long, Integer> gamesPlayedByTeam = new HashMap<>();
 
         Map<LocalDate, List<Game>> gamesByDate = finalGames.stream()
@@ -106,14 +115,15 @@ public class MasseyRatingService {
         for (Map.Entry<LocalDate, List<Game>> entry : gamesByDate.entrySet()) {
             LocalDate date = entry.getKey();
 
-            // Outer-product update to A and b for each new game
+            // Outer-product updates to both accumulators for each new game
             for (Game game : entry.getValue()) {
                 int hi = teamIndex.get(game.getHomeTeam().getId());
                 int ai = teamIndex.get(game.getAwayTeam().getId());
                 int hca = Boolean.TRUE.equals(game.getNeutralSite()) ? 0 : 1;
                 int margin = game.getHomeScore() - game.getAwayScore();
+                int total  = game.getHomeScore() + game.getAwayScore();
 
-                // x = e_hi - e_ai + hca*e_T  →  A += x·xᵀ
+                // Spread system: x = e_hi − e_ai + hca·e_T  →  A += x·xᵀ
                 A[hi][hi] += 1;
                 A[ai][ai] += 1;
                 A[hi][ai] -= 1;
@@ -127,47 +137,41 @@ public class MasseyRatingService {
                 b[ai] -= margin;
                 b[T]  += hca * margin;
 
+                // Total system: x = e_hi + e_ai + hca·e_T  →  At += x·xᵀ
+                At[hi][hi] += 1;
+                At[ai][ai] += 1;
+                At[hi][ai] += 1;   // positive: both teams contribute to the total
+                At[ai][hi] += 1;
+                if (hca == 1) {
+                    At[hi][T] += 1;  At[T][hi] += 1;
+                    At[ai][T] += 1;  At[T][ai] += 1;
+                    At[T][T]  += 1;
+                }
+                bt[hi] += total;
+                bt[ai] += total;
+                bt[T]  += hca * total;
+
                 gamesPlayedByTeam.merge(game.getHomeTeam().getId(), 1, Integer::sum);
                 gamesPlayedByTeam.merge(game.getAwayTeam().getId(), 1, Integer::sum);
             }
 
+            // ── Spread model ──────────────────────────────────────────────────
             double[] solution = solve(A, b, T, size);
-            if (solution == null) continue;
-
-            double alpha = solution[T];
-
-            // Rank teams that have played at least one game
-            List<long[]> ratedTeams = new ArrayList<>();
-            for (Long teamId : teamIds) {
-                if (gamesPlayedByTeam.getOrDefault(teamId, 0) > 0) {
-                    ratedTeams.add(new long[]{teamId, Double.doubleToLongBits(solution[teamIndex.get(teamId)])});
-                }
-            }
-            ratedTeams.sort((x, y) -> Double.compare(
-                    Double.longBitsToDouble(y[1]), Double.longBitsToDouble(x[1])));
-
-            for (int rank = 0; rank < ratedTeams.size(); rank++) {
-                Long teamId = ratedTeams.get(rank)[0];
-                TeamPowerRatingSnapshot snap = new TeamPowerRatingSnapshot();
-                snap.setTeam(teamsById.get(teamId));
-                snap.setSeason(season);
-                snap.setModelType(MODEL_TYPE);
-                snap.setSnapshotDate(date);
-                snap.setRating(Double.longBitsToDouble(ratedTeams.get(rank)[1]));
-                snap.setRank(rank + 1);
-                snap.setGamesPlayed(gamesPlayedByTeam.getOrDefault(teamId, 0));
-                snap.setCalculatedAt(now);
-                allRatings.add(snap);
+            if (solution != null) {
+                double alpha = solution[T];
+                addTeamSnapshots(allRatings, ratedTeamsFor(teamIds, teamIndex, gamesPlayedByTeam, solution),
+                        teamsById, season, MODEL_TYPE, date, gamesPlayedByTeam, now);
+                allParams.add(paramSnap(season, MODEL_TYPE, date, "hca", alpha, now));
             }
 
-            PowerModelParamSnapshot hcaSnap = new PowerModelParamSnapshot();
-            hcaSnap.setSeason(season);
-            hcaSnap.setModelType(MODEL_TYPE);
-            hcaSnap.setSnapshotDate(date);
-            hcaSnap.setParamName("hca");
-            hcaSnap.setParamValue(alpha);
-            hcaSnap.setCalculatedAt(now);
-            allParams.add(hcaSnap);
+            // ── Total model ───────────────────────────────────────────────────
+            double[] solutionT = solve(At, bt, T, size);
+            if (solutionT != null) {
+                double delta = solutionT[T];
+                addTeamSnapshots(allRatings, ratedTeamsFor(teamIds, teamIndex, gamesPlayedByTeam, solutionT),
+                        teamsById, season, MODEL_TYPE_TOTAL, date, gamesPlayedByTeam, now);
+                allParams.add(paramSnap(season, MODEL_TYPE_TOTAL, date, "hca_total", delta, now));
+            }
         }
 
         ratingRepository.saveAll(allRatings);
@@ -175,6 +179,51 @@ public class MasseyRatingService {
 
         log.info("Massey ratings complete for season {} — {} snapshots across {} dates",
                 seasonYear, allRatings.size(), gamesByDate.size());
+    }
+
+    /** Builds a sorted list of (teamId bits, rating bits) for teams that have played at least one game. */
+    private static List<long[]> ratedTeamsFor(List<Long> teamIds, Map<Long, Integer> teamIndex,
+                                               Map<Long, Integer> gamesPlayed, double[] solution) {
+        List<long[]> rated = new ArrayList<>();
+        for (Long teamId : teamIds) {
+            if (gamesPlayed.getOrDefault(teamId, 0) > 0) {
+                rated.add(new long[]{teamId, Double.doubleToLongBits(solution[teamIndex.get(teamId)])});
+            }
+        }
+        rated.sort((x, y) -> Double.compare(Double.longBitsToDouble(y[1]), Double.longBitsToDouble(x[1])));
+        return rated;
+    }
+
+    /** Appends TeamPowerRatingSnapshot records to the accumulator list. */
+    private static void addTeamSnapshots(List<TeamPowerRatingSnapshot> allRatings, List<long[]> rated,
+                                          Map<Long, Team> teamsById, Season season, String modelType,
+                                          LocalDate date, Map<Long, Integer> gamesPlayed, LocalDateTime now) {
+        for (int rank = 0; rank < rated.size(); rank++) {
+            Long teamId = rated.get(rank)[0];
+            TeamPowerRatingSnapshot snap = new TeamPowerRatingSnapshot();
+            snap.setTeam(teamsById.get(teamId));
+            snap.setSeason(season);
+            snap.setModelType(modelType);
+            snap.setSnapshotDate(date);
+            snap.setRating(Double.longBitsToDouble(rated.get(rank)[1]));
+            snap.setRank(rank + 1);
+            snap.setGamesPlayed(gamesPlayed.getOrDefault(teamId, 0));
+            snap.setCalculatedAt(now);
+            allRatings.add(snap);
+        }
+    }
+
+    /** Creates a PowerModelParamSnapshot record. */
+    private static PowerModelParamSnapshot paramSnap(Season season, String modelType, LocalDate date,
+                                                      String paramName, double value, LocalDateTime now) {
+        PowerModelParamSnapshot p = new PowerModelParamSnapshot();
+        p.setSeason(season);
+        p.setModelType(modelType);
+        p.setSnapshotDate(date);
+        p.setParamName(paramName);
+        p.setParamValue(value);
+        p.setCalculatedAt(now);
+        return p;
     }
 
     /**
