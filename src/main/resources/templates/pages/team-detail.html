@@ -230,6 +230,70 @@
     loadData(teamId, currentYear);
 })();
 </script>
+<script>
+(function () {
+    function enrichPredictions(container) {
+        const rows = container ? container.querySelectorAll('tr[data-game-id]')
+                               : document.querySelectorAll('tr[data-game-id]');
+        const upcoming = [];
+        rows.forEach(function (row) {
+            // Only enrich rows that show a time (SCHEDULED, no score yet)
+            if (row.querySelector('.schedule-table__time')) {
+                upcoming.push(row);
+            }
+        });
+        if (!upcoming.length) return;
+
+        Promise.all(upcoming.map(function (row) {
+            const id = row.dataset.gameId;
+            return fetch('/api/predictions/game/' + id)
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) { return { row: row, data: data }; })
+                .catch(function () { return null; });
+        })).then(function (results) {
+            results.forEach(function (item) {
+                if (!item || !item.data) return;
+                const p = item.data;
+                const row = item.row;
+
+                const spreadCell = row.querySelector('.schedule-table__spread');
+                const ouCell = row.querySelector('.schedule-table__ou');
+
+                const spread = p.ml ? p.ml.spread : (p.massey ? p.massey.spread : null);
+                const total  = p.ml ? p.ml.total  : (p.masseyTotal ? p.masseyTotal.total : null);
+
+                if (spread != null && spreadCell) {
+                    const absSpread = Math.abs(spread).toFixed(1);
+                    const favAbbr = spread >= 0
+                        ? (p.homeTeam ? p.homeTeam.abbreviation : '?')
+                        : (p.awayTeam ? p.awayTeam.abbreviation : '?');
+                    const modelLine = document.createElement('div');
+                    modelLine.style.cssText = 'font-size:0.75rem; color:var(--color-text-muted); margin-top:2px;';
+                    modelLine.textContent = '~ ' + favAbbr + ' -' + absSpread;
+                    spreadCell.appendChild(modelLine);
+                }
+
+                if (total != null && ouCell) {
+                    const modelOu = document.createElement('div');
+                    modelOu.style.cssText = 'font-size:0.75rem; color:var(--color-text-muted); margin-top:2px;';
+                    modelOu.textContent = '~ ' + total.toFixed(1);
+                    ouCell.appendChild(modelOu);
+                }
+            });
+        });
+    }
+
+    // Enrich on initial load
+    enrichPredictions(document.querySelector('#season-content'));
+
+    // Re-enrich after HTMX season tab swaps
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+        if (evt.detail && evt.detail.target && evt.detail.target.id === 'season-content') {
+            enrichPredictions(evt.detail.target);
+        }
+    });
+})();
+</script>
 </th:block>
 
 </body>

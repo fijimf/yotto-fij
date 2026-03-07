@@ -2,6 +2,7 @@ package com.yotto.basketball.service;
 
 import com.yotto.basketball.entity.Game.GameStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -29,10 +30,14 @@ public record PredictionResult(
         MasseyPrediction massey,
         MasseyTotalPrediction masseyTotal,
         BradleyTerryPrediction bradleyTerry,
-        MlPrediction ml
+        MlPrediction ml,
+
+        // Book lines from BettingOdds (null if no odds recorded)
+        BigDecimal bookSpread,      // home team perspective (positive = home favored)
+        BigDecimal bookOverUnder
 ) {
 
-    public record TeamSummary(Long id, String name, String abbreviation, String logoUrl) {}
+    public record TeamSummary(Long id, String name, String abbreviation, String logoUrl, String color) {}
 
     /**
      * Massey spread prediction: β_h − β_a + α (negative = away team favored).

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="predictions-list">
+
+    <!-- Empty state -->
+    <div th:if="${predictionsByDate.isEmpty()}" class="card" style="text-align: center; color: var(--color-text-muted); padding: 3rem 1rem;">
+        No games scheduled in the next <span th:text="${days}">7</span> days.
+    </div>
+
+    <!-- Games grouped by date -->
+    <div th:each="entry : ${predictionsByDate}" class="predictions-date-group">
+        <h2 class="predictions-date-header"
+            th:text="${#temporals.format(entry.key, 'EEEE, MMMM d')}">Saturday, March 8</h2>
+
+        <div class="predictions-games">
+            <div th:each="p : ${entry.value}"
+                 th:with="isLowConf=${p.massey != null and (p.massey.homeGamesPlayed < 5 or p.massey.awayGamesPlayed < 5)}"
+                 class="prediction-card card"
+                 th:classappend="${isLowConf} ? ' prediction-row--low-confidence'">
+
+                <!-- Teams + Prob bar row -->
+                <div class="prediction-card__teams"
+                     th:with="pHome=${p.ml != null ? p.ml.homeWinProbability : (p.bradleyTerry != null ? p.bradleyTerry.homeWinProbability : null)}">
+
+                    <!-- Home team -->
+                    <a th:href="@{'/teams/' + ${p.homeTeam.id}}" class="prediction-card__team">
+                        <img th:if="${p.homeTeam.logoUrl}"
+                             th:src="${p.homeTeam.logoUrl}"
+                             class="prediction-card__logo" loading="lazy" width="28" height="28" alt="" />
+                        <span class="prediction-card__team-name" th:text="${p.homeTeam.name}">Duke</span>
+                    </a>
+
+                    <!-- Win probability bar -->
+                    <div th:if="${pHome != null}"
+                         class="prob-bar prediction-card__prob-bar"
+                         th:style="'--team-color-home: #' + (${p.homeTeam.color} ?: '4a90d9') + '; --team-color-away: #' + (${p.awayTeam.color} ?: 'd94a4a')">
+                        <div class="prob-bar__home"
+                             th:style="'width:' + ${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'"
+                             th:text="${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'">62%</div>
+                        <div class="prob-bar__away"
+                             th:style="'width:' + ${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'"
+                             th:text="${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'">38%</div>
+                    </div>
+                    <div th:unless="${pHome != null}" class="prob-bar prediction-card__prob-bar prob-bar--empty">
+                        <span style="color: var(--color-text-muted); font-size: 0.75rem; margin: auto;">No rating</span>
+                    </div>
+
+                    <!-- Away team -->
+                    <a th:href="@{'/teams/' + ${p.awayTeam.id}}" class="prediction-card__team prediction-card__team--away">
+                        <span class="prediction-card__team-name" th:text="${p.awayTeam.name}">UNC</span>
+                        <img th:if="${p.awayTeam.logoUrl}"
+                             th:src="${p.awayTeam.logoUrl}"
+                             class="prediction-card__logo" loading="lazy" width="28" height="28" alt="" />
+                    </a>
+                </div>
+
+                <!-- Stats row: spread, total, time, detail link -->
+                <div class="prediction-card__stats">
+
+                    <!-- Predicted spread -->
+                    <div class="prediction-card__stat"
+                         th:with="spread=${p.ml != null ? p.ml.spread : (p.massey != null ? p.massey.spread : null)}">
+                        <span class="prediction-card__stat-label">Spread</span>
+                        <span th:if="${spread != null}"
+                              th:with="absSpread=${spread >= 0 ? spread : -spread}, favAbbr=${spread >= 0 ? p.homeTeam.abbreviation : p.awayTeam.abbreviation}">
+                            <span class="prediction-card__stat-value"
+                                  th:text="${favAbbr + ' -' + #numbers.formatDecimal(absSpread, 1, 1)}">Duke -3.2</span>
+                            <span th:if="${p.ml != null}" class="ml-badge">ML</span>
+                        </span>
+                        <span th:unless="${spread != null}" class="prediction-card__stat-value prediction-card__stat-value--empty">—</span>
+                    </div>
+
+                    <!-- Predicted total -->
+                    <div class="prediction-card__stat"
+                         th:with="total=${p.ml != null ? p.ml.total : (p.masseyTotal != null ? p.masseyTotal.total : null)}">
+                        <span class="prediction-card__stat-label">Total</span>
+                        <span th:if="${total != null}">
+                            <span class="prediction-card__stat-value"
+                                  th:text="${#numbers.formatDecimal(total, 3, 1)}">148.4</span>
+                            <span th:if="${p.ml != null}" class="ml-badge">ML</span>
+                        </span>
+                        <span th:unless="${total != null}" class="prediction-card__stat-value prediction-card__stat-value--empty">—</span>
+                    </div>
+
+                    <!-- Game time -->
+                    <div class="prediction-card__stat">
+                        <span class="prediction-card__stat-label">Time</span>
+                        <span class="prediction-card__stat-value"
+                              th:text="${#temporals.format(p.gameDate, 'MMM d')}">Mar 8</span>
+                    </div>
+
+                    <!-- Detail link -->
+                    <a th:href="@{'/games/' + ${p.gameId}}" class="btn btn--outline btn--sm prediction-card__detail-btn">Details</a>
+                </div>
+
+                <!-- Book lines row (if available) -->
+                <div th:if="${p.bookSpread != null or p.bookOverUnder != null}"
+                     class="prediction-card__book-odds">
+                    <span class="prediction-card__stat-label">Book:</span>
+
+                    <span th:if="${p.bookSpread != null}"
+                          th:with="modelSpread=${p.massey != null ? p.massey.spread : null}">
+                        Spread <strong th:text="${p.bookSpread}">-2.5</strong>
+                        <th:block th:if="${modelSpread != null}"
+                                  th:with="edge=${modelSpread - p.bookSpread.doubleValue()}">
+                            <span th:if="${edge >= 2.5 or edge <= -2.5}"
+                                  class="edge-chip edge-chip--high"
+                                  th:text="${edge > 0 ? '▲' : '▼'}"></span>
+                            <span th:if="${(edge >= 1.0 and edge < 2.5) or (edge <= -1.0 and edge > -2.5)}"
+                                  class="edge-chip edge-chip--low"
+                                  th:text="${edge > 0 ? '▲' : '▼'}"></span>
+                        </th:block>
+                    </span>
+
+                    <span th:if="${p.bookOverUnder != null}">
+                        &nbsp;·&nbsp;O/U <strong th:text="${p.bookOverUnder}">147.5</strong>
+                    </span>
+                </div>
+
+                <!-- Low confidence notice -->
+                <div th:if="${isLowConf}" class="prediction-card__notice"
+                     title="Early season — limited data">
+                    ⚠ Early season — limited data
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

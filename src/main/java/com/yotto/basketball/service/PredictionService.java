@@ -1,5 +1,6 @@
 package com.yotto.basketball.service;
 
+import com.yotto.basketball.entity.BettingOdds;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
@@ -73,13 +74,19 @@ public class PredictionService {
         PredictionResult.TeamSummary homeTeam = toTeamSummary(game.getHomeTeam());
         PredictionResult.TeamSummary awayTeam = toTeamSummary(game.getAwayTeam());
 
+        // Book lines (pre-load within transaction to avoid LazyInitializationException in callers)
+        BettingOdds bo = game.getBettingOdds();
+        java.math.BigDecimal bookSpread    = bo != null ? bo.getSpread()    : null;
+        java.math.BigDecimal bookOverUnder = bo != null ? bo.getOverUnder() : null;
+
         // Postponed/cancelled games have no meaningful prediction
         if (game.getStatus() == Game.GameStatus.POSTPONED
                 || game.getStatus() == Game.GameStatus.CANCELLED) {
             return new PredictionResult(
                     game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                     game.getNeutralSite(), homeTeam, awayTeam,
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null,
+                    bookSpread, bookOverUnder);
         }
 
         LocalDate cutoff = game.getGameDate().toLocalDate();
@@ -115,7 +122,8 @@ public class PredictionService {
                 game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                 game.getNeutralSite(), homeTeam, awayTeam,
                 actualHomeScore, actualAwayScore, actualMargin, actualTotal,
-                massey, masseyTotal, bt, ml);
+                massey, masseyTotal, bt, ml,
+                bookSpread, bookOverUnder);
     }
 
     // ── Snapshot fetch ────────────────────────────────────────────────────────
@@ -289,7 +297,7 @@ public class PredictionService {
     // ── Utilities ─────────────────────────────────────────────────────────────
 
     private static PredictionResult.TeamSummary toTeamSummary(Team t) {
-        return new PredictionResult.TeamSummary(t.getId(), t.getName(), t.getAbbreviation(), t.getLogoUrl());
+        return new PredictionResult.TeamSummary(t.getId(), t.getName(), t.getAbbreviation(), t.getLogoUrl(), t.getColor());
     }
 
     private static LocalDate earlierDate(LocalDate a, LocalDate b) {

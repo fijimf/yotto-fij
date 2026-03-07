@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Predictions</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="predictions-header">
+        <h1 class="page-title">Upcoming Predictions</h1>
+        <div class="predictions-controls">
+            <label for="days-select" style="color: var(--color-text-muted); font-size: 0.875rem;">Show next</label>
+            <select id="days-select" name="days"
+                    class="form-input form-input--sm"
+                    style="width: auto;"
+                    hx-get="/predictions/list"
+                    hx-target="#predictions-list"
+                    hx-swap="innerHTML"
+                    hx-include="this">
+                <option value="3"  th:selected="${days == 3}">3 days</option>
+                <option value="7"  th:selected="${days == 7}">7 days</option>
+                <option value="14" th:selected="${days == 14}">14 days</option>
+            </select>
+        </div>
+    </div>
+
+    <p class="predictions-disclaimer">
+        Model predictions are for analytical purposes only and do not constitute betting advice.
+    </p>
+
+    <div id="predictions-list">
+        <div th:replace="~{fragments/predictions-list :: predictions-list}"></div>
+    </div>
+
+</main>
+</body>
+</html>

@@ -30,9 +30,13 @@
             </thead>
             <tbody>
                 <tr th:each="game : ${schedule.games}"
+                    th:attr="data-game-id=${game.gameId}"
                     th:classappend="${game.result == 'W'} ? 'schedule-row-win' : (${game.result == 'L'} ? 'schedule-row-loss' : '')">
-                    <td class="schedule-table__date"
-                        th:text="${#temporals.format(game.gameDate, 'MMM d')}">Jan 15</td>
+                    <td class="schedule-table__date">
+                        <a th:href="@{'/games/' + ${game.gameId}}"
+                           th:text="${#temporals.format(game.gameDate, 'MMM d')}"
+                           class="schedule-table__date-link">Jan 15</a>
+                    </td>
                     <td class="schedule-table__loc"
                         th:text="${game.location}">vs</td>
                     <td class="schedule-table__opponent">
@@ -57,10 +61,12 @@
                         <span th:if="${game.result == null}" class="schedule-table__time"
                               th:text="${#temporals.format(game.gameDate, 'h:mm a')}">7:00 PM</span>
                     </td>
-                    <td class="schedule-table__hide-mobile schedule-table__odds"
-                        th:text="${game.spread != null} ? ${game.spread} : ''">-3.5</td>
-                    <td class="schedule-table__hide-mobile schedule-table__odds"
-                        th:text="${game.overUnder != null} ? ${game.overUnder} : ''">145.5</td>
+                    <td class="schedule-table__hide-mobile schedule-table__odds schedule-table__spread">
+                        <span th:text="${game.spread != null} ? ${game.spread} : ''">-3.5</span>
+                    </td>
+                    <td class="schedule-table__hide-mobile schedule-table__odds schedule-table__ou">
+                        <span th:text="${game.overUnder != null} ? ${game.overUnder} : ''">145.5</span>
+                    </td>
                     <td class="schedule-table__hide-mobile schedule-table__venue"
                         th:text="${game.venue}">Coleman Coliseum</td>
                 </tr>

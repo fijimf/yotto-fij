@@ -1099,6 +1099,362 @@ tbody tr:hover {
     margin-right: 0.5rem;
 }
 
+/* ── Phase 3: Predictions ── */
+
+/* Win probability bar */
+.prob-bar {
+    display: flex;
+    border-radius: 4px;
+    overflow: hidden;
+    height: 24px;
+}
+.prob-bar--lg { height: 32px; }
+.prob-bar--empty {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    align-items: center;
+    justify-content: center;
+}
+.prob-bar__home {
+    background: var(--team-color-home, var(--color-primary));
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 6px;
+    font-size: 0.75rem;
+    color: #fff;
+    font-weight: 600;
+    min-width: 2rem;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.prob-bar__away {
+    background: var(--team-color-away, #6b7280);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 6px;
+    font-size: 0.75rem;
+    color: #fff;
+    font-weight: 600;
+    min-width: 2rem;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Edge indicator chips */
+.edge-chip {
+    display: inline-block;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 4px;
+}
+.edge-chip--high { background: #065f46; color: #d1fae5; }
+.edge-chip--low  { color: var(--color-text-muted); }
+
+/* ML badge */
+.ml-badge {
+    display: inline-block;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: #3b1fa8;
+    color: #c4b5fd;
+    font-size: 0.65rem;
+    font-weight: 700;
+    vertical-align: middle;
+    margin-left: 3px;
+}
+
+/* Confidence dim */
+.prediction-row--low-confidence { opacity: 0.6; }
+
+/* Predictions page */
+.predictions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+.predictions-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.predictions-disclaimer {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1.5rem;
+}
+.predictions-date-group {
+    margin-bottom: 2rem;
+}
+.predictions-date-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.predictions-games {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* Prediction card */
+.prediction-card {
+    padding: 1rem;
+}
+.prediction-card__teams {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.prediction-card__team {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--color-text);
+    min-width: 0;
+}
+.prediction-card__team--away {
+    flex-direction: row-reverse;
+}
+.prediction-card__team:hover .prediction-card__team-name {
+    color: var(--color-primary-hover);
+}
+.prediction-card__team-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+.prediction-card__logo {
+    border-radius: 2px;
+    object-fit: contain;
+}
+.prediction-card__prob-bar {
+    flex: 1;
+    min-width: 100px;
+}
+.prediction-card__stats {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.prediction-card__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.prediction-card__stat-label {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.prediction-card__stat-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.prediction-card__stat-value--empty {
+    color: var(--color-text-muted);
+}
+.prediction-card__detail-btn {
+    margin-left: auto;
+}
+.prediction-card__book-odds {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.prediction-card__notice {
+    margin-top: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+/* Schedule table date link */
+.schedule-table__date-link {
+    color: var(--color-text);
+    text-decoration: none;
+}
+.schedule-table__date-link:hover {
+    color: var(--color-primary-hover);
+}
+
+/* Game detail page */
+.game-detail-header {
+    margin-bottom: 1.5rem;
+}
+.game-detail-matchup {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+.game-detail-team {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: var(--color-text);
+    flex: 1;
+    min-width: 140px;
+}
+.game-detail-team--away {
+    flex-direction: row-reverse;
+    text-align: right;
+}
+.game-detail-team__logo-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.game-detail-team__logo {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+}
+.game-detail-team__name {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+.game-detail-team__mascot {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+.game-detail-score {
+    text-align: center;
+    flex-shrink: 0;
+}
+.game-detail-score__final {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 0.4rem;
+}
+.game-detail-score__number {
+    font-size: 2rem;
+    font-weight: 700;
+}
+.game-detail-score__sep {
+    font-size: 1.25rem;
+    color: var(--color-text-muted);
+}
+.game-detail-score__ot {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    align-self: flex-start;
+    margin-top: 0.25rem;
+}
+.game-detail-score__time {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    display: block;
+    margin-bottom: 0.4rem;
+}
+.game-detail-score__badges {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.game-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: var(--color-bg-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.game-status-badge--final { background: #14532d; color: #86efac; border-color: #14532d; }
+.game-status-badge--scheduled { background: #1e3a5f; color: #93c5fd; border-color: #1e3a5f; }
+.game-detail-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+.game-detail-meta {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+.game-detail-section {
+    margin-bottom: 1.5rem;
+}
+.game-detail-section__title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.game-detail-predictions {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+.game-detail-prob-section {}
+.game-detail-prob-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+}
+.game-detail-model-grid {}
+.game-detail-model-table {
+    width: 100%;
+}
+.game-detail-actual {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+.game-detail-outcome {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.game-detail-outcome--win { background: #14532d; color: #86efac; }
+.game-detail-outcome--loss { background: #7f1d1d; color: #fca5a5; }
+
+/* ── End Phase 3 ── */
+
 .stats-table .stats-table__rank {
     color: var(--color-text-muted);
     font-size: 0.8rem;
