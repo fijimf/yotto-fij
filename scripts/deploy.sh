@@ -28,6 +28,8 @@ scp "${SCRIPT_DIR}/retrain.sh" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scri
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_DIR}/.env && chmod +x ${REMOTE_DIR}/scripts/retrain.sh"
 
 echo "==> Restarting services on ${REMOTE_HOST}..."
-ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_DIR} && docker compose down && docker compose build trainer && docker compose up -d"
+# Build trainer image first (while app is still running) to minimise downtime.
+# docker compose build works on profiled services when named explicitly.
+ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_DIR} && docker compose build trainer && docker compose down && docker compose up -d"
 
 echo "==> Deploy complete."
