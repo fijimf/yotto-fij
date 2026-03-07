@@ -7,20 +7,22 @@ import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.PowerModelParamSnapshotRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Assembles game predictions from pre-computed Massey and Bradley-Terry snapshots.
+ * Assembles game predictions from pre-computed Massey and Bradley-Terry snapshots
+ * and, when enabled, from the ONNX ML models via {@link MlPredictionService}.
  *
- * <p>All lookups use the most recent snapshot dated strictly before the game date,
- * ensuring only information available before tip-off is used.
+ * <p>All snapshot lookups use the most recent snapshot dated strictly before the game
+ * date, ensuring only information available before tip-off is used.
  */
 @Service
 @Transactional(readOnly = true)
@@ -32,13 +34,16 @@ public class PredictionService {
     private final GameRepository gameRepository;
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final PowerModelParamSnapshotRepository paramRepository;
+    private final MlPredictionService mlPredictionService;
 
     public PredictionService(GameRepository gameRepository,
                              TeamPowerRatingSnapshotRepository ratingRepository,
-                             PowerModelParamSnapshotRepository paramRepository) {
-        this.gameRepository  = gameRepository;
-        this.ratingRepository = ratingRepository;
-        this.paramRepository  = paramRepository;
+                             PowerModelParamSnapshotRepository paramRepository,
+                             MlPredictionService mlPredictionService) {
+        this.gameRepository       = gameRepository;
+        this.ratingRepository     = ratingRepository;
+        this.paramRepository      = paramRepository;
+        this.mlPredictionService  = mlPredictionService;
     }
 
     /** Returns a prediction for a single game by ID. */
@@ -74,18 +79,28 @@ public class PredictionService {
             return new PredictionResult(
                     game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                     game.getNeutralSite(), homeTeam, awayTeam,
-                    null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null);
         }
 
-        LocalDate cutoff  = game.getGameDate().toLocalDate();
-        Long seasonId     = game.getSeason().getId();
-        boolean neutral   = Boolean.TRUE.equals(game.getNeutralSite());
-        Long homeId       = game.getHomeTeam().getId();
-        Long awayId       = game.getAwayTeam().getId();
+        LocalDate cutoff = game.getGameDate().toLocalDate();
+        Long seasonId    = game.getSeason().getId();
+        boolean neutral  = Boolean.TRUE.equals(game.getNeutralSite());
+        Long homeId      = game.getHomeTeam().getId();
+        Long awayId      = game.getAwayTeam().getId();
 
-        PredictionResult.MasseyPrediction        massey      = buildMassey(homeId, awayId, seasonId, cutoff, neutral);
-        PredictionResult.MasseyTotalPrediction   masseyTotal = buildMasseyTotal(homeId, awayId, seasonId, cutoff, neutral);
-        PredictionResult.BradleyTerryPrediction  bt          = buildBradleyTerry(homeId, awayId, seasonId, cutoff, neutral);
+        // Fetch all snapshots in one pass — used by both Phase 1 and Phase 2
+        GameRatings ratings = fetchGameRatings(homeId, awayId, seasonId, cutoff, neutral);
+
+        PredictionResult.MasseyPrediction        massey      = toMassey(ratings);
+        PredictionResult.MasseyTotalPrediction   masseyTotal = toMasseyTotal(ratings);
+        PredictionResult.BradleyTerryPrediction  bt          = toBradleyTerry(ratings);
+
+        // ML enhancement (Phase 2) — null if ML is disabled or features incomplete
+        PredictionResult.MlPrediction ml = null;
+        if (mlPredictionService.isEnabled() && ratings.hasAll()) {
+            MlFeatureVector features = buildMlFeatureVector(game, ratings);
+            ml = mlPredictionService.predict(features);
+        }
 
         Integer actualHomeScore = null, actualAwayScore = null, actualMargin = null, actualTotal = null;
         if (game.getStatus() == Game.GameStatus.FINAL
@@ -100,77 +115,176 @@ public class PredictionService {
                 game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                 game.getNeutralSite(), homeTeam, awayTeam,
                 actualHomeScore, actualAwayScore, actualMargin, actualTotal,
-                massey, masseyTotal, bt);
+                massey, masseyTotal, bt, ml);
     }
 
-    private PredictionResult.MasseyPrediction buildMassey(
-            Long homeId, Long awayId, Long seasonId, LocalDate cutoff, boolean neutral) {
-        Optional<TeamPowerRatingSnapshot> homeSnap =
-                ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff);
-        Optional<TeamPowerRatingSnapshot> awaySnap =
-                ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff);
-        if (homeSnap.isEmpty() || awaySnap.isEmpty()) return null;
+    // ── Snapshot fetch ────────────────────────────────────────────────────────
 
-        double hca = 0;
-        if (!neutral) {
-            hca = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE, "hca", cutoff)
+    /**
+     * Fetches all six team snapshots and three HCA params in a single logical pass.
+     * HCA params are only fetched when the game is not at a neutral site and both
+     * team snapshots are available (avoids unnecessary queries).
+     */
+    private GameRatings fetchGameRatings(Long homeId, Long awayId, Long seasonId,
+                                          LocalDate cutoff, boolean neutral) {
+        var masseyHome = ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff).orElse(null);
+        var masseyAway = ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff).orElse(null);
+        double masseyHca = 0;
+        if (!neutral && masseyHome != null && masseyAway != null) {
+            masseyHca = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE, "hca", cutoff)
                     .map(p -> p.getParamValue()).orElse(0.0);
         }
 
-        double spread = homeSnap.get().getRating() - awaySnap.get().getRating() + hca;
+        var masseyTotalHome = ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, cutoff).orElse(null);
+        var masseyTotalAway = ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, cutoff).orElse(null);
+        double masseyTotalDelta = 0;
+        if (!neutral && masseyTotalHome != null && masseyTotalAway != null) {
+            masseyTotalDelta = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, "hca_total", cutoff)
+                    .map(p -> p.getParamValue()).orElse(0.0);
+        }
+
+        var btHome = ratingRepository.findLatestBefore(homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff).orElse(null);
+        var btAway = ratingRepository.findLatestBefore(awayId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff).orElse(null);
+        double btAlpha = 0;
+        if (!neutral && btHome != null && btAway != null) {
+            btAlpha = paramRepository.findLatestParamBefore(seasonId, BradleyTerryRatingService.MODEL_TYPE, "hca", cutoff)
+                    .map(p -> p.getParamValue()).orElse(0.0);
+        }
+
+        return new GameRatings(
+                masseyHome, masseyAway, masseyHca,
+                masseyTotalHome, masseyTotalAway, masseyTotalDelta,
+                btHome, btAway, btAlpha);
+    }
+
+    // ── Phase 1 sub-block builders ────────────────────────────────────────────
+
+    private static PredictionResult.MasseyPrediction toMassey(GameRatings r) {
+        if (!r.hasMassey()) return null;
+        double spread = r.masseyHome().getRating() - r.masseyAway().getRating() + r.masseyHca();
         return new PredictionResult.MasseyPrediction(
                 spread,
-                homeSnap.get().getGamesPlayed(),
-                awaySnap.get().getGamesPlayed(),
-                earlierDate(homeSnap.get().getSnapshotDate(), awaySnap.get().getSnapshotDate()));
+                r.masseyHome().getGamesPlayed(), r.masseyAway().getGamesPlayed(),
+                earlierDate(r.masseyHome().getSnapshotDate(), r.masseyAway().getSnapshotDate()));
     }
 
-    private PredictionResult.MasseyTotalPrediction buildMasseyTotal(
-            Long homeId, Long awayId, Long seasonId, LocalDate cutoff, boolean neutral) {
-        Optional<TeamPowerRatingSnapshot> homeSnap =
-                ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, cutoff);
-        Optional<TeamPowerRatingSnapshot> awaySnap =
-                ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, cutoff);
-        if (homeSnap.isEmpty() || awaySnap.isEmpty()) return null;
-
-        double delta = 0;
-        if (!neutral) {
-            delta = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, "hca_total", cutoff)
-                    .map(p -> p.getParamValue()).orElse(0.0);
-        }
-
-        double total = homeSnap.get().getRating() + awaySnap.get().getRating() + delta;
+    private static PredictionResult.MasseyTotalPrediction toMasseyTotal(GameRatings r) {
+        if (!r.hasMasseyTotal()) return null;
+        double total = r.masseyTotalHome().getRating() + r.masseyTotalAway().getRating() + r.masseyTotalDelta();
         return new PredictionResult.MasseyTotalPrediction(
                 total,
-                homeSnap.get().getGamesPlayed(),
-                awaySnap.get().getGamesPlayed(),
-                earlierDate(homeSnap.get().getSnapshotDate(), awaySnap.get().getSnapshotDate()));
+                r.masseyTotalHome().getGamesPlayed(), r.masseyTotalAway().getGamesPlayed(),
+                earlierDate(r.masseyTotalHome().getSnapshotDate(), r.masseyTotalAway().getSnapshotDate()));
     }
 
-    private PredictionResult.BradleyTerryPrediction buildBradleyTerry(
-            Long homeId, Long awayId, Long seasonId, LocalDate cutoff, boolean neutral) {
-        Optional<TeamPowerRatingSnapshot> homeSnap =
-                ratingRepository.findLatestBefore(homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff);
-        Optional<TeamPowerRatingSnapshot> awaySnap =
-                ratingRepository.findLatestBefore(awayId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff);
-        if (homeSnap.isEmpty() || awaySnap.isEmpty()) return null;
-
-        double alpha = 0;
-        if (!neutral) {
-            alpha = paramRepository.findLatestParamBefore(seasonId, BradleyTerryRatingService.MODEL_TYPE, "hca", cutoff)
-                    .map(p -> p.getParamValue()).orElse(0.0);
-        }
-
-        double logOdds = homeSnap.get().getRating() - awaySnap.get().getRating() + alpha;
+    private static PredictionResult.BradleyTerryPrediction toBradleyTerry(GameRatings r) {
+        if (!r.hasBt()) return null;
+        double logOdds = r.btHome().getRating() - r.btAway().getRating() + r.btAlpha();
         double pHome   = sigmoid(logOdds);
         double pAway   = 1.0 - pHome;
         return new PredictionResult.BradleyTerryPrediction(
                 pHome, pAway,
                 impliedMoneyline(pHome), impliedMoneyline(pAway),
-                homeSnap.get().getGamesPlayed(),
-                awaySnap.get().getGamesPlayed(),
-                earlierDate(homeSnap.get().getSnapshotDate(), awaySnap.get().getSnapshotDate()));
+                r.btHome().getGamesPlayed(), r.btAway().getGamesPlayed(),
+                earlierDate(r.btHome().getSnapshotDate(), r.btAway().getSnapshotDate()));
     }
+
+    // ── Phase 2 ML feature builder ────────────────────────────────────────────
+
+    private MlFeatureVector buildMlFeatureVector(Game game, GameRatings r) {
+        Long homeId = game.getHomeTeam().getId();
+        Long awayId = game.getAwayTeam().getId();
+        LocalDateTime gameDatetime = game.getGameDate();
+
+        List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, gameDatetime, PageRequest.of(0, 5));
+        List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, gameDatetime, PageRequest.of(0, 5));
+
+        RollingStats homeStats = computeRolling(homeId, homeRecent);
+        RollingStats awayStats = computeRolling(awayId, awayRecent);
+
+        Integer homeDaysRest = daysRest(homeId, homeRecent, gameDatetime);
+        Integer awayDaysRest = daysRest(awayId, awayRecent, gameDatetime);
+
+        int seasonWeek = (int) (ChronoUnit.DAYS.between(
+                game.getSeason().getStartDate(), gameDatetime.toLocalDate()) / 7) + 1;
+
+        double betaHome  = r.masseyHome().getRating();
+        double betaAway  = r.masseyAway().getRating();
+        double gammaHome = r.masseyTotalHome().getRating();
+        double gammaAway = r.masseyTotalAway().getRating();
+        double thetaHome = r.btHome().getRating();
+        double thetaAway = r.btAway().getRating();
+
+        return new MlFeatureVector(
+                betaHome, betaAway, betaHome - betaAway,
+                gammaHome, gammaAway, gammaHome + gammaAway,
+                thetaHome, thetaAway, thetaHome - thetaAway + r.btAlpha(),
+                homeStats.winPct(),   homeStats.avgMargin(),   homeStats.avgTotal(),   homeStats.marginStddev(),
+                awayStats.winPct(),   awayStats.avgMargin(),   awayStats.avgTotal(),   awayStats.marginStddev(),
+                r.masseyHome().getGamesPlayed(), r.masseyAway().getGamesPlayed(),
+                homeDaysRest, awayDaysRest, seasonWeek,
+                Boolean.TRUE.equals(game.getNeutralSite()),
+                Boolean.TRUE.equals(game.getConferenceGame()));
+    }
+
+    /**
+     * Computes rolling stats from a team's most recent games (up to 5).
+     * Returns null-valued stats when the list is empty (cold start).
+     */
+    private static RollingStats computeRolling(Long teamId, List<Game> games) {
+        if (games.isEmpty()) {
+            return new RollingStats(null, null, null, null);
+        }
+        int wins = 0;
+        double sumMargin = 0, sumTotal = 0;
+        double[] margins = new double[games.size()];
+        for (int i = 0; i < games.size(); i++) {
+            Game g = games.get(i);
+            int homeScore = g.getHomeScore();
+            int awayScore = g.getAwayScore();
+            int margin = g.getHomeTeam().getId().equals(teamId)
+                    ? (homeScore - awayScore) : (awayScore - homeScore);
+            int total  = homeScore + awayScore;
+            if (margin > 0) wins++;
+            sumMargin  += margin;
+            sumTotal   += total;
+            margins[i]  = margin;
+        }
+        int n = games.size();
+        double avgMargin = sumMargin / n;
+        double avgTotal  = sumTotal  / n;
+        double stddev    = 0;
+        if (n > 1) {
+            double sumSq = 0;
+            for (double m : margins) sumSq += (m - avgMargin) * (m - avgMargin);
+            stddev = Math.sqrt(sumSq / (n - 1));
+        }
+        return new RollingStats((double) wins / n, avgMargin, avgTotal, stddev);
+    }
+
+    /** Returns days since the team's most recent game before the game date, or null if none. */
+    private static Integer daysRest(Long teamId, List<Game> recentGames, LocalDateTime gameDatetime) {
+        if (recentGames.isEmpty()) return null;
+        LocalDate lastGameDate = recentGames.get(0).getGameDate().toLocalDate();
+        return (int) ChronoUnit.DAYS.between(lastGameDate, gameDatetime.toLocalDate());
+    }
+
+    // ── Private types ─────────────────────────────────────────────────────────
+
+    /** Carries all pre-fetched snapshot values for one game's prediction. */
+    private record GameRatings(
+            TeamPowerRatingSnapshot masseyHome, TeamPowerRatingSnapshot masseyAway, double masseyHca,
+            TeamPowerRatingSnapshot masseyTotalHome, TeamPowerRatingSnapshot masseyTotalAway, double masseyTotalDelta,
+            TeamPowerRatingSnapshot btHome, TeamPowerRatingSnapshot btAway, double btAlpha
+    ) {
+        boolean hasMassey()      { return masseyHome != null && masseyAway != null; }
+        boolean hasMasseyTotal() { return masseyTotalHome != null && masseyTotalAway != null; }
+        boolean hasBt()          { return btHome != null && btAway != null; }
+        boolean hasAll()         { return hasMassey() && hasMasseyTotal() && hasBt(); }
+    }
+
+    /** Rolling aggregate stats for a team over their last N games. Nullable when window is empty. */
+    private record RollingStats(Double winPct, Double avgMargin, Double avgTotal, Double marginStddev) {}
 
     // ── Utilities ─────────────────────────────────────────────────────────────
 
@@ -186,12 +300,8 @@ public class PredictionService {
         return 1.0 / (1.0 + Math.exp(-x));
     }
 
-    /**
-     * No-vig fair American moneyline.
-     * Favorite: −round(p/(1−p)×100). Underdog: +round((1−p)/p×100).
-     */
     private static int impliedMoneyline(double p) {
         if (p >= 0.5) return -(int) Math.round(p / (1.0 - p) * 100);
-        return  (int) Math.round((1.0 - p) / p * 100);
+        return (int) Math.round((1.0 - p) / p * 100);
     }
 }

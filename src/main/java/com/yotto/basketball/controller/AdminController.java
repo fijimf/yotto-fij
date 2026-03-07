@@ -5,6 +5,8 @@ import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.ScrapeBatchRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.scraping.AsyncScrapeService;
+import com.yotto.basketball.service.MlModelStatus;
+import com.yotto.basketball.service.MlPredictionService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -20,12 +22,14 @@ public class AdminController {
     private final SeasonRepository seasonRepository;
     private final ScrapeBatchRepository scrapeBatchRepository;
     private final AsyncScrapeService asyncScrapeService;
+    private final MlPredictionService mlPredictionService;
 
     public AdminController(SeasonRepository seasonRepository, ScrapeBatchRepository scrapeBatchRepository,
-                           AsyncScrapeService asyncScrapeService) {
-        this.seasonRepository = seasonRepository;
+                           AsyncScrapeService asyncScrapeService, MlPredictionService mlPredictionService) {
+        this.seasonRepository    = seasonRepository;
         this.scrapeBatchRepository = scrapeBatchRepository;
-        this.asyncScrapeService = asyncScrapeService;
+        this.asyncScrapeService  = asyncScrapeService;
+        this.mlPredictionService = mlPredictionService;
     }
 
     @GetMapping
@@ -37,6 +41,7 @@ public class AdminController {
 
         model.addAttribute("seasons", seasons);
         model.addAttribute("batches", recentBatches);
+        model.addAttribute("mlStatus", mlPredictionService.getStatus());
         return "admin/dashboard";
     }
 
@@ -129,5 +134,30 @@ public class AdminController {
         List<ScrapeBatch> batches = scrapeBatchRepository.findTop20ByOrderByStartedAtDesc();
         model.addAttribute("batches", batches);
         return "admin/fragments/scrape-history :: scrape-table";
+    }
+
+    /** Returns the ML status card fragment (HTMX). */
+    @GetMapping("/ml/status")
+    public String mlStatus(Model model) {
+        model.addAttribute("mlStatus", mlPredictionService.getStatus());
+        return "admin/fragments/ml-status :: ml-status-card";
+    }
+
+    /**
+     * Reloads ML models from disk without restarting the app.
+     * Requires admin authentication (form login or HTTP Basic for script access).
+     */
+    @PostMapping("/ml/reload")
+    public String mlReload(Model model,
+                           @RequestHeader(value = "HX-Request", required = false) String htmxRequest,
+                           RedirectAttributes redirectAttributes) {
+        MlModelStatus status = mlPredictionService.reload();
+        if (htmxRequest != null) {
+            model.addAttribute("mlStatus", status);
+            return "admin/fragments/ml-status :: ml-status-card";
+        }
+        redirectAttributes.addFlashAttribute("success",
+                "ML models reloaded — enabled=" + status.enabled() + ", version=" + status.version());
+        return "redirect:/admin";
     }
 }

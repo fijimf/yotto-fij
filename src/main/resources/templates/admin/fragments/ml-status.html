@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="ml-status-card" id="ml-status-card">
+    <div class="card" style="margin-top: 0;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span th:if="${mlStatus.enabled()}"
+                      style="display: inline-block; padding: 2px 10px; border-radius: 12px;
+                             background: #d1fae5; color: #065f46; font-size: 0.75rem; font-weight: 600;">
+                    Enabled
+                </span>
+                <span th:unless="${mlStatus.enabled()}"
+                      style="display: inline-block; padding: 2px 10px; border-radius: 12px;
+                             background: #f3f4f6; color: #6b7280; font-size: 0.75rem; font-weight: 600;">
+                    Disabled
+                </span>
+            </div>
+            <form th:action="@{/admin/ml/reload}" method="post">
+                <button type="submit" class="btn btn--outline btn--sm"
+                        hx-post="/admin/ml/reload"
+                        hx-target="#ml-status-card"
+                        hx-swap="outerHTML">
+                    Reload Models
+                </button>
+            </form>
+        </div>
+
+        <table>
+            <tbody>
+                <tr>
+                    <td style="color: var(--color-text-muted); width: 140px;">Version</td>
+                    <td th:text="${mlStatus.version() != null ? mlStatus.version() : '—'}">—</td>
+                </tr>
+                <tr>
+                    <td style="color: var(--color-text-muted);">Trained at</td>
+                    <td th:text="${mlStatus.trainedAt() != null ? #temporals.format(mlStatus.trainedAt(), 'MMM d yyyy HH:mm') : '—'}">—</td>
+                </tr>
+                <tr>
+                    <td style="color: var(--color-text-muted);">Feature count</td>
+                    <td th:text="${mlStatus.featureCount() > 0 ? mlStatus.featureCount() : '—'}">—</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--color-text-muted);">
+            To retrain models, run <code>./scripts/retrain.sh</code> on the server after a full season scrape.
+        </p>
+    </div>
+</div>
+</body>
+</html>

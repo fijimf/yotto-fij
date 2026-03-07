@@ -5,7 +5,7 @@ import com.yotto.basketball.entity.Game.GameStatus;
 import java.time.LocalDate;
 
 /**
- * Immutable prediction result for a single game. All three model sub-blocks are nullable:
+ * Immutable prediction result for a single game. All model sub-blocks are nullable:
  * a null sub-block means no valid pre-game snapshot existed for one or both teams,
  * or the game status is POSTPONED/CANCELLED.
  *
@@ -28,7 +28,8 @@ public record PredictionResult(
 
         MasseyPrediction massey,
         MasseyTotalPrediction masseyTotal,
-        BradleyTerryPrediction bradleyTerry
+        BradleyTerryPrediction bradleyTerry,
+        MlPrediction ml
 ) {
 
     public record TeamSummary(Long id, String name, String abbreviation, String logoUrl) {}
@@ -68,5 +69,21 @@ public record PredictionResult(
             int homeGamesPlayed,
             int awayGamesPlayed,
             LocalDate modelDate
+    ) {}
+
+    /**
+     * ML (gradient-boosted) enhancement predictions. Present only when ML is enabled,
+     * all three Phase 1 model snapshots are available, and both teams have ≥ 5 games played
+     * (rolling feature window is complete).
+     */
+    public record MlPrediction(
+            double spread,
+            double total,
+            double homeWinProbability,
+            double awayWinProbability,
+            int homeImpliedMoneyline,
+            int awayImpliedMoneyline,
+            String modelVersion,
+            boolean featuresComplete   // false if any rolling feature was imputed
     ) {}
 }

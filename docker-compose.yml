@@ -22,6 +22,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      ML_MODEL_DIR: /models
+      ML_ENABLED: ${ML_ENABLED:-false}
+    volumes:
+      - model_data:/models:ro
     depends_on:
       db:
         condition: service_healthy
@@ -38,5 +42,23 @@ services:
     depends_on:
       - app
 
+  # ML model trainer — NOT started by `docker compose up`.
+  # Run explicitly: docker compose --profile training run --rm trainer --train-seasons 2023,2024,2025 --test-season 2025
+  trainer:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.trainer
+    profiles:
+      - training
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+    volumes:
+      - model_data:/models
+    depends_on:
+      - db
+
 volumes:
   yotto-postgres-data:
+  model_data:

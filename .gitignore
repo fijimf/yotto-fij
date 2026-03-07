@@ -19,3 +19,7 @@ config/
 # OS
 .DS_Store
 Thumbs.db
+
+# ML model artifacts (runtime artifacts produced by trainer; not versioned)
+models/*.onnx
+models/features.json

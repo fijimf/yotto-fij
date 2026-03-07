@@ -17,13 +17,17 @@ echo "==> Transferring image to ${REMOTE_HOST}..."
 docker save "${IMAGE_NAME}" | gzip | ssh "${REMOTE_USER}@${REMOTE_HOST}" 'gunzip | docker load'
 
 echo "==> Copying configuration files..."
-ssh "${REMOTE_USER}@${REMOTE_HOST}" "mkdir -p ${REMOTE_DIR}/config"
+ssh "${REMOTE_USER}@${REMOTE_HOST}" "mkdir -p ${REMOTE_DIR}/config ${REMOTE_DIR}/scripts"
 scp "${PROJECT_DIR}/.env" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/.env"
 scp "${PROJECT_DIR}/config/mysite" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/config/mysite"
 scp "${PROJECT_DIR}/docker-compose.yml" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/docker-compose.yml"
-ssh "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_DIR}/.env"
+scp "${SCRIPT_DIR}/Dockerfile.trainer" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/Dockerfile.trainer"
+scp "${SCRIPT_DIR}/requirements.txt" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/requirements.txt"
+scp "${SCRIPT_DIR}/train_models.py" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/train_models.py"
+scp "${SCRIPT_DIR}/retrain.sh" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/retrain.sh"
+ssh "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_DIR}/.env && chmod +x ${REMOTE_DIR}/scripts/retrain.sh"
 
 echo "==> Restarting services on ${REMOTE_HOST}..."
-ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_DIR} && docker compose down && docker compose up -d"
+ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_DIR} && docker compose down && docker compose build trainer && docker compose up -d"
 
 echo "==> Deploy complete."

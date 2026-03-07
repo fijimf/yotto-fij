@@ -49,4 +49,13 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam JOIN FETCH g.season " +
            "WHERE g.status = 'SCHEDULED' AND g.gameDate BETWEEN :start AND :end ORDER BY g.gameDate")
     List<Game> findScheduledBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
+           "WHERE (g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId) " +
+           "  AND g.status = 'FINAL' AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL " +
+           "  AND g.gameDate < :beforeDate ORDER BY g.gameDate DESC")
+    List<Game> findRecentFinalGamesForTeam(
+            @Param("teamId") Long teamId,
+            @Param("beforeDate") LocalDateTime beforeDate,
+            org.springframework.data.domain.Pageable pageable);
 }
