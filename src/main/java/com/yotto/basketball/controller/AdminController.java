@@ -117,6 +117,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/power-ratings/{year}")
+    public String calculatePowerRatings(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
+        asyncScrapeService.calculatePowerRatingsAsync(year);
+        redirectAttributes.addFlashAttribute("success", "Power ratings calculation started for " + year);
+        return "redirect:/admin";
+    }
+
     @GetMapping("/scrape-history")
     public String scrapeHistory(Model model) {
         List<ScrapeBatch> batches = scrapeBatchRepository.findTop20ByOrderByStartedAtDesc();

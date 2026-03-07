@@ -1,6 +1,7 @@
 package com.yotto.basketball.scraping;
 
 import com.yotto.basketball.entity.ScrapeBatch;
+import com.yotto.basketball.service.PowerRatingService;
 import com.yotto.basketball.service.StatsCalculationService;
 import com.yotto.basketball.service.StatisticsTimeSeriesService;
 import org.slf4j.Logger;
@@ -19,12 +20,14 @@ public class ScrapeOrchestrator {
     private final OddsBackfillScraper oddsBackfillScraper;
     private final StatsCalculationService statsCalculationService;
     private final StatisticsTimeSeriesService timeSeriesService;
+    private final PowerRatingService powerRatingService;
 
     public ScrapeOrchestrator(ConferenceScraper conferenceScraper, TeamScraper teamScraper,
                               StandingsScraper standingsScraper, GameScraper gameScraper,
                               OddsBackfillScraper oddsBackfillScraper,
                               StatsCalculationService statsCalculationService,
-                              StatisticsTimeSeriesService timeSeriesService) {
+                              StatisticsTimeSeriesService timeSeriesService,
+                              PowerRatingService powerRatingService) {
         this.conferenceScraper = conferenceScraper;
         this.teamScraper = teamScraper;
         this.standingsScraper = standingsScraper;
@@ -32,6 +35,7 @@ public class ScrapeOrchestrator {
         this.oddsBackfillScraper = oddsBackfillScraper;
         this.statsCalculationService = statsCalculationService;
         this.timeSeriesService = timeSeriesService;
+        this.powerRatingService = powerRatingService;
     }
 
     public void scrapeFullSeason(int seasonYear) {
@@ -58,6 +62,7 @@ public class ScrapeOrchestrator {
 
         statsCalculationService.calculateAndUpdateForSeason(seasonYear);
         timeSeriesService.calculateAndStoreForSeason(seasonYear);
+        powerRatingService.calculateAndStoreForSeason(seasonYear);
 
         oddsBackfillScraper.backfill(seasonYear);
 
@@ -71,6 +76,7 @@ public class ScrapeOrchestrator {
         gameScraper.scrapeCurrentSeason(seasonYear);
         statsCalculationService.calculateAndUpdateForSeason(seasonYear);
         timeSeriesService.calculateAndStoreForSeason(seasonYear);
+        powerRatingService.calculateAndStoreForSeason(seasonYear);
         oddsBackfillScraper.backfill(seasonYear);
 
         log.info("Current season re-scrape completed for {}", seasonYear);
@@ -103,5 +109,9 @@ public class ScrapeOrchestrator {
 
     public void calculateTimeSeries(int seasonYear) {
         timeSeriesService.calculateAndStoreForSeason(seasonYear);
+    }
+
+    public void calculatePowerRatings(int seasonYear) {
+        powerRatingService.calculateAndStoreForSeason(seasonYear);
     }
 }
