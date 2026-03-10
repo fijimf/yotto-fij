@@ -381,15 +381,34 @@ def main():
     y_win    = np.array(rows_y_win,    dtype=np.int32)
     seasons  = np.array(rows_season)
 
+    if X.shape[0] == 0:
+        print("[train] ERROR: No feature rows could be built. "
+              "Check that power ratings exist for the requested seasons.")
+        sys.exit(1)
+
     train_mask = seasons != test_season
     test_mask  = seasons == test_season
 
-    X_train,    X_test    = X[train_mask],     X[test_mask]
+    X_train,    X_test    = X[train_mask],        X[test_mask]
     ys_train,   ys_test   = y_spread[train_mask], y_spread[test_mask]
     yt_train,   yt_test   = y_total[train_mask],  y_total[test_mask]
     yw_train,   yw_test   = y_win[train_mask],    y_win[test_mask]
 
-    print(f"[train] Train rows: {X_train.shape[0]}, Test rows (season {test_season}): {X_test.shape[0]}")
+    in_sample_metrics = False
+    if X_train.shape[0] == 0:
+        print(f"[train] WARNING: No training data found outside season {test_season} "
+              f"(other seasons may lack power rating snapshots). "
+              f"Falling back to in-sample training on all {X.shape[0]} rows — "
+              f"metrics will be optimistic.")
+        X_train,  X_test  = X,        X
+        ys_train, ys_test = y_spread, y_spread
+        yt_train, yt_test = y_total,  y_total
+        yw_train, yw_test = y_win,    y_win
+        in_sample_metrics = True
+
+    print(f"[train] Train rows: {X_train.shape[0]}, "
+          f"Test rows (season {test_season}): {X_test.shape[0]}"
+          + (" [in-sample]" if in_sample_metrics else ""))
 
     # ── Spread model ───────────────────────────────────────────────────────────
     print("[train] Fitting spread model...")
@@ -420,7 +439,9 @@ def main():
                              objective="binary:logistic", random_state=42,
                              eval_metric="logloss")
     # method="sigmoid" (Platt scaling) exports to ONNX reliably
-    winprob_model = CalibratedClassifierCV(base_clf, method="sigmoid", cv=5)
+    # cv capped at min(5, n_samples//2) so it works on small datasets
+    cv_folds = min(5, X_train.shape[0] // 2)
+    winprob_model = CalibratedClassifierCV(base_clf, method="sigmoid", cv=cv_folds)
     winprob_model.fit(X_train, yw_train)
     probs_test = winprob_model.predict_proba(X_test)[:, 1]
     brier = brier_score_loss(yw_test, probs_test)
