@@ -34,9 +34,29 @@ from psycopg2.extras import RealDictCursor
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import brier_score_loss, root_mean_squared_error
-from skl2onnx import convert_sklearn
+from skl2onnx import convert_sklearn, update_registered_converter
 from skl2onnx.common.data_types import FloatTensorType
+from skl2onnx.common.shape_calculator import (
+    calculate_linear_classifier_output_shapes,
+    calculate_linear_regressor_output_shapes,
+)
 from xgboost import XGBClassifier, XGBRegressor
+from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost
+
+# Register XGBoost converters with skl2onnx (required; not automatic)
+update_registered_converter(
+    XGBRegressor,
+    "XGBoostXGBRegressor",
+    calculate_linear_regressor_output_shapes,
+    convert_xgboost,
+)
+update_registered_converter(
+    XGBClassifier,
+    "XGBoostXGBClassifier",
+    calculate_linear_classifier_output_shapes,
+    convert_xgboost,
+    options={"nocl": [True, False], "zipmap": [True, False, "columns"]},
+)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -292,9 +312,12 @@ def build_feature_row(row, games_df, massey_df, bt_df, hca_df):
 
 # ── ONNX export ────────────────────────────────────────────────────────────────
 
+_TARGET_OPSET = {"": 17, "ai.onnx.ml": 3}
+
+
 def export_regressor(model, output_path):
     initial_type = [("float_input", FloatTensorType([None, N_FEATURES]))]
-    onnx_model = convert_sklearn(model, initial_types=initial_type)
+    onnx_model = convert_sklearn(model, initial_types=initial_type, target_opset=_TARGET_OPSET)
     with open(output_path, "wb") as f:
         f.write(onnx_model.SerializeToString())
 
@@ -303,7 +326,8 @@ def export_classifier(model, output_path):
     initial_type = [("float_input", FloatTensorType([None, N_FEATURES]))]
     # zipmap=False → output_probability is float tensor [n, 2], not a sequence of maps
     options = {id(model): {"zipmap": False}}
-    onnx_model = convert_sklearn(model, initial_types=initial_type, options=options)
+    onnx_model = convert_sklearn(model, initial_types=initial_type, options=options,
+                                 target_opset=_TARGET_OPSET)
     with open(output_path, "wb") as f:
         f.write(onnx_model.SerializeToString())
 

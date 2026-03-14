@@ -3,6 +3,7 @@ scikit-learn>=1.4
 skl2onnx>=1.16
 onnxmltools>=1.12
 onnx>=1.15
+packaging
 psycopg2-binary
 pandas
 numpy
