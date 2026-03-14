@@ -19,40 +19,50 @@
                  class="prediction-card card"
                  th:classappend="${isLowConf} ? ' prediction-row--low-confidence'">
 
-                <!-- Teams + Prob bar row -->
+                <!-- Teams + Donut chart row -->
                 <div class="prediction-card__teams"
-                     th:with="pHome=${p.ml != null ? p.ml.homeWinProbability : (p.bradleyTerry != null ? p.bradleyTerry.homeWinProbability : null)}">
+                     th:with="pHome=${p.ml != null ? p.ml.homeWinProbability : (p.bradleyTerry != null ? p.bradleyTerry.homeWinProbability : null)},
+                              hColor=${p.homeTeam.color ?: '4a90d9'},
+                              aColor=${p.awayTeam.color ?: '6b7280'}">
 
-                    <!-- Home team -->
-                    <a th:href="@{'/teams/' + ${p.homeTeam.id}}" class="prediction-card__team">
-                        <img th:if="${p.homeTeam.logoUrl}"
-                             th:src="${p.homeTeam.logoUrl}"
-                             class="prediction-card__logo" loading="lazy" width="28" height="28" alt="" />
-                        <span class="prediction-card__team-name" th:text="${p.homeTeam.name}">Duke</span>
-                    </a>
-
-                    <!-- Win probability bar -->
-                    <div th:if="${pHome != null}"
-                         class="prob-bar prediction-card__prob-bar"
-                         th:style="'--team-color-home: #' + (${p.homeTeam.color} ?: '4a90d9') + '; --team-color-away: #' + (${p.awayTeam.color} ?: 'd94a4a')">
-                        <div class="prob-bar__home"
-                             th:style="'width:' + ${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'"
-                             th:text="${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'">62%</div>
-                        <div class="prob-bar__away"
-                             th:style="'width:' + ${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'"
-                             th:text="${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'">38%</div>
+                    <!-- Stacked teams -->
+                    <div class="prediction-card__team-stack">
+                        <a th:href="@{'/teams/' + ${p.homeTeam.id}}" class="prediction-card__team-row">
+                            <img th:if="${p.homeTeam.logoUrl}" th:src="${p.homeTeam.logoUrl}"
+                                 class="prediction-card__logo" loading="lazy" width="24" height="24" alt="" />
+                            <span class="prediction-card__team-name" th:text="${p.homeTeam.name}">Duke</span>
+                            <span th:if="${pHome != null}" class="prediction-card__prob-pct"
+                                  th:style="'color:#' + ${hColor}"
+                                  th:text="${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'">65%</span>
+                        </a>
+                        <div class="prediction-card__vs">vs</div>
+                        <a th:href="@{'/teams/' + ${p.awayTeam.id}}" class="prediction-card__team-row">
+                            <img th:if="${p.awayTeam.logoUrl}" th:src="${p.awayTeam.logoUrl}"
+                                 class="prediction-card__logo" loading="lazy" width="24" height="24" alt="" />
+                            <span class="prediction-card__team-name" th:text="${p.awayTeam.name}">UNC</span>
+                            <span th:if="${pHome != null}" class="prediction-card__prob-pct"
+                                  th:style="'color:#' + ${aColor}"
+                                  th:text="${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'">35%</span>
+                        </a>
                     </div>
-                    <div th:unless="${pHome != null}" class="prob-bar prediction-card__prob-bar prob-bar--empty">
-                        <span style="color: var(--color-text-muted); font-size: 0.75rem; margin: auto;">No rating</span>
-                    </div>
 
-                    <!-- Away team -->
-                    <a th:href="@{'/teams/' + ${p.awayTeam.id}}" class="prediction-card__team prediction-card__team--away">
-                        <span class="prediction-card__team-name" th:text="${p.awayTeam.name}">UNC</span>
-                        <img th:if="${p.awayTeam.logoUrl}"
-                             th:src="${p.awayTeam.logoUrl}"
-                             class="prediction-card__logo" loading="lazy" width="28" height="28" alt="" />
-                    </a>
+                    <!-- Donut win-prob chart (r=15.9155 → circumference≈100, so dasharray values = percentages) -->
+                    <div th:if="${pHome != null}" class="prob-donut"
+                         th:with="hp=${#numbers.formatDecimal(pHome * 100, 1, 0)},
+                                  ap=${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)},
+                                  favLogo=${pHome >= 0.5 ? p.homeTeam.logoUrl : p.awayTeam.logoUrl}">
+                        <svg viewBox="0 0 40 40" class="prob-donut__svg"
+                             th:style="'--dh:#' + ${hColor} + ';--da:#' + ${aColor}">
+                            <circle class="prob-donut__track" cx="20" cy="20" r="15.9155"/>
+                            <circle class="prob-donut__arc"   cx="20" cy="20" r="15.9155"
+                                    th:attr="stroke-dasharray=${hp + ' ' + ap}"/>
+                        </svg>
+                        <img th:if="${favLogo}" th:src="${favLogo}"
+                             class="prob-donut__logo" loading="lazy" width="26" height="26" alt=""/>
+                    </div>
+                    <div th:unless="${pHome != null}" class="prob-donut prob-donut--empty">
+                        <span>—</span>
+                    </div>
                 </div>
 
                 <!-- Stats row: spread, total, time, detail link -->

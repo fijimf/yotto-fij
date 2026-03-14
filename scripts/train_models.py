@@ -20,11 +20,13 @@ Usage (local development):
 """
 
 import argparse
+import bisect
 import json
 import os
 import shutil
 import sys
 import tempfile
+import time
 from datetime import datetime, date, timedelta
 
 import numpy as np
@@ -178,122 +180,183 @@ def load_hca_params(conn, season_years):
 
 # ── Feature engineering ────────────────────────────────────────────────────────
 
-def latest_before(df, team_id, season_id, model_type, cutoff_date):
-    """Return the most recent snapshot row strictly before cutoff_date, or None."""
-    mask = (
-        (df["team_id"] == team_id) &
-        (df["season_id"] == season_id) &
-        (df["model_type"] == model_type) &
-        (df["snapshot_date"] < cutoff_date)
-    )
-    subset = df[mask]
-    if subset.empty:
+def build_snapshot_index(df):
+    """
+    Pre-build a binary-search index from a combined snapshot DataFrame.
+
+    Returns dict: (team_id, season_id, model_type) -> (dates, ratings, games_played)
+    where each value is a trio of parallel sorted lists, ordered by snapshot_date.
+    Replaces O(N) full-scan lookups in latest_before() with O(log k) bisect lookups.
+    """
+    groups = {}
+    for row in df.itertuples(index=False):
+        key = (int(row.team_id), int(row.season_id), row.model_type)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append((row.snapshot_date, float(row.rating), int(row.games_played)))
+    index = {}
+    for key, entries in groups.items():
+        entries.sort()  # sort by (date, ...) — date is always the primary key
+        index[key] = (
+            [e[0] for e in entries],
+            [e[1] for e in entries],
+            [e[2] for e in entries],
+        )
+    return index
+
+
+def lookup_snapshot(index, team_id, season_id, model_type, cutoff_date):
+    """Return (rating, games_played) of the latest snapshot strictly before cutoff_date, or None."""
+    result = index.get((team_id, season_id, model_type))
+    if result is None:
         return None
-    return subset.loc[subset["snapshot_date"].idxmax()]
+    dates, ratings, games_played = result
+    pos = bisect.bisect_left(dates, cutoff_date)
+    if pos == 0:
+        return None
+    return ratings[pos - 1], games_played[pos - 1]
 
 
-def latest_param_before(df, season_id, model_type, param_name, cutoff_date):
-    """Return the most recent param value strictly before cutoff_date, or 0.0."""
-    mask = (
-        (df["season_id"] == season_id) &
-        (df["model_type"] == model_type) &
-        (df["param_name"] == param_name) &
-        (df["snapshot_date"] < cutoff_date)
-    )
-    subset = df[mask]
-    if subset.empty:
+def build_param_index(df):
+    """
+    Pre-build a binary-search index from an HCA param DataFrame.
+
+    Returns dict: (season_id, model_type, param_name) -> (dates, values)
+    where each value is a pair of parallel sorted lists.
+    """
+    if df.empty:
+        return {}
+    groups = {}
+    for row in df.itertuples(index=False):
+        key = (int(row.season_id), row.model_type, row.param_name)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append((row.snapshot_date, float(row.param_value)))
+    index = {}
+    for key, entries in groups.items():
+        entries.sort()
+        index[key] = ([e[0] for e in entries], [e[1] for e in entries])
+    return index
+
+
+def lookup_param(index, season_id, model_type, param_name, cutoff_date):
+    """Return the latest param value strictly before cutoff_date, or 0.0."""
+    result = index.get((season_id, model_type, param_name))
+    if result is None:
         return 0.0
-    return subset.loc[subset["snapshot_date"].idxmax(), "param_value"]
+    dates, values = result
+    pos = bisect.bisect_left(dates, cutoff_date)
+    if pos == 0:
+        return 0.0
+    return values[pos - 1]
 
 
-def rolling_stats(games_df, team_id, cutoff_date, n=5):
-    """Compute rolling stats for a team's last n games before cutoff_date."""
-    mask = (
-        ((games_df["home_team_id"] == team_id) | (games_df["away_team_id"] == team_id)) &
-        (games_df["game_date"] < cutoff_date)
-    )
-    recent = games_df[mask].sort_values("game_date", ascending=False).head(n)
-    if recent.empty:
-        return None, None, None, None, None  # win_pct, avg_margin, avg_total, stddev, days_rest
+def build_team_game_index(games_df):
+    """
+    Pre-build per-team sorted game lists for fast rolling-stats lookups.
 
-    margins = []
-    totals = []
-    wins = 0
-    for _, row in recent.iterrows():
-        h, a = row["home_score"], row["away_score"]
-        total = h + a
-        if row["home_team_id"] == team_id:
-            margin = h - a
-        else:
-            margin = a - h
+    Returns dict: team_id -> (dates, home_scores, away_scores, home_team_ids)
+    where each value is a quartet of parallel lists sorted by game_date.
+    Replaces O(N) full-scan + sort in rolling_stats() with O(log k) bisect lookups.
+    """
+    groups = {}
+    for row in games_df.itertuples(index=False):
+        entry = (row.game_date, int(row.home_score), int(row.away_score), int(row.home_team_id))
+        for tid in (int(row.home_team_id), int(row.away_team_id)):
+            if tid not in groups:
+                groups[tid] = []
+            groups[tid].append(entry)
+    index = {}
+    for tid, entries in groups.items():
+        entries.sort()
+        index[tid] = (
+            [e[0] for e in entries],
+            [e[1] for e in entries],
+            [e[2] for e in entries],
+            [e[3] for e in entries],
+        )
+    return index
+
+
+def rolling_stats_fast(team_game_index, team_id, cutoff_date, n=5):
+    """
+    Compute rolling stats for a team's last n games strictly before cutoff_date.
+
+    Uses binary search on a pre-sorted per-team list — O(log k) per call vs
+    the original O(total_games) full scan + sort.
+    Returns (win_pct, avg_margin, avg_total, margin_stddev, days_rest), or all-None on cold start.
+    """
+    result = team_game_index.get(team_id)
+    if result is None:
+        return None, None, None, None, None
+    dates, home_scores, away_scores, home_team_ids = result
+    pos = bisect.bisect_left(dates, cutoff_date)
+    if pos == 0:
+        return None, None, None, None, None
+    start = max(0, pos - n)
+    margins, totals, wins = [], [], 0
+    for i in range(start, pos):
+        h, a = home_scores[i], away_scores[i]
+        margin = (h - a) if home_team_ids[i] == team_id else (a - h)
         if margin > 0:
             wins += 1
         margins.append(margin)
-        totals.append(total)
-
-    win_pct = wins / len(margins)
-    avg_margin = np.mean(margins)
-    avg_total = np.mean(totals)
-    stddev = np.std(margins, ddof=1) if len(margins) > 1 else 0.0
-
-    # Days rest
-    latest_game_date = recent["game_date"].max()
-    days_rest = (cutoff_date - latest_game_date).days
-
-    return win_pct, avg_margin, avg_total, stddev, days_rest
+        totals.append(h + a)
+    n_actual = len(margins)
+    avg_margin = sum(margins) / n_actual
+    avg_total  = sum(totals)  / n_actual
+    stddev = (sum((m - avg_margin) ** 2 for m in margins) / (n_actual - 1)) ** 0.5 if n_actual > 1 else 0.0
+    days_rest = (cutoff_date - dates[pos - 1]).days
+    return wins / n_actual, avg_margin, avg_total, stddev, days_rest
 
 
-def build_feature_row(row, games_df, massey_df, bt_df, hca_df):
-    """Build a feature vector for one game row. Returns None if ratings unavailable."""
-    game_date = row["game_date"]
-    season_id = row["season_id"]
-    home_id = row["home_team_id"]
-    away_id = row["away_team_id"]
-    neutral = bool(row["neutral_site"])
-    conference = bool(row["conference_game"]) if row["conference_game"] is not None else False
+def build_feature_row(row, team_game_index, snapshot_index, param_index):
+    """
+    Build a feature vector for one game (namedtuple from itertuples).
+    Returns None if any required rating snapshot is unavailable.
+    """
+    game_date  = row.game_date
+    season_id  = int(row.season_id)
+    home_id    = int(row.home_team_id)
+    away_id    = int(row.away_team_id)
+    neutral    = bool(row.neutral_site) if pd.notna(row.neutral_site) else False
+    conference = bool(row.conference_game) if pd.notna(row.conference_game) else False
 
     # ── Massey spread ratings ──────────────────────────────────────────────────
-    massey_home = latest_before(massey_df[massey_df["model_type"] == "MASSEY"], home_id, season_id, "MASSEY", game_date)
-    massey_away = latest_before(massey_df[massey_df["model_type"] == "MASSEY"], away_id, season_id, "MASSEY", game_date)
-    if massey_home is None or massey_away is None:
+    snap_mh = lookup_snapshot(snapshot_index, home_id, season_id, "MASSEY", game_date)
+    snap_ma = lookup_snapshot(snapshot_index, away_id, season_id, "MASSEY", game_date)
+    if snap_mh is None or snap_ma is None:
         return None
-
-    beta_home = massey_home["rating"]
-    beta_away = massey_away["rating"]
-    massey_hca = 0.0 if neutral else latest_param_before(hca_df, season_id, "MASSEY", "hca", game_date)
+    beta_home, home_gp = snap_mh
+    beta_away, away_gp = snap_ma
+    massey_hca = 0.0 if neutral else lookup_param(param_index, season_id, "MASSEY", "hca", game_date)
 
     # ── Massey total ratings ───────────────────────────────────────────────────
-    mt_home = latest_before(massey_df[massey_df["model_type"] == "MASSEY_TOTAL"], home_id, season_id, "MASSEY_TOTAL", game_date)
-    mt_away = latest_before(massey_df[massey_df["model_type"] == "MASSEY_TOTAL"], away_id, season_id, "MASSEY_TOTAL", game_date)
-    if mt_home is None or mt_away is None:
+    snap_th = lookup_snapshot(snapshot_index, home_id, season_id, "MASSEY_TOTAL", game_date)
+    snap_ta = lookup_snapshot(snapshot_index, away_id, season_id, "MASSEY_TOTAL", game_date)
+    if snap_th is None or snap_ta is None:
         return None
-
-    gamma_home = mt_home["rating"]
-    gamma_away = mt_away["rating"]
+    gamma_home = snap_th[0]
+    gamma_away = snap_ta[0]
 
     # ── Bradley-Terry ratings ──────────────────────────────────────────────────
-    bt_home_row = latest_before(bt_df, home_id, season_id, "BRADLEY_TERRY", game_date)
-    bt_away_row = latest_before(bt_df, away_id, season_id, "BRADLEY_TERRY", game_date)
-    if bt_home_row is None or bt_away_row is None:
+    snap_bh = lookup_snapshot(snapshot_index, home_id, season_id, "BRADLEY_TERRY", game_date)
+    snap_ba = lookup_snapshot(snapshot_index, away_id, season_id, "BRADLEY_TERRY", game_date)
+    if snap_bh is None or snap_ba is None:
         return None
-
-    theta_home = bt_home_row["rating"]
-    theta_away = bt_away_row["rating"]
-    bt_alpha = 0.0 if neutral else latest_param_before(hca_df, season_id, "BRADLEY_TERRY", "hca", game_date)
+    theta_home = snap_bh[0]
+    theta_away = snap_ba[0]
+    bt_alpha   = 0.0 if neutral else lookup_param(param_index, season_id, "BRADLEY_TERRY", "hca", game_date)
     bt_logodds = theta_home - theta_away + bt_alpha
 
-    home_gp = massey_home["games_played"]
-    away_gp = massey_away["games_played"]
-
     # ── Rolling features ───────────────────────────────────────────────────────
-    h_win_pct, h_avg_margin, h_avg_total, h_stddev, h_rest = rolling_stats(games_df, home_id, game_date)
-    a_win_pct, a_avg_margin, a_avg_total, a_stddev, a_rest = rolling_stats(games_df, away_id, game_date)
-
-    if any(v is None for v in [h_win_pct, a_win_pct]):
-        return None  # skip games where rolling window is empty (cold start)
+    h_win_pct, h_avg_margin, h_avg_total, h_stddev, h_rest = rolling_stats_fast(team_game_index, home_id, game_date)
+    a_win_pct, a_avg_margin, a_avg_total, a_stddev, a_rest = rolling_stats_fast(team_game_index, away_id, game_date)
+    if h_win_pct is None or a_win_pct is None:
+        return None
 
     # ── Season week ────────────────────────────────────────────────────────────
-    season_week = int((game_date - row["season_start_date"]).days / 7) + 1
+    season_week = int((game_date - row.season_start_date).days / 7) + 1
 
     return [
         beta_home, beta_away, beta_home - beta_away,
@@ -347,57 +410,132 @@ def parse_args():
     return p.parse_args()
 
 
+def _sep(title=""):
+    """Print a section separator."""
+    if title:
+        pad = max(0, 60 - len(title) - 2)
+        print(f"\n[train] {'─' * 3} {title} {'─' * pad}")
+    else:
+        print(f"[train] {'─' * 64}")
+
+
+def _fmt_seconds(s):
+    return f"{s:.1f}s" if s < 60 else f"{int(s)//60}m {int(s)%60}s"
+
+
 def main():
+    wall_start = time.time()
     args = parse_args()
     train_seasons = [int(y.strip()) for y in args.train_seasons.split(",")]
     test_season = args.test_season
     all_seasons = sorted(set(train_seasons + [test_season]))
 
+    _sep("Configuration")
+    print(f"[train]   train seasons : {train_seasons}")
+    print(f"[train]   test season   : {test_season}")
+    print(f"[train]   output dir    : {args.output_dir}")
+    print(f"[train]   features      : {N_FEATURES}")
+
+    # ── Load data ─────────────────────────────────────────────────────────────
+    _sep("Loading data")
     db_url = build_db_url(args)
     print(f"[train] Connecting to database...")
+    t0 = time.time()
     conn = psycopg2.connect(db_url)
+    print(f"[train] Connected ({_fmt_seconds(time.time() - t0)})")
 
-    print(f"[train] Loading data for seasons {all_seasons}...")
-    games_df    = load_games(conn, all_seasons)
-    massey_df   = load_massey_snapshots(conn, all_seasons)
-    bt_df       = load_bt_snapshots(conn, all_seasons)
-    hca_df      = load_hca_params(conn, all_seasons)
+    print(f"[train] Querying games for seasons {all_seasons}...")
+    t0 = time.time()
+    games_df = load_games(conn, all_seasons)
+    print(f"[train]   → {len(games_df):,} FINAL games ({_fmt_seconds(time.time() - t0)})")
+    if not games_df.empty:
+        for yr, grp in games_df.groupby("season_year"):
+            label = f"(test)" if yr == test_season else "(train)"
+            print(f"[train]       season {yr} {label}: {len(grp):,} games")
+
+    print(f"[train] Querying Massey snapshots...")
+    t0 = time.time()
+    massey_df = load_massey_snapshots(conn, all_seasons)
+    print(f"[train]   → {len(massey_df):,} Massey snapshots ({_fmt_seconds(time.time() - t0)})")
+
+    print(f"[train] Querying Bradley-Terry snapshots...")
+    t0 = time.time()
+    bt_df = load_bt_snapshots(conn, all_seasons)
+    print(f"[train]   → {len(bt_df):,} BT snapshots ({_fmt_seconds(time.time() - t0)})")
+
+    print(f"[train] Querying HCA params...")
+    t0 = time.time()
+    hca_df = load_hca_params(conn, all_seasons)
+    print(f"[train]   → {len(hca_df):,} HCA param rows ({_fmt_seconds(time.time() - t0)})")
     conn.close()
 
-    # Validate that required data exists before proceeding
+    # ── Validate ──────────────────────────────────────────────────────────────
     if games_df.empty:
-        print("[train] ERROR: No FINAL games found for seasons "
-              f"{all_seasons}. Run a full scrape first.")
+        print("[train] ERROR: No FINAL games found. Run a full scrape first.")
         sys.exit(1)
     if massey_df.empty:
-        print("[train] ERROR: No Massey power rating snapshots found for seasons "
-              f"{all_seasons}. Run 'Calc Stats' and then 'Power Ratings' from the admin dashboard first.")
+        print("[train] ERROR: No Massey snapshots. Run 'Power Ratings' from the admin dashboard.")
         sys.exit(1)
     if bt_df.empty:
-        print("[train] ERROR: No Bradley-Terry power rating snapshots found for seasons "
-              f"{all_seasons}. Run 'Calc Stats' and then 'Power Ratings' from the admin dashboard first.")
+        print("[train] ERROR: No Bradley-Terry snapshots. Run 'Power Ratings' from the admin dashboard.")
         sys.exit(1)
 
-    # Ensure date columns are Python date objects
-    games_df["game_date"] = pd.to_datetime(games_df["game_date"]).dt.date
-    games_df["season_start_date"] = pd.to_datetime(games_df["season_start_date"]).dt.date
-    massey_df["snapshot_date"] = pd.to_datetime(massey_df["snapshot_date"]).dt.date
-    bt_df["snapshot_date"] = pd.to_datetime(bt_df["snapshot_date"]).dt.date
+    # ── Date coercions ────────────────────────────────────────────────────────
+    games_df["game_date"]        = pd.to_datetime(games_df["game_date"]).dt.date
+    games_df["season_start_date"]= pd.to_datetime(games_df["season_start_date"]).dt.date
+    massey_df["snapshot_date"]   = pd.to_datetime(massey_df["snapshot_date"]).dt.date
+    bt_df["snapshot_date"]       = pd.to_datetime(bt_df["snapshot_date"]).dt.date
     if not hca_df.empty:
-        hca_df["snapshot_date"] = pd.to_datetime(hca_df["snapshot_date"]).dt.date
+        hca_df["snapshot_date"]  = pd.to_datetime(hca_df["snapshot_date"]).dt.date
 
-    print(f"[train] Building feature matrix from {len(games_df)} games...")
+    # Report snapshot coverage
+    massey_dates = massey_df["snapshot_date"]
+    bt_dates     = bt_df["snapshot_date"]
+    print(f"[train]   Massey date range : {massey_dates.min()} → {massey_dates.max()}")
+    print(f"[train]   BT date range     : {bt_dates.min()} → {bt_dates.max()}")
+
+    # ── Build lookup indexes ───────────────────────────────────────────────────
+    _sep("Building lookup indexes")
+    t0 = time.time()
+    all_snapshots_df = pd.concat([massey_df, bt_df], ignore_index=True)
+    snapshot_index = build_snapshot_index(all_snapshots_df)
+    print(f"[train]   snapshot index : {len(snapshot_index):,} keys ({_fmt_seconds(time.time()-t0)})")
+    t0 = time.time()
+    param_index = build_param_index(hca_df)
+    print(f"[train]   param index    : {len(param_index):,} keys ({_fmt_seconds(time.time()-t0)})")
+    t0 = time.time()
+    team_game_index = build_team_game_index(games_df)
+    print(f"[train]   team game index: {len(team_game_index):,} teams ({_fmt_seconds(time.time()-t0)})")
+
+    # ── Feature engineering ───────────────────────────────────────────────────
+    _sep("Building features")
+    print(f"[train] Processing {len(games_df):,} games...")
+    t0 = time.time()
     rows_X, rows_y_spread, rows_y_total, rows_y_win, rows_season = [], [], [], [], []
+    skipped = 0
+    log_interval = max(500, len(games_df) // 10)
 
-    for _, row in games_df.iterrows():
-        feat = build_feature_row(row, games_df, massey_df, bt_df, hca_df)
+    for i, row in enumerate(games_df.itertuples(index=False), 1):
+        feat = build_feature_row(row, team_game_index, snapshot_index, param_index)
         if feat is None:
+            skipped += 1
             continue
         rows_X.append(feat)
-        rows_y_spread.append(row["home_score"] - row["away_score"])
-        rows_y_total.append(row["home_score"] + row["away_score"])
-        rows_y_win.append(1 if row["home_score"] > row["away_score"] else 0)
-        rows_season.append(row["season_year"])
+        rows_y_spread.append(row.home_score - row.away_score)
+        rows_y_total.append(row.home_score + row.away_score)
+        rows_y_win.append(1 if row.home_score > row.away_score else 0)
+        rows_season.append(row.season_year)
+        if i % log_interval == 0:
+            pct = 100 * i / len(games_df)
+            kept = i - skipped
+            print(f"[train]   {i:,}/{len(games_df):,} ({pct:.0f}%) — kept {kept:,}, skipped {skipped:,} so far "
+                  f"({_fmt_seconds(time.time() - t0)})")
+
+    feat_elapsed = time.time() - t0
+    kept_total = len(rows_X)
+    print(f"[train] Feature build complete: {kept_total:,} rows kept, "
+          f"{skipped:,} skipped ({100*skipped/len(games_df):.1f}%) "
+          f"in {_fmt_seconds(feat_elapsed)}")
 
     X        = np.array(rows_X, dtype=np.float32)
     y_spread = np.array(rows_y_spread, dtype=np.float32)
@@ -410,6 +548,26 @@ def main():
               "Check that power ratings exist for the requested seasons.")
         sys.exit(1)
 
+    # Per-season breakdown
+    print(f"[train] Feature matrix: {X.shape[0]:,} rows × {X.shape[1]} features")
+    for yr in sorted(set(rows_season)):
+        mask = seasons == yr
+        n = mask.sum()
+        hw = y_win[mask].mean() * 100
+        label = "(test)" if yr == test_season else "(train)"
+        print(f"[train]   season {yr} {label}: {n:,} rows, home win rate {hw:.1f}%")
+
+    # Label statistics
+    print(f"[train] Spread  — mean {y_spread.mean():+.1f} pts, "
+          f"std {y_spread.std():.1f} pts, "
+          f"range [{y_spread.min():.0f}, {y_spread.max():.0f}]")
+    print(f"[train] Total   — mean {y_total.mean():.1f} pts, "
+          f"std {y_total.std():.1f} pts, "
+          f"range [{y_total.min():.0f}, {y_total.max():.0f}]")
+    print(f"[train] Win     — home wins {y_win.mean()*100:.1f}% "
+          f"({y_win.sum():,} / {len(y_win):,})")
+
+    # ── Train/test split ──────────────────────────────────────────────────────
     train_mask = seasons != test_season
     test_mask  = seasons == test_season
 
@@ -420,66 +578,107 @@ def main():
 
     in_sample_metrics = False
     if X_train.shape[0] == 0:
-        print(f"[train] WARNING: No training data found outside season {test_season} "
-              f"(other seasons may lack power rating snapshots). "
-              f"Falling back to in-sample training on all {X.shape[0]} rows — "
-              f"metrics will be optimistic.")
+        print(f"\n[train] WARNING: No out-of-season training rows for season {test_season}. "
+              f"Falling back to in-sample training — metrics will be optimistic.")
         X_train,  X_test  = X,        X
         ys_train, ys_test = y_spread, y_spread
         yt_train, yt_test = y_total,  y_total
         yw_train, yw_test = y_win,    y_win
         in_sample_metrics = True
 
-    print(f"[train] Train rows: {X_train.shape[0]}, "
-          f"Test rows (season {test_season}): {X_test.shape[0]}"
-          + (" [in-sample]" if in_sample_metrics else ""))
+    sample_tag = " [IN-SAMPLE]" if in_sample_metrics else ""
+    print(f"\n[train] Train: {X_train.shape[0]:,} rows  |  "
+          f"Test (season {test_season}): {X_test.shape[0]:,} rows{sample_tag}")
 
     # ── Spread model ───────────────────────────────────────────────────────────
-    print("[train] Fitting spread model...")
+    _sep("Spread model")
+    print(f"[train] XGBRegressor(n_estimators=300, max_depth=4, lr=0.05) ...")
+    t0 = time.time()
     spread_model = Pipeline([
         ("model", XGBRegressor(n_estimators=300, max_depth=4, learning_rate=0.05,
                                subsample=0.8, colsample_bytree=0.8,
                                objective="reg:squarederror", random_state=42))
     ])
     spread_model.fit(X_train, ys_train)
-    spread_rmse = root_mean_squared_error(ys_test, spread_model.predict(X_test))
-    print(f"[train] Spread RMSE (test): {spread_rmse:.3f} pts")
+    elapsed = time.time() - t0
+    spread_preds = spread_model.predict(X_test)
+    spread_rmse = root_mean_squared_error(ys_test, spread_preds)
+    spread_mae  = float(np.abs(ys_test - spread_preds).mean())
+    baseline_rmse = float(np.sqrt(((ys_test - ys_train.mean()) ** 2).mean()))
+    print(f"[train]   fit time  : {_fmt_seconds(elapsed)}")
+    print(f"[train]   RMSE      : {spread_rmse:.3f} pts  (baseline naive: {baseline_rmse:.3f} pts)")
+    print(f"[train]   MAE       : {spread_mae:.3f} pts")
+    correct_side = float(((spread_preds > 0) == (ys_test > 0)).mean() * 100)
+    print(f"[train]   side acc  : {correct_side:.1f}%  (predicted correct winner)")
 
     # ── Total model ────────────────────────────────────────────────────────────
-    print("[train] Fitting total model...")
+    _sep("Total model")
+    print(f"[train] XGBRegressor(n_estimators=300, max_depth=4, lr=0.05) ...")
+    t0 = time.time()
     total_model = Pipeline([
         ("model", XGBRegressor(n_estimators=300, max_depth=4, learning_rate=0.05,
                                subsample=0.8, colsample_bytree=0.8,
                                objective="reg:squarederror", random_state=42))
     ])
     total_model.fit(X_train, yt_train)
-    total_rmse = root_mean_squared_error(yt_test, total_model.predict(X_test))
-    print(f"[train] Total RMSE (test): {total_rmse:.3f} pts")
+    elapsed = time.time() - t0
+    total_preds = total_model.predict(X_test)
+    total_rmse = root_mean_squared_error(yt_test, total_preds)
+    total_mae  = float(np.abs(yt_test - total_preds).mean())
+    baseline_total_rmse = float(np.sqrt(((yt_test - yt_train.mean()) ** 2).mean()))
+    print(f"[train]   fit time  : {_fmt_seconds(elapsed)}")
+    print(f"[train]   RMSE      : {total_rmse:.3f} pts  (baseline naive: {baseline_total_rmse:.3f} pts)")
+    print(f"[train]   MAE       : {total_mae:.3f} pts")
 
     # ── Win probability model ─────────────────────────────────────────────────
-    print("[train] Fitting win probability model...")
+    _sep("Win probability model")
+    cv_folds = min(5, X_train.shape[0] // 2)
+    print(f"[train] CalibratedClassifierCV(XGBClassifier, method=sigmoid, cv={cv_folds}) ...")
+    t0 = time.time()
     base_clf = XGBClassifier(n_estimators=300, max_depth=4, learning_rate=0.05,
                              subsample=0.8, colsample_bytree=0.8,
                              objective="binary:logistic", random_state=42,
                              eval_metric="logloss")
-    # method="sigmoid" (Platt scaling) exports to ONNX reliably
-    # cv capped at min(5, n_samples//2) so it works on small datasets
-    cv_folds = min(5, X_train.shape[0] // 2)
     winprob_model = CalibratedClassifierCV(base_clf, method="sigmoid", cv=cv_folds)
     winprob_model.fit(X_train, yw_train)
+    elapsed = time.time() - t0
     probs_test = winprob_model.predict_proba(X_test)[:, 1]
     brier = brier_score_loss(yw_test, probs_test)
-    print(f"[train] Win prob Brier score (test): {brier:.4f}")
+    baseline_brier = float(yw_train.mean() * (1 - yw_train.mean()))
+    acc = float(((probs_test > 0.5) == yw_test).mean() * 100)
+    print(f"[train]   fit time     : {_fmt_seconds(elapsed)}")
+    print(f"[train]   Brier score  : {brier:.4f}  (baseline naive: {baseline_brier:.4f})")
+    print(f"[train]   Accuracy     : {acc:.1f}%")
+    # Calibration: show mean predicted prob vs actual win rate in deciles
+    decile_edges = np.percentile(probs_test, np.linspace(0, 100, 11))
+    print(f"[train]   Calibration (predicted → actual, by decile):")
+    for lo, hi in zip(decile_edges[:-1], decile_edges[1:]):
+        mask = (probs_test >= lo) & (probs_test <= hi)
+        if mask.sum() == 0:
+            continue
+        pred_mean = probs_test[mask].mean()
+        act_mean  = yw_test[mask].mean()
+        n = mask.sum()
+        print(f"[train]     {pred_mean*100:4.0f}% predicted → {act_mean*100:4.0f}% actual  (n={n:,})")
 
-    # ── Export to ONNX (atomic: write to .pending/, then rename) ──────────────
+    # ── Export to ONNX ────────────────────────────────────────────────────────
+    _sep("Exporting ONNX models")
     output_dir = args.output_dir
     pending_dir = os.path.join(output_dir, ".pending")
     os.makedirs(pending_dir, exist_ok=True)
 
-    print("[train] Exporting ONNX models...")
-    export_regressor(spread_model,  os.path.join(pending_dir, "spread_model.onnx"))
-    export_regressor(total_model,   os.path.join(pending_dir, "total_model.onnx"))
-    export_classifier(winprob_model, os.path.join(pending_dir, "winprob_model.onnx"))
+    for label, fn, path in [
+        ("spread",   "spread_model.onnx",  os.path.join(pending_dir, "spread_model.onnx")),
+        ("total",    "total_model.onnx",   os.path.join(pending_dir, "total_model.onnx")),
+        ("winprob",  "winprob_model.onnx", os.path.join(pending_dir, "winprob_model.onnx")),
+    ]:
+        t0 = time.time()
+        if label == "winprob":
+            export_classifier(winprob_model, path)
+        else:
+            export_regressor(spread_model if label == "spread" else total_model, path)
+        size_kb = os.path.getsize(path) / 1024
+        print(f"[train]   {label:<8} → {fn}  ({size_kb:.0f} KB, {_fmt_seconds(time.time()-t0)})")
 
     features_meta = {
         "version": datetime.utcnow().strftime("%Y-%m-%d"),
@@ -489,22 +688,33 @@ def main():
         "winprob_model": "winprob_model.onnx",
         "metrics": {
             "spread_rmse": round(float(spread_rmse), 3),
+            "spread_mae":  round(float(spread_mae),  3),
             "total_rmse":  round(float(total_rmse),  3),
+            "total_mae":   round(float(total_mae),   3),
             "brier_score": round(float(brier),       4),
+            "win_accuracy":round(float(acc),         1),
+            "in_sample":   in_sample_metrics,
         },
     }
     with open(os.path.join(pending_dir, "features.json"), "w") as f:
         json.dump(features_meta, f, indent=2)
+    print(f"[train]   features.json written")
 
-    # Atomic rename: move each file from .pending/ to output_dir/
+    # Atomic rename
     for fname in ["spread_model.onnx", "total_model.onnx", "winprob_model.onnx", "features.json"]:
-        src = os.path.join(pending_dir, fname)
-        dst = os.path.join(output_dir, fname)
-        shutil.move(src, dst)
+        shutil.move(os.path.join(pending_dir, fname), os.path.join(output_dir, fname))
 
-    # features.json written last — its presence signals a complete, consistent set
-    print(f"[train] Models written to {output_dir}")
-    print(f"[train] Done. spread_rmse={spread_rmse:.3f}, total_rmse={total_rmse:.3f}, brier={brier:.4f}")
+    # ── Summary ───────────────────────────────────────────────────────────────
+    _sep("Summary")
+    total_elapsed = time.time() - wall_start
+    print(f"[train]   Total wall time : {_fmt_seconds(total_elapsed)}")
+    print(f"[train]   Training rows   : {X_train.shape[0]:,}  |  Test rows: {X_test.shape[0]:,}{sample_tag}")
+    print(f"[train]   Spread  RMSE={spread_rmse:.3f} pts  MAE={spread_mae:.3f} pts  "
+          f"side-acc={correct_side:.1f}%")
+    print(f"[train]   Total   RMSE={total_rmse:.3f} pts  MAE={total_mae:.3f} pts")
+    print(f"[train]   WinProb Brier={brier:.4f}  acc={acc:.1f}%")
+    print(f"[train]   Models written to {output_dir}")
+    _sep()
 
 
 if __name__ == "__main__":

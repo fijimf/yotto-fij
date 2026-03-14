@@ -1216,18 +1216,22 @@ tbody tr:hover {
     gap: 0.75rem;
     margin-bottom: 0.75rem;
 }
-.prediction-card__team {
+/* Stacked team layout */
+.prediction-card__team-stack {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.prediction-card__team-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
     color: var(--color-text);
-    min-width: 0;
 }
-.prediction-card__team--away {
-    flex-direction: row-reverse;
-}
-.prediction-card__team:hover .prediction-card__team-name {
+.prediction-card__team-row:hover .prediction-card__team-name {
     color: var(--color-primary-hover);
 }
 .prediction-card__team-name {
@@ -1236,15 +1240,67 @@ tbody tr:hover {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+}
+.prediction-card__vs {
+    font-size: 0.68rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding-left: calc(24px + 0.5rem);
+}
+.prediction-card__prob-pct {
+    margin-left: auto;
+    font-weight: 700;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
 }
 .prediction-card__logo {
     border-radius: 2px;
     object-fit: contain;
+    flex-shrink: 0;
 }
-.prediction-card__prob-bar {
-    flex: 1;
-    min-width: 100px;
+/* Donut win-prob chart */
+.prob-donut {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.prob-donut--empty {
+    border: 1px dashed var(--color-border);
+    border-radius: 50%;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+.prob-donut__svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 72px;
+    height: 72px;
+    transform: rotate(-90deg);
+}
+.prob-donut__track {
+    fill: none;
+    stroke: var(--da, #6b7280);
+    stroke-width: 4;
+    opacity: 0.5;
+}
+.prob-donut__arc {
+    fill: none;
+    stroke: var(--dh, var(--color-primary));
+    stroke-width: 4;
+}
+.prob-donut__logo {
+    position: relative;
+    z-index: 1;
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    border-radius: 2px;
 }
 .prediction-card__stats {
     display: flex;
