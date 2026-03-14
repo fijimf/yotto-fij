@@ -207,9 +207,11 @@ public class MlPredictionService {
     private static double runRegressor(OrtSession session, java.util.Map<String, OnnxTensor> inputs)
             throws OrtException {
         try (OrtSession.Result result = session.run(inputs)) {
-            // skl2onnx regressors output a 1-D float array named "variable"
-            float[] vals = (float[]) ((OnnxTensor) result.get(0).getValue()).getValue();
-            return vals[0];
+            // Use named access to avoid Map.Entry vs OnnxValue ambiguity across ORT versions.
+            // onnxmltools may produce float[] (shape [1]) or float[][] (shape [1,1]).
+            Object raw = result.get("variable").get().getValue();
+            if (raw instanceof float[][]) return ((float[][]) raw)[0][0];
+            return ((float[]) raw)[0];
         }
     }
 
@@ -224,7 +226,7 @@ public class MlPredictionService {
             throws OrtException {
         try (OrtSession.Result result = session.run(inputs)) {
             // "output_probability" is float[1][2] when zipmap=False
-            float[][] probs = (float[][]) ((OnnxTensor) result.get("output_probability").get()).getValue();
+            float[][] probs = (float[][]) result.get("output_probability").get().getValue();
             return probs[0][1];
         }
     }
