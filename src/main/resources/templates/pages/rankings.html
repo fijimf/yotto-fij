@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${season != null} ? ${season.year} + ' Power Rankings' : 'Power Rankings'">Power Rankings</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title"
+            th:text="${season != null} ? ${season.year} + ' Power Rankings' : 'Power Rankings'">2026 Power Rankings</h1>
+        <div class="page-header__actions">
+            <select class="form-input form-input--sm"
+                    onchange="window.location='/rankings?year='+this.value">
+                <option value="" th:if="${season == null}">Select season</option>
+                <option th:each="s : ${allSeasons}"
+                        th:value="${s.year}"
+                        th:text="${s.year}"
+                        th:selected="${season != null and s.year == season.year}">2026</option>
+            </select>
+        </div>
+    </div>
+
+    <div th:if="${season == null}" class="teams-empty">
+        No seasons found. Add a season in the admin panel to get started.
+    </div>
+
+    <div th:if="${season != null}">
+
+        <!-- Date controls -->
+        <div class="analytics-date-row" th:if="${latestDate != null}">
+            <label class="form-label" for="rankings-date">As of:</label>
+            <select id="rankings-date"
+                    class="form-input form-input--sm"
+                    style="width: auto;"
+                    hx-get="@{'/rankings/' + ${season.year} + '/table'}"
+                    hx-target="#rankings-table-container"
+                    hx-swap="innerHTML"
+                    hx-include="this"
+                    name="date">
+                <option th:each="d : ${availableDates}"
+                        th:value="${d}"
+                        th:text="${d}"
+                        th:selected="${selectedDate != null and d.equals(selectedDate)}">2026-03-01</option>
+            </select>
+            <span style="font-size: 0.85rem; color: var(--color-text-muted);"
+                  th:text="'Latest: ' + ${latestDate}">Latest: 2026-03-14</span>
+        </div>
+
+        <div th:if="${latestDate == null}" class="alert alert--warning" style="margin-bottom: 1.5rem;">
+            No power ratings calculated yet for this season. Use the admin panel to run a power ratings calculation.
+        </div>
+
+        <!-- Rankings tables (HTMX-swappable) -->
+        <div id="rankings-table-container">
+            <div th:replace="~{fragments/rankings-table :: rankings-table}"></div>
+        </div>
+
+    </div>
+
+</main>
+</body>
+</html>
