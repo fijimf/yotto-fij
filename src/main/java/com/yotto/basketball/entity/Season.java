@@ -1,5 +1,6 @@
 package com.yotto.basketball.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
@@ -26,9 +27,11 @@ public class Season {
 
     private String description;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "season", cascade = CascadeType.ALL)
     private List<Game> games = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "season", cascade = CascadeType.ALL)
     private List<ConferenceMembership> conferenceMemberships = new ArrayList<>();
 

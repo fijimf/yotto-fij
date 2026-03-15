@@ -1,5 +1,6 @@
 package com.yotto.basketball.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 
@@ -43,12 +44,15 @@ public class Team {
     @Column(name = "dark_logo_url")
     private String darkLogoUrl;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "team", cascade = CascadeType.ALL)
     private List<ConferenceMembership> conferenceMemberships = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "homeTeam")
     private List<Game> homeGames = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "awayTeam")
     private List<Game> awayGames = new ArrayList<>();
 

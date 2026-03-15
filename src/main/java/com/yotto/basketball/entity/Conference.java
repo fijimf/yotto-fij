@@ -1,5 +1,6 @@
 package com.yotto.basketball.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 
@@ -29,6 +30,7 @@ public class Conference {
     @Column(name = "logo_url")
     private String logoUrl;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "conference", cascade = CascadeType.ALL)
     private List<ConferenceMembership> memberships = new ArrayList<>();
 
