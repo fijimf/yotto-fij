@@ -32,7 +32,7 @@ public class BradleyTerryRatingService {
     private static final Logger log = LoggerFactory.getLogger(BradleyTerryRatingService.class);
 
     public static final String MODEL_TYPE = "BRADLEY_TERRY";
-    private static final double LAMBDA   = 1.0;
+    private static final double LAMBDA   = 0.01;
     private static final double CONVERGE = 1e-6;
     private static final int    MAX_ITER = 50;
 
@@ -204,6 +204,8 @@ public class BradleyTerryRatingService {
                 grad[j] -= LAMBDA * params[j];
                 H[j][j] -= LAMBDA;
             }
+            // Small stability nudge on HCA diagonal in case all seen games are neutral-site
+            H[T][T] -= 1e-6;
 
             // Check convergence
             double gradNormSq = 0;
