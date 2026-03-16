@@ -32,9 +32,9 @@ public class BradleyTerryRatingService {
     private static final Logger log = LoggerFactory.getLogger(BradleyTerryRatingService.class);
 
     public static final String MODEL_TYPE = "BRADLEY_TERRY";
-    private static final double LAMBDA   = 0.01;
+    private static final double LAMBDA   = 0.1;
     private static final double CONVERGE = 1e-6;
-    private static final int    MAX_ITER = 50;
+    private static final int    MAX_ITER = 500;
 
     private final SeasonRepository seasonRepository;
     private final GameRepository gameRepository;
@@ -212,12 +212,12 @@ public class BradleyTerryRatingService {
             for (double g : grad) gradNormSq += g * g;
             if (Math.sqrt(gradNormSq) < CONVERGE) break;
 
-            // Solve H·δ = ∇L, then params -= δ
+            // Solve H·δ = ∇L, then params -= δ (capped to prevent overshoot when sigmoid saturates)
             try {
                 RealVector delta = new LUDecomposition(new Array2DRowRealMatrix(H, false))
                         .getSolver()
                         .solve(new ArrayRealVector(grad, false));
-                for (int j = 0; j < size; j++) params[j] -= delta.getEntry(j);
+                for (int j = 0; j < size; j++) params[j] -= Math.max(-2.0, Math.min(2.0, delta.getEntry(j)));
             } catch (Exception e) {
                 log.debug("Newton step failed at iteration {}: {}", iter, e.getMessage());
                 break;

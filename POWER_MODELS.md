@@ -102,7 +102,7 @@ Adding a constant to every θ_i does not change any p_g. We resolve this with L2
 L_reg(θ, α) = L(θ, α) − (λ/2) Σ_i θ_i²
 ```
 
-The HCA parameter α is not penalized. Recommended λ = 0.01, configurable.
+The HCA parameter α is not penalized. Recommended λ = 0.1, configurable.
 
 ### Optimization
 
@@ -125,10 +125,16 @@ H[i, T]  = H[T, i] = −Σ_{g: i home, non-neutral} w_g + Σ_{g: i away, non-neu
 Newton-Raphson update (5–15 iterations from cold start, 1–3 when warm-started):
 
 ```
-[θ; α]^(t+1) = [θ; α]^t − H^{−1} · ∇L_reg
+δ = H^{−1} · ∇L_reg
+δ_j = clamp(δ_j, −2.0, +2.0)   (per-component step-size cap)
+[θ; α]^(t+1) = [θ; α]^t − δ
 ```
 
-Convergence criterion: ||∇L_reg||₂ < 1e−6 or 50 iterations maximum.
+The per-component step-size cap of ±2.0 log-odds units prevents Newton overshoot when the sigmoid saturates for extreme ratings. Without the cap, a team with a very large θ_i has w_g = p(1−p) ≈ 0 for all its games, making H[i,i] ≈ −λ and grad[i] ≈ −λ·θ_i. The uncapped Newton step is then δ_i = θ_i, collapsing the rating to zero in one iteration regardless of λ, followed by data pushing it back up — an oscillation that produces artificially round-looking values. The cap prevents this collapse while still allowing convergence to the true MLE.
+
+A small stability nudge `H[T][T] -= 1e-6` is applied to the HCA diagonal to ensure the system remains invertible in degenerate cases where all observed games are neutral-site.
+
+Convergence criterion: ||∇L_reg||₂ < 1e−6 or 500 iterations maximum.
 
 ### Interpretation
 
@@ -378,7 +384,7 @@ public void calculateAndStoreForSeason(int seasonYear)
      - Apply regularization: `grad[j] -= lambda * theta[j]` for j=0..T-1; `H[j][j] -= lambda` for j=0..T-1.
      - Compute Newton step: solve `H · delta = grad` via `LUDecomposition`. (H is negative definite; negate if needed for Cholesky: solve `−H · delta = −grad`.)
      - Update `theta[j] += delta[j]`, `alpha += delta[T]`.
-     - Check convergence: `||grad||₂ < 1e-6` or max 50 iterations.
+     - Check convergence: `||grad||₂ < 1e-6` or max 500 iterations.
    - Compute ranks; persist snapshots as in Massey step 6.
 6. Batch-save all snapshots.
 
@@ -469,6 +475,6 @@ yotto:
     massey:
       lambda: 1.0
     bradley-terry:
-      lambda: 0.01
+      lambda: 0.1
     min-games-for-snapshot: 1  # minimum games played for a team snapshot to be written
 ```
