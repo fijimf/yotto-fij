@@ -130,6 +130,33 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE));
     }
 
+    // ── GET /api/power-ratings/{year}/massey-totals ───────────────────────────
+
+    @Test
+    void masseyTotalsLeaderboard_seasonNotFound_returns404() throws Exception {
+        mockMvc.perform(get("/api/power-ratings/9999/massey-totals"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void masseyTotalsLeaderboard_noData_returnsEmptyList() throws Exception {
+        mockMvc.perform(get("/api/power-ratings/2025/massey-totals"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void masseyTotalsLeaderboard_withData_returnsRatings() throws Exception {
+        addRating(teamA, MasseyRatingService.MODEL_TYPE_TOTALS, 8.0, SNAP_DATE);
+        addRating(teamB, MasseyRatingService.MODEL_TYPE_TOTALS, 3.0, SNAP_DATE);
+
+        mockMvc.perform(get("/api/power-ratings/2025/massey-totals"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE_TOTALS));
+    }
+
     // ── GET /api/power-ratings/{year}/bradley-terry ───────────────────────────
 
     @Test
@@ -146,6 +173,33 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
         mockMvc.perform(get("/api/power-ratings/2025/bradley-terry"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    // ── GET /api/power-ratings/{year}/bradley-terry-weighted ─────────────────
+
+    @Test
+    void bradleyTerryWeightedLeaderboard_seasonNotFound_returns404() throws Exception {
+        mockMvc.perform(get("/api/power-ratings/9999/bradley-terry-weighted"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void bradleyTerryWeightedLeaderboard_noData_returnsEmptyList() throws Exception {
+        mockMvc.perform(get("/api/power-ratings/2025/bradley-terry-weighted"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void bradleyTerryWeightedLeaderboard_withData_returnsRatings() throws Exception {
+        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 1.2, SNAP_DATE);
+        addRating(teamB, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 0.4, SNAP_DATE);
+
+        mockMvc.perform(get("/api/power-ratings/2025/bradley-terry-weighted"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].modelType").value(BradleyTerryRatingService.MODEL_TYPE_WEIGHTED));
     }
 
     // ── GET /api/power-ratings/{year}/massey/team/{teamId} ────────────────────
@@ -166,6 +220,18 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // ── GET /api/power-ratings/{year}/massey-totals/team/{teamId} ────────────
+
+    @Test
+    void masseyTotalsTeamTimeSeries_returnsTimeSeries() throws Exception {
+        addRating(teamA, MasseyRatingService.MODEL_TYPE_TOTALS, 8.0, SNAP_DATE);
+        addRating(teamA, MasseyRatingService.MODEL_TYPE_TOTALS, 9.0, SNAP_DATE.plusDays(7));
+
+        mockMvc.perform(get("/api/power-ratings/2025/massey-totals/team/{teamId}", teamA.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
     // ── GET /api/power-ratings/{year}/bradley-terry/team/{teamId} ────────────
 
     @Test
@@ -175,6 +241,18 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
         mockMvc.perform(get("/api/power-ratings/2025/bradley-terry/team/{teamId}", teamA.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    // ── GET /api/power-ratings/{year}/bradley-terry-weighted/team/{teamId} ───
+
+    @Test
+    void bradleyTerryWeightedTeamTimeSeries_returnsTimeSeries() throws Exception {
+        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 1.2, SNAP_DATE);
+        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 1.4, SNAP_DATE.plusDays(7));
+
+        mockMvc.perform(get("/api/power-ratings/2025/bradley-terry-weighted/team/{teamId}", teamA.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
     }
 
     // ── GET /api/power-ratings/{year}/dates ───────────────────────────────────
@@ -206,13 +284,20 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     @Test
     void params_returnsParamsByModel() throws Exception {
         addParam(MasseyRatingService.MODEL_TYPE, "hca", 2.5, SNAP_DATE);
+        addParam(MasseyRatingService.MODEL_TYPE_TOTALS, "intercept", 140.0, SNAP_DATE);
+        addParam(MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", 1.5, SNAP_DATE);
         addParam(BradleyTerryRatingService.MODEL_TYPE, "hca", 0.1, SNAP_DATE);
+        addParam(BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, "hca", 0.12, SNAP_DATE);
 
         mockMvc.perform(get("/api/power-ratings/2025/params"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.massey").isArray())
                 .andExpect(jsonPath("$.massey.length()").value(1))
+                .andExpect(jsonPath("$.masseyTotals").isArray())
+                .andExpect(jsonPath("$.masseyTotals.length()").value(2))
                 .andExpect(jsonPath("$.bradleyTerry").isArray())
-                .andExpect(jsonPath("$.bradleyTerry.length()").value(1));
+                .andExpect(jsonPath("$.bradleyTerry.length()").value(1))
+                .andExpect(jsonPath("$.bradleyTerryWeighted").isArray())
+                .andExpect(jsonPath("$.bradleyTerryWeighted.length()").value(1));
     }
 }

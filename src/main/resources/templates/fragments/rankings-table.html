@@ -10,10 +10,10 @@
 
     <div th:if="${hasData}" class="rankings-grid">
 
-        <!-- Massey Rankings -->
+        <!-- Massey (Margin) Rankings -->
         <div class="rankings-panel card">
             <div class="rankings-panel__header">
-                <h2 class="rankings-panel__title">Massey Ratings</h2>
+                <h2 class="rankings-panel__title">Massey (Margin)</h2>
                 <span class="rankings-panel__subtitle">Spread-based linear regression</span>
             </div>
             <div th:if="${masseyRankings.isEmpty()}" class="rankings-empty">
@@ -67,7 +67,7 @@
         <!-- Bradley-Terry Rankings -->
         <div class="rankings-panel card">
             <div class="rankings-panel__header">
-                <h2 class="rankings-panel__title">Bradley-Terry Ratings</h2>
+                <h2 class="rankings-panel__title">Bradley-Terry</h2>
                 <span class="rankings-panel__subtitle">Logistic win-probability model</span>
             </div>
             <div th:if="${bradleyTerryRankings.isEmpty()}" class="rankings-empty">
@@ -108,6 +108,116 @@
                                 <span class="rankings-rating"
                                       th:text="${#numbers.formatDecimal(r.rating, 1, 3)}"
                                       th:classappend="${r.rating > 0} ? 'rankings-rating--pos' : 'rankings-rating--neg'">+1.234</span>
+                            </td>
+                            <td class="rankings-table__num-col rankings-table__hide-mobile">
+                                <span class="rankings-gp" th:text="${r.gamesPlayed}">28</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bradley-Terry (Weighted) Rankings -->
+        <div class="rankings-panel card">
+            <div class="rankings-panel__header">
+                <h2 class="rankings-panel__title">Bradley-Terry (Weighted)</h2>
+                <span class="rankings-panel__subtitle">Margin-weighted win-probability model</span>
+            </div>
+            <div th:if="${bradleyTerryWeightedRankings.isEmpty()}" class="rankings-empty">
+                No Bradley-Terry (Weighted) data for this date.
+            </div>
+            <div th:if="${!bradleyTerryWeightedRankings.isEmpty()}" class="rankings-table-wrap">
+                <table class="rankings-table">
+                    <thead>
+                        <tr>
+                            <th class="rankings-table__rank-col">#</th>
+                            <th>Team</th>
+                            <th class="rankings-table__num-col">Rating</th>
+                            <th class="rankings-table__num-col rankings-table__hide-mobile">GP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="r, i : ${bradleyTerryWeightedRankings}"
+                            th:classappend="${r.gamesPlayed < 5} ? 'rankings-row--low-gp'">
+                            <td class="rankings-table__rank-col">
+                                <span class="rankings-rank"
+                                      th:text="${r.rank != null} ? ${r.rank} : ${i.count}">1</span>
+                            </td>
+                            <td class="rankings-table__team-cell">
+                                <a th:href="@{'/teams/' + ${r.team.id}}" class="rankings-team-link">
+                                    <img th:if="${r.team.logoUrl != null}"
+                                         th:src="${r.team.logoUrl}"
+                                         th:alt="${r.team.name}"
+                                         class="rankings-team-logo"
+                                         loading="lazy" />
+                                    <span th:if="${r.team.logoUrl == null}"
+                                          class="rankings-team-logo-placeholder"
+                                          th:style="'background: #' + (${r.team.color} != null ? ${r.team.color} : '555')"
+                                          th:text="${#strings.substring(r.team.name, 0, 1)}">A</span>
+                                    <span class="rankings-team-name" th:text="${r.team.name}">Team Name</span>
+                                </a>
+                            </td>
+                            <td class="rankings-table__num-col">
+                                <span class="rankings-rating"
+                                      th:text="${#numbers.formatDecimal(r.rating, 1, 3)}"
+                                      th:classappend="${r.rating > 0} ? 'rankings-rating--pos' : 'rankings-rating--neg'">+1.234</span>
+                            </td>
+                            <td class="rankings-table__num-col rankings-table__hide-mobile">
+                                <span class="rankings-gp" th:text="${r.gamesPlayed}">28</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Massey (Totals) — Scoring Pace Index -->
+        <div class="rankings-panel card">
+            <div class="rankings-panel__header">
+                <h2 class="rankings-panel__title">Scoring Pace Index
+                    <span class="rankings-panel__badge" title="Measures involvement in high-scoring games. A higher rating means this team's games tend to have more total points. This is NOT a measure of team quality — strong defensive teams may rank low.">?</span>
+                </h2>
+                <span class="rankings-panel__subtitle">Massey (Totals) — pace, not quality</span>
+            </div>
+            <div th:if="${masseyTotalsRankings.isEmpty()}" class="rankings-empty">
+                No Scoring Pace data for this date.
+            </div>
+            <div th:if="${!masseyTotalsRankings.isEmpty()}" class="rankings-table-wrap">
+                <table class="rankings-table">
+                    <thead>
+                        <tr>
+                            <th class="rankings-table__rank-col">#</th>
+                            <th>Team</th>
+                            <th class="rankings-table__num-col">Pace</th>
+                            <th class="rankings-table__num-col rankings-table__hide-mobile">GP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="r, i : ${masseyTotalsRankings}"
+                            th:classappend="${r.gamesPlayed < 5} ? 'rankings-row--low-gp'">
+                            <td class="rankings-table__rank-col">
+                                <span class="rankings-rank"
+                                      th:text="${r.rank != null} ? ${r.rank} : ${i.count}">1</span>
+                            </td>
+                            <td class="rankings-table__team-cell">
+                                <a th:href="@{'/teams/' + ${r.team.id}}" class="rankings-team-link">
+                                    <img th:if="${r.team.logoUrl != null}"
+                                         th:src="${r.team.logoUrl}"
+                                         th:alt="${r.team.name}"
+                                         class="rankings-team-logo"
+                                         loading="lazy" />
+                                    <span th:if="${r.team.logoUrl == null}"
+                                          class="rankings-team-logo-placeholder"
+                                          th:style="'background: #' + (${r.team.color} != null ? ${r.team.color} : '555')"
+                                          th:text="${#strings.substring(r.team.name, 0, 1)}">A</span>
+                                    <span class="rankings-team-name" th:text="${r.team.name}">Team Name</span>
+                                </a>
+                            </td>
+                            <td class="rankings-table__num-col">
+                                <span class="rankings-rating"
+                                      th:text="${#numbers.formatDecimal(r.rating, 1, 2)}"
+                                      th:classappend="${r.rating > 0} ? 'rankings-rating--pos' : 'rankings-rating--neg'">+5.12</span>
                             </td>
                             <td class="rankings-table__num-col rankings-table__hide-mobile">
                                 <span class="rankings-gp" th:text="${r.gamesPlayed}">28</span>

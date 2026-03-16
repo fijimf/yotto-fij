@@ -114,9 +114,9 @@ class PredictionServiceTest extends BaseIntegrationTest {
         addRatingSnapshot(awayTeam, MasseyRatingService.MODEL_TYPE, masseyA, SNAPSHOT_DATE);
         addParamSnapshot(MasseyRatingService.MODEL_TYPE, "hca", hca, SNAPSHOT_DATE);
 
-        addRatingSnapshot(homeTeam, MasseyRatingService.MODEL_TYPE_TOTAL, mtH, SNAPSHOT_DATE);
-        addRatingSnapshot(awayTeam, MasseyRatingService.MODEL_TYPE_TOTAL, mtA, SNAPSHOT_DATE);
-        addParamSnapshot(MasseyRatingService.MODEL_TYPE_TOTAL, "hca_total", hcaTotal, SNAPSHOT_DATE);
+        addRatingSnapshot(homeTeam, MasseyRatingService.MODEL_TYPE_TOTALS, mtH, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, MasseyRatingService.MODEL_TYPE_TOTALS, mtA, SNAPSHOT_DATE);
+        addParamSnapshot(MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", hcaTotal, SNAPSHOT_DATE);
 
         addRatingSnapshot(homeTeam, BradleyTerryRatingService.MODEL_TYPE, btH, SNAPSHOT_DATE);
         addRatingSnapshot(awayTeam, BradleyTerryRatingService.MODEL_TYPE, btA, SNAPSHOT_DATE);

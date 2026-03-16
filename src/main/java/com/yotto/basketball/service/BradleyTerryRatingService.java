@@ -15,23 +15,29 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Bradley-Terry logistic regression power ratings.
+ * Bradley-Terry logistic regression power ratings (unweighted and margin-weighted).
  *
  * <p>Model: P(home wins) = σ(θ_h − θ_a + α), where θ_i is a log-odds team
  * strength and α is a home court advantage in log-odds. Fit by maximum
  * likelihood with L2 regularization on team parameters (λ = {@link #LAMBDA}).
  *
+ * <p>Weighted variant ({@link #MODEL_TYPE_WEIGHTED}): each game observation is
+ * weighted by w_g = 1 + ln(|margin|), giving blowout wins more influence than
+ * narrow wins, at diminishing returns.
+ *
  * <p>Newton-Raphson is used for optimization. The parameter vector from each
  * game date is used as the warm start for the next date, so convergence
  * typically requires only 1–3 iterations rather than the 5–15 needed from cold
- * start.
+ * start. Both the unweighted and weighted models maintain independent warm-start
+ * parameter vectors and are computed in a single pass over game data.
  */
 @Service
 public class BradleyTerryRatingService {
 
     private static final Logger log = LoggerFactory.getLogger(BradleyTerryRatingService.class);
 
-    public static final String MODEL_TYPE = "BRADLEY_TERRY";
+    public static final String MODEL_TYPE         = "BRADLEY_TERRY";
+    public static final String MODEL_TYPE_WEIGHTED = "BRADLEY_TERRY_W";
     private static final double LAMBDA   = 0.1;
     private static final double CONVERGE = 1e-6;
     private static final int    MAX_ITER = 500;
@@ -62,7 +68,9 @@ public class BradleyTerryRatingService {
         log.info("Calculating Bradley-Terry ratings for season {}", seasonYear);
 
         ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_WEIGHTED);
         paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_WEIGHTED);
 
         List<Game> finalGames = gameRepository.findBySeasonIdAndStatus(season.getId(), Game.GameStatus.FINAL)
                 .stream()
@@ -94,9 +102,10 @@ public class BradleyTerryRatingService {
         int size = T + 1; // last index is α (HCA)
 
         // params[0..T-1] = θ (team strengths), params[T] = α (HCA)
-        double[] params = new double[size];
+        double[] params  = new double[size]; // unweighted warm-start
+        double[] paramsW = new double[size]; // weighted warm-start
 
-        // Accumulated game records: {homeIdx, awayIdx, homeWon(1/0), nonNeutral(1/0)}
+        // Accumulated game records: {homeIdx, awayIdx, homeWon(1/0), nonNeutral(1/0), margin}
         List<int[]> seenGames = new ArrayList<>(finalGames.size());
 
         Map<Long, Integer> gamesPlayedByTeam = new HashMap<>();
@@ -113,52 +122,25 @@ public class BradleyTerryRatingService {
             LocalDate date = entry.getKey();
 
             for (Game game : entry.getValue()) {
-                int hi = teamIndex.get(game.getHomeTeam().getId());
-                int ai = teamIndex.get(game.getAwayTeam().getId());
+                int hi        = teamIndex.get(game.getHomeTeam().getId());
+                int ai        = teamIndex.get(game.getAwayTeam().getId());
                 int homeWon   = game.getHomeScore() > game.getAwayScore() ? 1 : 0;
                 int nonNeutral = Boolean.TRUE.equals(game.getNeutralSite()) ? 0 : 1;
-                seenGames.add(new int[]{hi, ai, homeWon, nonNeutral});
+                int margin    = Math.abs(game.getHomeScore() - game.getAwayScore());
+                seenGames.add(new int[]{hi, ai, homeWon, nonNeutral, margin});
                 gamesPlayedByTeam.merge(game.getHomeTeam().getId(), 1, Integer::sum);
                 gamesPlayedByTeam.merge(game.getAwayTeam().getId(), 1, Integer::sum);
             }
 
-            // Newton-Raphson, warm-starting from current params
-            newtonRaphson(params, seenGames, T, size);
+            // ── Unweighted Bradley-Terry ──────────────────────────────────────────
+            newtonRaphson(params, seenGames, T, size, false);
+            collectSnapshots(allRatings, allParams, params, teamIds, teamIndex, teamsById,
+                    gamesPlayedByTeam, season, MODEL_TYPE, date, now);
 
-            double alpha = params[T];
-
-            // Rank teams that have played at least one game
-            List<long[]> ratedTeams = new ArrayList<>();
-            for (Long teamId : teamIds) {
-                if (gamesPlayedByTeam.getOrDefault(teamId, 0) > 0) {
-                    ratedTeams.add(new long[]{teamId, Double.doubleToLongBits(params[teamIndex.get(teamId)])});
-                }
-            }
-            ratedTeams.sort((x, y) -> Double.compare(
-                    Double.longBitsToDouble(y[1]), Double.longBitsToDouble(x[1])));
-
-            for (int rank = 0; rank < ratedTeams.size(); rank++) {
-                Long teamId = ratedTeams.get(rank)[0];
-                TeamPowerRatingSnapshot snap = new TeamPowerRatingSnapshot();
-                snap.setTeam(teamsById.get(teamId));
-                snap.setSeason(season);
-                snap.setModelType(MODEL_TYPE);
-                snap.setSnapshotDate(date);
-                snap.setRating(Double.longBitsToDouble(ratedTeams.get(rank)[1]));
-                snap.setRank(rank + 1);
-                snap.setGamesPlayed(gamesPlayedByTeam.getOrDefault(teamId, 0));
-                snap.setCalculatedAt(now);
-                allRatings.add(snap);
-            }
-
-            PowerModelParamSnapshot hcaSnap = new PowerModelParamSnapshot();
-            hcaSnap.setSeason(season);
-            hcaSnap.setModelType(MODEL_TYPE);
-            hcaSnap.setSnapshotDate(date);
-            hcaSnap.setParamName("hca");
-            hcaSnap.setParamValue(alpha);
-            hcaSnap.setCalculatedAt(now);
-            allParams.add(hcaSnap);
+            // ── Weighted Bradley-Terry ────────────────────────────────────────────
+            newtonRaphson(paramsW, seenGames, T, size, true);
+            collectSnapshots(allRatings, allParams, paramsW, teamIds, teamIndex, teamsById,
+                    gamesPlayedByTeam, season, MODEL_TYPE_WEIGHTED, date, now);
         }
 
         ratingRepository.saveAll(allRatings);
@@ -168,23 +150,71 @@ public class BradleyTerryRatingService {
                 seasonYear, allRatings.size(), gamesByDate.size());
     }
 
+    /** Collects team rating snapshots and HCA param snapshot for one model on one date. */
+    private static void collectSnapshots(List<TeamPowerRatingSnapshot> allRatings,
+                                          List<PowerModelParamSnapshot> allParams,
+                                          double[] params,
+                                          List<Long> teamIds, Map<Long, Integer> teamIndex,
+                                          Map<Long, Team> teamsById,
+                                          Map<Long, Integer> gamesPlayedByTeam,
+                                          Season season, String modelType,
+                                          LocalDate date, LocalDateTime now) {
+        double alpha = params[teamIds.size()];
+
+        List<long[]> ratedTeams = new ArrayList<>();
+        for (Long teamId : teamIds) {
+            if (gamesPlayedByTeam.getOrDefault(teamId, 0) > 0) {
+                ratedTeams.add(new long[]{teamId, Double.doubleToLongBits(params[teamIndex.get(teamId)])});
+            }
+        }
+        ratedTeams.sort((x, y) -> Double.compare(Double.longBitsToDouble(y[1]), Double.longBitsToDouble(x[1])));
+
+        for (int rank = 0; rank < ratedTeams.size(); rank++) {
+            Long teamId = ratedTeams.get(rank)[0];
+            TeamPowerRatingSnapshot snap = new TeamPowerRatingSnapshot();
+            snap.setTeam(teamsById.get(teamId));
+            snap.setSeason(season);
+            snap.setModelType(modelType);
+            snap.setSnapshotDate(date);
+            snap.setRating(Double.longBitsToDouble(ratedTeams.get(rank)[1]));
+            snap.setRank(rank + 1);
+            snap.setGamesPlayed(gamesPlayedByTeam.getOrDefault(teamId, 0));
+            snap.setCalculatedAt(now);
+            allRatings.add(snap);
+        }
+
+        PowerModelParamSnapshot hcaSnap = new PowerModelParamSnapshot();
+        hcaSnap.setSeason(season);
+        hcaSnap.setModelType(modelType);
+        hcaSnap.setSnapshotDate(date);
+        hcaSnap.setParamName("hca");
+        hcaSnap.setParamValue(alpha);
+        hcaSnap.setCalculatedAt(now);
+        allParams.add(hcaSnap);
+    }
+
     /**
      * Newton-Raphson maximization of the regularized log-likelihood.
+     *
+     * <p>When {@code weighted} is true, each game is multiplied by
+     * w_g = 1 + ln(max(1, margin)), giving blowout wins more influence.
      *
      * <p>Update rule: params -= H⁻¹ · ∇L  (H is negative definite, so this
      * moves toward the maximum; equivalently, solve H·δ = ∇L then subtract δ).
      */
-    private void newtonRaphson(double[] params, List<int[]> games, int T, int size) {
+    private void newtonRaphson(double[] params, List<int[]> games, int T, int size, boolean weighted) {
         for (int iter = 0; iter < MAX_ITER; iter++) {
             double[] grad = new double[size];
             double[][] H  = new double[size][size];
 
             for (int[] game : games) {
                 int hi = game[0], ai = game[1], y = game[2], nn = game[3];
+                double wt = weighted ? 1.0 + Math.log(Math.max(1, game[4])) : 1.0;
+
                 double logit = params[hi] - params[ai] + params[T] * nn;
                 double p = sigmoid(logit);
-                double r = y - p;
-                double w = p * (1 - p);
+                double r = wt * (y - p);
+                double w = wt * p * (1 - p);
 
                 grad[hi] += r;
                 grad[ai] -= r;

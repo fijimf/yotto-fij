@@ -5,8 +5,8 @@ import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
 import com.yotto.basketball.repository.PowerModelParamSnapshotRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
-import com.yotto.basketball.service.MasseyRatingService;
 import com.yotto.basketball.service.BradleyTerryRatingService;
+import com.yotto.basketball.service.MasseyRatingService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -31,12 +31,20 @@ public class PowerRatingController {
         this.paramRepository  = paramRepository;
     }
 
-    /** Massey leaderboard for a season, optionally filtered to a specific date. */
+    /** Massey (Margin) leaderboard for a season, optionally filtered to a specific date. */
     @GetMapping("/{year}/massey")
     public List<RatingDto> masseyLeaderboard(
             @PathVariable Integer year,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return leaderboard(year, MasseyRatingService.MODEL_TYPE, date);
+    }
+
+    /** Massey (Totals) leaderboard — scoring-pace index. */
+    @GetMapping("/{year}/massey-totals")
+    public List<RatingDto> masseyTotalsLeaderboard(
+            @PathVariable Integer year,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return leaderboard(year, MasseyRatingService.MODEL_TYPE_TOTALS, date);
     }
 
     /** Bradley-Terry leaderboard for a season, optionally filtered to a specific date. */
@@ -47,10 +55,24 @@ public class PowerRatingController {
         return leaderboard(year, BradleyTerryRatingService.MODEL_TYPE, date);
     }
 
-    /** Massey rating time series for a single team in a season. */
+    /** Bradley-Terry (Weighted) leaderboard — margin-weighted win-probability model. */
+    @GetMapping("/{year}/bradley-terry-weighted")
+    public List<RatingDto> bradleyTerryWeightedLeaderboard(
+            @PathVariable Integer year,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return leaderboard(year, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, date);
+    }
+
+    /** Massey (Margin) rating time series for a single team in a season. */
     @GetMapping("/{year}/massey/team/{teamId}")
     public List<RatingDto> masseyTeamTimeSeries(@PathVariable Integer year, @PathVariable Long teamId) {
         return teamTimeSeries(year, teamId, MasseyRatingService.MODEL_TYPE);
+    }
+
+    /** Massey (Totals) rating time series for a single team in a season. */
+    @GetMapping("/{year}/massey-totals/team/{teamId}")
+    public List<RatingDto> masseyTotalsTeamTimeSeries(@PathVariable Integer year, @PathVariable Long teamId) {
+        return teamTimeSeries(year, teamId, MasseyRatingService.MODEL_TYPE_TOTALS);
     }
 
     /** Bradley-Terry rating time series for a single team in a season. */
@@ -59,21 +81,31 @@ public class PowerRatingController {
         return teamTimeSeries(year, teamId, BradleyTerryRatingService.MODEL_TYPE);
     }
 
-    /** Available snapshot dates for a season (Massey; both models share the same dates). */
+    /** Bradley-Terry (Weighted) rating time series for a single team in a season. */
+    @GetMapping("/{year}/bradley-terry-weighted/team/{teamId}")
+    public List<RatingDto> bradleyTerryWeightedTeamTimeSeries(@PathVariable Integer year, @PathVariable Long teamId) {
+        return teamTimeSeries(year, teamId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED);
+    }
+
+    /** Available snapshot dates for a season (keyed to Massey; all models share the same dates). */
     @GetMapping("/{year}/dates")
     public List<LocalDate> snapshotDates(@PathVariable Integer year) {
         var season = requireSeason(year);
         return ratingRepository.findSnapshotDates(season.getId(), MasseyRatingService.MODEL_TYPE);
     }
 
-    /** Home court advantage time series for both models in a season. */
+    /** Model parameters (HCA, intercept) time series for all four models in a season. */
     @GetMapping("/{year}/params")
     public Map<String, List<ParamDto>> params(@PathVariable Integer year) {
         var season = requireSeason(year);
         return Map.of(
                 "massey", paramRepository.findBySeasonAndModel(season.getId(), MasseyRatingService.MODEL_TYPE)
                         .stream().map(ParamDto::from).toList(),
+                "masseyTotals", paramRepository.findBySeasonAndModel(season.getId(), MasseyRatingService.MODEL_TYPE_TOTALS)
+                        .stream().map(ParamDto::from).toList(),
                 "bradleyTerry", paramRepository.findBySeasonAndModel(season.getId(), BradleyTerryRatingService.MODEL_TYPE)
+                        .stream().map(ParamDto::from).toList(),
+                "bradleyTerryWeighted", paramRepository.findBySeasonAndModel(season.getId(), BradleyTerryRatingService.MODEL_TYPE_WEIGHTED)
                         .stream().map(ParamDto::from).toList()
         );
     }

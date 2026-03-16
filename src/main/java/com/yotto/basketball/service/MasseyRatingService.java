@@ -21,21 +21,23 @@ import java.util.stream.Stream;
  * rating and α is a home court advantage in points. Fit by OLS with L2
  * regularization on team columns (λ = {@link #LAMBDA}).
  *
- * <p>Total model: total_predicted = γ_h + γ_a + δ, where γ_i is a team
- * scoring-strength and δ is a home-game scoring intercept. Both teams contribute
- * +1 to the design vector (vs. +1/−1 for spread). Stored as {@link #MODEL_TYPE_TOTAL}.
+ * <p>Total model: total_predicted = β_h + β_a + γ + δ·home_indicator, where β_i
+ * is a team scoring-pace rating, γ is a constant intercept (baseline total score),
+ * and δ is a home-game scoring bonus. Both teams contribute +1 to the design vector.
+ * The design matrix is N×(T+2): T team columns, one intercept column (always 1),
+ * one HCA column (1 for non-neutral games). Stored as {@link #MODEL_TYPE_TOTALS}.
  *
  * <p>Both systems share a single pass over game data with independent cumulative
- * accumulators (A, b) and (A_total, b_total). The normal-equations matrix for
- * each system is maintained as a rank-2 outer-product update per game.
+ * accumulators (A, b) and (At, bt). The normal-equations matrix for each system
+ * is maintained as a rank-2 outer-product update per game.
  */
 @Service
 public class MasseyRatingService {
 
     private static final Logger log = LoggerFactory.getLogger(MasseyRatingService.class);
 
-    public static final String MODEL_TYPE       = "MASSEY";
-    public static final String MODEL_TYPE_TOTAL = "MASSEY_TOTAL";
+    public static final String MODEL_TYPE        = "MASSEY";
+    public static final String MODEL_TYPE_TOTALS = "MASSEY_TOTALS";
     private static final double LAMBDA = 1.0;
 
     private final SeasonRepository seasonRepository;
@@ -64,9 +66,9 @@ public class MasseyRatingService {
         log.info("Calculating Massey ratings for season {}", seasonYear);
 
         ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
-        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTAL);
+        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTALS);
         paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
-        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTAL);
+        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTALS);
 
         List<Game> finalGames = gameRepository.findBySeasonIdAndStatus(season.getId(), Game.GameStatus.FINAL)
                 .stream()
@@ -93,15 +95,16 @@ public class MasseyRatingService {
             teamsById.put(g.getAwayTeam().getId(), g.getAwayTeam());
         }
 
-        int T = teamIds.size();
-        int size = T + 1; // last index is HCA
+        int T     = teamIds.size();
+        int size  = T + 1; // spread: T team columns + 1 HCA column
+        int size2 = T + 2; // totals: T team columns + 1 intercept column + 1 HCA column
 
         // Cumulative normal equations accumulators — spread system
-        double[][] A = new double[size][size];
-        double[] b = new double[size];
-        // Cumulative normal equations accumulators — total system (both teams +1)
-        double[][] At = new double[size][size];
-        double[] bt = new double[size];
+        double[][] A  = new double[size][size];
+        double[]   b  = new double[size];
+        // Cumulative normal equations accumulators — totals system
+        double[][] At = new double[size2][size2];
+        double[]   bt = new double[size2];
         Map<Long, Integer> gamesPlayedByTeam = new HashMap<>();
 
         Map<LocalDate, List<Game>> gamesByDate = finalGames.stream()
@@ -109,7 +112,7 @@ public class MasseyRatingService {
                         LinkedHashMap::new, Collectors.toList()));
 
         List<TeamPowerRatingSnapshot> allRatings = new ArrayList<>();
-        List<PowerModelParamSnapshot> allParams = new ArrayList<>();
+        List<PowerModelParamSnapshot> allParams  = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
         for (Map.Entry<LocalDate, List<Game>> entry : gamesByDate.entrySet()) {
@@ -117,13 +120,13 @@ public class MasseyRatingService {
 
             // Outer-product updates to both accumulators for each new game
             for (Game game : entry.getValue()) {
-                int hi = teamIndex.get(game.getHomeTeam().getId());
-                int ai = teamIndex.get(game.getAwayTeam().getId());
-                int hca = Boolean.TRUE.equals(game.getNeutralSite()) ? 0 : 1;
+                int hi     = teamIndex.get(game.getHomeTeam().getId());
+                int ai     = teamIndex.get(game.getAwayTeam().getId());
+                int hca    = Boolean.TRUE.equals(game.getNeutralSite()) ? 0 : 1;
                 int margin = game.getHomeScore() - game.getAwayScore();
                 int total  = game.getHomeScore() + game.getAwayScore();
 
-                // Spread system: x = e_hi − e_ai + hca·e_T  →  A += x·xᵀ
+                // ── Spread system: x = e_hi − e_ai + hca·e_T  →  A += x·xᵀ ──────
                 A[hi][hi] += 1;
                 A[ai][ai] += 1;
                 A[hi][ai] -= 1;
@@ -137,25 +140,34 @@ public class MasseyRatingService {
                 b[ai] -= margin;
                 b[T]  += hca * margin;
 
-                // Total system: x = e_hi + e_ai + hca·e_T  →  At += x·xᵀ
+                // ── Totals system: x = e_hi + e_ai + e_T + hca·e_{T+1}  →  At += x·xᵀ ──
+                // Column T  = intercept (always 1 for every game)
+                // Column T+1 = HCA (1 for non-neutral games)
                 At[hi][hi] += 1;
                 At[ai][ai] += 1;
-                At[hi][ai] += 1;   // positive: both teams contribute to the total
+                At[hi][ai] += 1;   // positive: both teams contribute to total
                 At[ai][hi] += 1;
+                // Intercept cross-terms (always added)
+                At[hi][T]  += 1;  At[T][hi]  += 1;
+                At[ai][T]  += 1;  At[T][ai]  += 1;
+                At[T][T]   += 1;
+                // HCA cross-terms (only for non-neutral games)
                 if (hca == 1) {
-                    At[hi][T] += 1;  At[T][hi] += 1;
-                    At[ai][T] += 1;  At[T][ai] += 1;
-                    At[T][T]  += 1;
+                    At[hi][T+1]  += 1;  At[T+1][hi]  += 1;
+                    At[ai][T+1]  += 1;  At[T+1][ai]  += 1;
+                    At[T][T+1]   += 1;  At[T+1][T]   += 1;  // intercept × HCA cross-term
+                    At[T+1][T+1] += 1;
                 }
-                bt[hi] += total;
-                bt[ai] += total;
-                bt[T]  += hca * total;
+                bt[hi]   += total;
+                bt[ai]   += total;
+                bt[T]    += total;
+                bt[T+1]  += hca * total;
 
                 gamesPlayedByTeam.merge(game.getHomeTeam().getId(), 1, Integer::sum);
                 gamesPlayedByTeam.merge(game.getAwayTeam().getId(), 1, Integer::sum);
             }
 
-            // ── Spread model ──────────────────────────────────────────────────
+            // ── Spread model ──────────────────────────────────────────────────────
             double[] solution = solve(A, b, T, size);
             if (solution != null) {
                 double alpha = solution[T];
@@ -164,13 +176,15 @@ public class MasseyRatingService {
                 allParams.add(paramSnap(season, MODEL_TYPE, date, "hca", alpha, now));
             }
 
-            // ── Total model ───────────────────────────────────────────────────
-            double[] solutionT = solve(At, bt, T, size);
+            // ── Totals model ──────────────────────────────────────────────────────
+            double[] solutionT = solve(At, bt, T, size2);
             if (solutionT != null) {
-                double delta = solutionT[T];
+                double gamma = solutionT[T];    // intercept: baseline total score
+                double delta = solutionT[T + 1]; // HCA: extra points in non-neutral games
                 addTeamSnapshots(allRatings, ratedTeamsFor(teamIds, teamIndex, gamesPlayedByTeam, solutionT),
-                        teamsById, season, MODEL_TYPE_TOTAL, date, gamesPlayedByTeam, now);
-                allParams.add(paramSnap(season, MODEL_TYPE_TOTAL, date, "hca_total", delta, now));
+                        teamsById, season, MODEL_TYPE_TOTALS, date, gamesPlayedByTeam, now);
+                allParams.add(paramSnap(season, MODEL_TYPE_TOTALS, date, "intercept", gamma, now));
+                allParams.add(paramSnap(season, MODEL_TYPE_TOTALS, date, "hca_total", delta, now));
             }
         }
 
@@ -181,7 +195,7 @@ public class MasseyRatingService {
                 seasonYear, allRatings.size(), gamesByDate.size());
     }
 
-    /** Builds a sorted list of (teamId bits, rating bits) for teams that have played at least one game. */
+    /** Builds a sorted list of (teamId, ratingBits) for teams that have played at least one game. */
     private static List<long[]> ratedTeamsFor(List<Long> teamIds, Map<Long, Integer> teamIndex,
                                                Map<Long, Integer> gamesPlayed, double[] solution) {
         List<long[]> rated = new ArrayList<>();
@@ -230,13 +244,14 @@ public class MasseyRatingService {
      * Solves (A + λD)·x = b where D penalizes the first T team-rating columns.
      * Deep-copies A before adding regularization to preserve the accumulator.
      * Falls back from Cholesky to LU if the matrix is not positive definite.
+     * Adds a small stability nudge to all non-team-rating diagonal entries.
      */
     private double[] solve(double[][] A, double[] b, int T, int size) {
         double[][] Areg = new double[size][size];
         for (int i = 0; i < size; i++) Areg[i] = Arrays.copyOf(A[i], size);
         for (int j = 0; j < T; j++) Areg[j][j] += LAMBDA;
-        // Small numerical-stability nudge on HCA diagonal when it might be zero
-        Areg[T][T] += 1e-6;
+        // Stability nudge on all non-team-rating (unpenalized) diagonal entries
+        for (int j = T; j < size; j++) Areg[j][j] += 1e-6;
 
         RealMatrix mat = new Array2DRowRealMatrix(Areg, false);
         RealVector rhs = new ArrayRealVector(b, true);

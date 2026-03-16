@@ -67,9 +67,16 @@ public class RankingsPageController {
         List<TeamPowerRatingSnapshot> massey = resolvedDate != null
                 ? ratingRepository.findBySeasonModelAndDate(season.getId(), MasseyRatingService.MODEL_TYPE, resolvedDate)
                 : List.of();
+        List<TeamPowerRatingSnapshot> masseyTotals = resolvedDate != null
+                ? ratingRepository.findBySeasonModelAndDate(season.getId(), MasseyRatingService.MODEL_TYPE_TOTALS, resolvedDate)
+                : List.of();
         List<TeamPowerRatingSnapshot> bradleyTerry = resolvedDate != null
                 ? ratingRepository.findBySeasonModelAndDate(season.getId(), BradleyTerryRatingService.MODEL_TYPE, resolvedDate)
                 : List.of();
+        List<TeamPowerRatingSnapshot> bradleyTerryWeighted = resolvedDate != null
+                ? ratingRepository.findBySeasonModelAndDate(season.getId(), BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, resolvedDate)
+                : List.of();
+
         List<LocalDate> availableDates = ratingRepository.findSnapshotDates(season.getId(), MasseyRatingService.MODEL_TYPE);
         List<LocalDate> availableDatesDesc = new ArrayList<>(availableDates);
         Collections.reverse(availableDatesDesc);
@@ -80,8 +87,11 @@ public class RankingsPageController {
         model.addAttribute("availableDates", availableDatesDesc);
         model.addAttribute("latestDate", availableDatesDesc.isEmpty() ? null : availableDatesDesc.get(0));
         model.addAttribute("masseyRankings", massey);
+        model.addAttribute("masseyTotalsRankings", masseyTotals);
         model.addAttribute("bradleyTerryRankings", bradleyTerry);
-        model.addAttribute("hasData", !massey.isEmpty() || !bradleyTerry.isEmpty());
+        model.addAttribute("bradleyTerryWeightedRankings", bradleyTerryWeighted);
+        model.addAttribute("hasData", !massey.isEmpty() || !bradleyTerry.isEmpty()
+                || !masseyTotals.isEmpty() || !bradleyTerryWeighted.isEmpty());
     }
 
     private Season resolveSeason(Integer year, List<Season> allSeasons) {

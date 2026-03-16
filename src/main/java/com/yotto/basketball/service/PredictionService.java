@@ -143,11 +143,11 @@ public class PredictionService {
                     .map(p -> p.getParamValue()).orElse(0.0);
         }
 
-        var masseyTotalHome = ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, cutoff).orElse(null);
-        var masseyTotalAway = ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, cutoff).orElse(null);
+        var masseyTotalHome = ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff).orElse(null);
+        var masseyTotalAway = ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff).orElse(null);
         double masseyTotalDelta = 0;
         if (!neutral && masseyTotalHome != null && masseyTotalAway != null) {
-            masseyTotalDelta = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTAL, "hca_total", cutoff)
+            masseyTotalDelta = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", cutoff)
                     .map(p -> p.getParamValue()).orElse(0.0);
         }
 

@@ -86,9 +86,9 @@ class PredictionControllerTest extends BaseIntegrationTest {
         addRating(homeTeam, MasseyRatingService.MODEL_TYPE, 5.0);
         addRating(awayTeam, MasseyRatingService.MODEL_TYPE, 2.0);
         addParam(MasseyRatingService.MODEL_TYPE, "hca", 2.0);
-        addRating(homeTeam, MasseyRatingService.MODEL_TYPE_TOTAL, 75.0);
-        addRating(awayTeam, MasseyRatingService.MODEL_TYPE_TOTAL, 70.0);
-        addParam(MasseyRatingService.MODEL_TYPE_TOTAL, "hca_total", 0.0);
+        addRating(homeTeam, MasseyRatingService.MODEL_TYPE_TOTALS, 75.0);
+        addRating(awayTeam, MasseyRatingService.MODEL_TYPE_TOTALS, 70.0);
+        addParam(MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", 0.0);
         addRating(homeTeam, BradleyTerryRatingService.MODEL_TYPE, 1.0);
         addRating(awayTeam, BradleyTerryRatingService.MODEL_TYPE, 0.5);
         addParam(BradleyTerryRatingService.MODEL_TYPE, "hca", 0.0);
