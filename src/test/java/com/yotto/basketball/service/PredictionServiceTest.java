@@ -121,6 +121,10 @@ class PredictionServiceTest extends BaseIntegrationTest {
         addRatingSnapshot(homeTeam, BradleyTerryRatingService.MODEL_TYPE, btH, SNAPSHOT_DATE);
         addRatingSnapshot(awayTeam, BradleyTerryRatingService.MODEL_TYPE, btA, SNAPSHOT_DATE);
         addParamSnapshot(BradleyTerryRatingService.MODEL_TYPE, "hca", btAlpha, SNAPSHOT_DATE);
+
+        addRatingSnapshot(homeTeam, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, btH, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, btA, SNAPSHOT_DATE);
+        addParamSnapshot(BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, "hca", btAlpha, SNAPSHOT_DATE);
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
@@ -212,6 +216,63 @@ class PredictionServiceTest extends BaseIntegrationTest {
         assertThat(pHome + pAway).isCloseTo(1.0, within(0.0001));
         assertThat(pHome).isGreaterThan(0);
         assertThat(pAway).isGreaterThan(0);
+    }
+
+    @Test
+    void predict_bradleyTerryWeighted_probabilitiesSumToOne() {
+        addAllRatings(5.0, 2.0, 0.0, 75.0, 70.0, 0.0, 1.0, 0.0, 0.0);
+        Game game = mkGame(Game.GameStatus.SCHEDULED, GAME_DATE);
+
+        PredictionResult result = service.predict(game.getId());
+
+        assertThat(result.bradleyTerryWeighted()).isNotNull();
+        double pHome = result.bradleyTerryWeighted().homeWinProbability();
+        double pAway = result.bradleyTerryWeighted().awayWinProbability();
+        assertThat(pHome + pAway).isCloseTo(1.0, within(0.0001));
+        assertThat(pHome).isGreaterThan(0);
+        assertThat(pAway).isGreaterThan(0);
+    }
+
+    @Test
+    void predict_noWeightedBtSnapshots_weightedBlockIsNull() {
+        // Only add standard BT ratings, not weighted — weighted block should be null
+        addRatingSnapshot(homeTeam, MasseyRatingService.MODEL_TYPE, 5.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, MasseyRatingService.MODEL_TYPE, 2.0, SNAPSHOT_DATE);
+        addParamSnapshot(MasseyRatingService.MODEL_TYPE, "hca", 0.0, SNAPSHOT_DATE);
+        addRatingSnapshot(homeTeam, MasseyRatingService.MODEL_TYPE_TOTALS, 75.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, MasseyRatingService.MODEL_TYPE_TOTALS, 70.0, SNAPSHOT_DATE);
+        addParamSnapshot(MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", 0.0, SNAPSHOT_DATE);
+        addRatingSnapshot(homeTeam, BradleyTerryRatingService.MODEL_TYPE, 1.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, BradleyTerryRatingService.MODEL_TYPE, 0.0, SNAPSHOT_DATE);
+        addParamSnapshot(BradleyTerryRatingService.MODEL_TYPE, "hca", 0.0, SNAPSHOT_DATE);
+        Game game = mkGame(Game.GameStatus.SCHEDULED, GAME_DATE);
+
+        PredictionResult result = service.predict(game.getId());
+
+        assertThat(result.bradleyTerry()).isNotNull();
+        assertThat(result.bradleyTerryWeighted()).isNull();
+    }
+
+    @Test
+    void predict_masseyTotalIncludesIntercept() {
+        // intercept = 140, β_h = 5, β_a = 2, δ = 0 → total = 5 + 2 + 140 = 147
+        addRatingSnapshot(homeTeam, MasseyRatingService.MODEL_TYPE_TOTALS, 5.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, MasseyRatingService.MODEL_TYPE_TOTALS, 2.0, SNAPSHOT_DATE);
+        addParamSnapshot(MasseyRatingService.MODEL_TYPE_TOTALS, "intercept", 140.0, SNAPSHOT_DATE);
+        addParamSnapshot(MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", 0.0, SNAPSHOT_DATE);
+        // Massey and BT needed to form a complete game (not required for masseyTotal, but added for completeness)
+        addRatingSnapshot(homeTeam, MasseyRatingService.MODEL_TYPE, 0.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, MasseyRatingService.MODEL_TYPE, 0.0, SNAPSHOT_DATE);
+        addParamSnapshot(MasseyRatingService.MODEL_TYPE, "hca", 0.0, SNAPSHOT_DATE);
+        addRatingSnapshot(homeTeam, BradleyTerryRatingService.MODEL_TYPE, 0.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, BradleyTerryRatingService.MODEL_TYPE, 0.0, SNAPSHOT_DATE);
+        addParamSnapshot(BradleyTerryRatingService.MODEL_TYPE, "hca", 0.0, SNAPSHOT_DATE);
+        Game game = mkGame(Game.GameStatus.SCHEDULED, GAME_DATE);
+
+        PredictionResult result = service.predict(game.getId());
+
+        assertThat(result.masseyTotal()).isNotNull();
+        assertThat(result.masseyTotal().total()).isCloseTo(147.0, within(0.001));
     }
 
     @Test

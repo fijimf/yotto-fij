@@ -92,6 +92,9 @@ class PredictionControllerTest extends BaseIntegrationTest {
         addRating(homeTeam, BradleyTerryRatingService.MODEL_TYPE, 1.0);
         addRating(awayTeam, BradleyTerryRatingService.MODEL_TYPE, 0.5);
         addParam(BradleyTerryRatingService.MODEL_TYPE, "hca", 0.0);
+        addRating(homeTeam, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 1.0);
+        addRating(awayTeam, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 0.5);
+        addParam(BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, "hca", 0.0);
     }
 
     private void addRating(Team team, String modelType, double rating) {
@@ -136,7 +139,8 @@ class PredictionControllerTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.homeTeam.name").value("Alabama"))
                 .andExpect(jsonPath("$.awayTeam.name").value("Auburn"))
                 .andExpect(jsonPath("$.massey").exists())
-                .andExpect(jsonPath("$.bradleyTerry").exists());
+                .andExpect(jsonPath("$.bradleyTerry").exists())
+                .andExpect(jsonPath("$.bradleyTerryWeighted").exists());
     }
 
     @Test

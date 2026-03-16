@@ -32,7 +32,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class MlPredictionService {
 
     private static final Logger log = LoggerFactory.getLogger(MlPredictionService.class);
-    private static final int EXPECTED_FEATURES = 24;
+    private static final int EXPECTED_FEATURES = 27;
 
     @Value("${prediction.ml.model-dir:/models}")
     private String modelDir;
@@ -237,6 +237,7 @@ public class MlPredictionService {
                 (float) v.masseyBetaHome(),    (float) v.masseyBetaAway(),    (float) v.masseyBetaDiff(),
                 (float) v.masseyGammaHome(),   (float) v.masseyGammaAway(),   (float) v.masseyGammaSum(),
                 (float) v.btThetaHome(),       (float) v.btThetaAway(),       (float) v.btLogodds(),
+                (float) v.btThetaWeightedHome(), (float) v.btThetaWeightedAway(), (float) v.btLogoddsWeighted(),
                 v.homeWinPctL5().floatValue(), v.homeAvgMarginL5().floatValue(),
                 v.homeAvgTotalL5().floatValue(), v.homeMarginStddevL5().floatValue(),
                 v.awayWinPctL5().floatValue(), v.awayAvgMarginL5().floatValue(),

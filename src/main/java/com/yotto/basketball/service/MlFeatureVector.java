@@ -1,9 +1,9 @@
 package com.yotto.basketball.service;
 
 /**
- * Fixed-width 24-feature input vector for all three ML models.
+ * Fixed-width 27-feature input vector for all three ML models.
  *
- * <p>Rating features (9) use {@code double} primitives — they are always available
+ * <p>Rating features (12) use {@code double} primitives — they are always available
  * from Phase 1 snapshots when the ML path is taken. Rolling features (8) and
  * rest-day features (2) use boxed {@code Double}/{@code Integer} so that a missing
  * value (e.g., a team with no prior games this season) can be represented as
@@ -11,19 +11,22 @@ package com.yotto.basketball.service;
  * nullable field is null.
  *
  * <p>Feature ordering must exactly match {@code features.json} written by the
- * Python training script (24 features, same names).
+ * Python training script (27 features, same names).
  */
 public record MlFeatureVector(
         // ── Rating features (from Phase 1 snapshots, pre-game) ───────────────
-        double masseyBetaHome,    // Massey β for home team
-        double masseyBetaAway,    // Massey β for away team
-        double masseyBetaDiff,    // β_home − β_away  (Massey spread prediction)
-        double masseyGammaHome,   // Massey γ for home team
-        double masseyGammaAway,   // Massey γ for away team
-        double masseyGammaSum,    // γ_home + γ_away  (Massey total prediction)
-        double btThetaHome,       // BT θ for home team
-        double btThetaAway,       // BT θ for away team
-        double btLogodds,         // θ_home − θ_away + α  (BT log-odds)
+        double masseyBetaHome,         // Massey β for home team
+        double masseyBetaAway,         // Massey β for away team
+        double masseyBetaDiff,         // β_home − β_away  (Massey spread prediction)
+        double masseyGammaHome,        // Massey Totals β for home team
+        double masseyGammaAway,        // Massey Totals β for away team
+        double masseyGammaSum,         // β_home + β_away  (Massey totals component)
+        double btThetaHome,            // BT θ for home team (unweighted)
+        double btThetaAway,            // BT θ for away team (unweighted)
+        double btLogodds,              // θ_home − θ_away + α  (BT log-odds)
+        double btThetaWeightedHome,    // Weighted BT θ_w for home team
+        double btThetaWeightedAway,    // Weighted BT θ_w for away team
+        double btLogoddsWeighted,      // θ_w_home − θ_w_away + α_w  (weighted BT log-odds)
 
         // ── Rolling form — home team (last 5 completed games before game date) ─
         Double homeWinPctL5,      // wins / games, last 5

@@ -85,7 +85,7 @@ public class PredictionService {
             return new PredictionResult(
                     game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                     game.getNeutralSite(), homeTeam, awayTeam,
-                    null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null,
                     bookSpread, bookOverUnder);
         }
 
@@ -98,9 +98,10 @@ public class PredictionService {
         // Fetch all snapshots in one pass — used by both Phase 1 and Phase 2
         GameRatings ratings = fetchGameRatings(homeId, awayId, seasonId, cutoff, neutral);
 
-        PredictionResult.MasseyPrediction        massey      = toMassey(ratings);
-        PredictionResult.MasseyTotalPrediction   masseyTotal = toMasseyTotal(ratings);
-        PredictionResult.BradleyTerryPrediction  bt          = toBradleyTerry(ratings);
+        PredictionResult.MasseyPrediction        massey          = toMassey(ratings);
+        PredictionResult.MasseyTotalPrediction   masseyTotal     = toMasseyTotal(ratings);
+        PredictionResult.BradleyTerryPrediction  bt              = toBradleyTerry(ratings);
+        PredictionResult.BradleyTerryPrediction  btWeighted      = toBradleyTerryWeighted(ratings);
 
         // ML enhancement (Phase 2) — null if ML is disabled or features incomplete
         PredictionResult.MlPrediction ml = null;
@@ -122,7 +123,7 @@ public class PredictionService {
                 game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                 game.getNeutralSite(), homeTeam, awayTeam,
                 actualHomeScore, actualAwayScore, actualMargin, actualTotal,
-                massey, masseyTotal, bt, ml,
+                massey, masseyTotal, bt, btWeighted, ml,
                 bookSpread, bookOverUnder);
     }
 
@@ -145,10 +146,14 @@ public class PredictionService {
 
         var masseyTotalHome = ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff).orElse(null);
         var masseyTotalAway = ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff).orElse(null);
-        double masseyTotalDelta = 0;
-        if (!neutral && masseyTotalHome != null && masseyTotalAway != null) {
-            masseyTotalDelta = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", cutoff)
+        double masseyTotalIntercept = 0, masseyTotalDelta = 0;
+        if (masseyTotalHome != null && masseyTotalAway != null) {
+            masseyTotalIntercept = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "intercept", cutoff)
                     .map(p -> p.getParamValue()).orElse(0.0);
+            if (!neutral) {
+                masseyTotalDelta = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", cutoff)
+                        .map(p -> p.getParamValue()).orElse(0.0);
+            }
         }
 
         var btHome = ratingRepository.findLatestBefore(homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff).orElse(null);
@@ -159,10 +164,19 @@ public class PredictionService {
                     .map(p -> p.getParamValue()).orElse(0.0);
         }
 
+        var btWeightedHome = ratingRepository.findLatestBefore(homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, cutoff).orElse(null);
+        var btWeightedAway = ratingRepository.findLatestBefore(awayId, seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, cutoff).orElse(null);
+        double btWeightedAlpha = 0;
+        if (!neutral && btWeightedHome != null && btWeightedAway != null) {
+            btWeightedAlpha = paramRepository.findLatestParamBefore(seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, "hca", cutoff)
+                    .map(p -> p.getParamValue()).orElse(0.0);
+        }
+
         return new GameRatings(
                 masseyHome, masseyAway, masseyHca,
-                masseyTotalHome, masseyTotalAway, masseyTotalDelta,
-                btHome, btAway, btAlpha);
+                masseyTotalHome, masseyTotalAway, masseyTotalIntercept, masseyTotalDelta,
+                btHome, btAway, btAlpha,
+                btWeightedHome, btWeightedAway, btWeightedAlpha);
     }
 
     // ── Phase 1 sub-block builders ────────────────────────────────────────────
@@ -178,7 +192,8 @@ public class PredictionService {
 
     private static PredictionResult.MasseyTotalPrediction toMasseyTotal(GameRatings r) {
         if (!r.hasMasseyTotal()) return null;
-        double total = r.masseyTotalHome().getRating() + r.masseyTotalAway().getRating() + r.masseyTotalDelta();
+        double total = r.masseyTotalHome().getRating() + r.masseyTotalAway().getRating()
+                + r.masseyTotalIntercept() + r.masseyTotalDelta();
         return new PredictionResult.MasseyTotalPrediction(
                 total,
                 r.masseyTotalHome().getGamesPlayed(), r.masseyTotalAway().getGamesPlayed(),
@@ -195,6 +210,18 @@ public class PredictionService {
                 impliedMoneyline(pHome), impliedMoneyline(pAway),
                 r.btHome().getGamesPlayed(), r.btAway().getGamesPlayed(),
                 earlierDate(r.btHome().getSnapshotDate(), r.btAway().getSnapshotDate()));
+    }
+
+    private static PredictionResult.BradleyTerryPrediction toBradleyTerryWeighted(GameRatings r) {
+        if (!r.hasBtWeighted()) return null;
+        double logOdds = r.btWeightedHome().getRating() - r.btWeightedAway().getRating() + r.btWeightedAlpha();
+        double pHome   = sigmoid(logOdds);
+        double pAway   = 1.0 - pHome;
+        return new PredictionResult.BradleyTerryPrediction(
+                pHome, pAway,
+                impliedMoneyline(pHome), impliedMoneyline(pAway),
+                r.btWeightedHome().getGamesPlayed(), r.btWeightedAway().getGamesPlayed(),
+                earlierDate(r.btWeightedHome().getSnapshotDate(), r.btWeightedAway().getSnapshotDate()));
     }
 
     // ── Phase 2 ML feature builder ────────────────────────────────────────────
@@ -216,17 +243,20 @@ public class PredictionService {
         int seasonWeek = (int) (ChronoUnit.DAYS.between(
                 game.getSeason().getStartDate(), gameDatetime.toLocalDate()) / 7) + 1;
 
-        double betaHome  = r.masseyHome().getRating();
-        double betaAway  = r.masseyAway().getRating();
-        double gammaHome = r.masseyTotalHome().getRating();
-        double gammaAway = r.masseyTotalAway().getRating();
-        double thetaHome = r.btHome().getRating();
-        double thetaAway = r.btAway().getRating();
+        double betaHome         = r.masseyHome().getRating();
+        double betaAway         = r.masseyAway().getRating();
+        double gammaHome        = r.masseyTotalHome().getRating();
+        double gammaAway        = r.masseyTotalAway().getRating();
+        double thetaHome        = r.btHome().getRating();
+        double thetaAway        = r.btAway().getRating();
+        double thetaWHome       = r.btWeightedHome() != null ? r.btWeightedHome().getRating() : 0.0;
+        double thetaWAway       = r.btWeightedAway() != null ? r.btWeightedAway().getRating() : 0.0;
 
         return new MlFeatureVector(
                 betaHome, betaAway, betaHome - betaAway,
                 gammaHome, gammaAway, gammaHome + gammaAway,
                 thetaHome, thetaAway, thetaHome - thetaAway + r.btAlpha(),
+                thetaWHome, thetaWAway, thetaWHome - thetaWAway + r.btWeightedAlpha(),
                 homeStats.winPct(),   homeStats.avgMargin(),   homeStats.avgTotal(),   homeStats.marginStddev(),
                 awayStats.winPct(),   awayStats.avgMargin(),   awayStats.avgTotal(),   awayStats.marginStddev(),
                 r.masseyHome().getGamesPlayed(), r.masseyAway().getGamesPlayed(),
@@ -282,12 +312,15 @@ public class PredictionService {
     /** Carries all pre-fetched snapshot values for one game's prediction. */
     private record GameRatings(
             TeamPowerRatingSnapshot masseyHome, TeamPowerRatingSnapshot masseyAway, double masseyHca,
-            TeamPowerRatingSnapshot masseyTotalHome, TeamPowerRatingSnapshot masseyTotalAway, double masseyTotalDelta,
-            TeamPowerRatingSnapshot btHome, TeamPowerRatingSnapshot btAway, double btAlpha
+            TeamPowerRatingSnapshot masseyTotalHome, TeamPowerRatingSnapshot masseyTotalAway,
+            double masseyTotalIntercept, double masseyTotalDelta,
+            TeamPowerRatingSnapshot btHome, TeamPowerRatingSnapshot btAway, double btAlpha,
+            TeamPowerRatingSnapshot btWeightedHome, TeamPowerRatingSnapshot btWeightedAway, double btWeightedAlpha
     ) {
         boolean hasMassey()      { return masseyHome != null && masseyAway != null; }
         boolean hasMasseyTotal() { return masseyTotalHome != null && masseyTotalAway != null; }
         boolean hasBt()          { return btHome != null && btAway != null; }
+        boolean hasBtWeighted()  { return btWeightedHome != null && btWeightedAway != null; }
         boolean hasAll()         { return hasMassey() && hasMasseyTotal() && hasBt(); }
     }
 

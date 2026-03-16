@@ -30,6 +30,7 @@ public record PredictionResult(
         MasseyPrediction massey,
         MasseyTotalPrediction masseyTotal,
         BradleyTerryPrediction bradleyTerry,
+        BradleyTerryPrediction bradleyTerryWeighted,
         MlPrediction ml,
 
         // Book lines from BettingOdds (null if no odds recorded)
@@ -51,8 +52,8 @@ public record PredictionResult(
     ) {}
 
     /**
-     * Massey total prediction: γ_h + γ_a + δ.
-     * HCA intercept δ is zero for neutral-site games.
+     * Massey total prediction: β_h + β_a + γ₀ + δ.
+     * Intercept γ₀ is always added; HCA bump δ is zero for neutral-site games.
      */
     public record MasseyTotalPrediction(
             double total,

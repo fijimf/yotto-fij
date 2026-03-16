@@ -1,12 +1,13 @@
 # Game Prediction Service
 
-This document specifies a prediction service that produces three outputs for any game:
+This document specifies a prediction service that produces four outputs for any game:
 
 1. **Predicted spread** — expected home margin of victory (negative = away team favored)
 2. **Predicted over/under** — expected total combined score
-3. **Win probability** — P(home team wins)
+3. **Win probability (Bradley-Terry)** — P(home team wins) from the unweighted model
+4. **Win probability (Weighted Bradley-Terry)** — P(home team wins) from the margin-weighted model
 
-The baseline predictions come from the Massey Linear and Bradley-Terry models already in the system. A second-layer ML model (gradient-boosted trees) can be layered on top as a future enhancement.
+The baseline predictions come from four power models: Massey (spread), Massey Totals (O/U), Bradley-Terry (win probability), and Weighted Bradley-Terry (alternative win probability). A second-layer ML model (gradient-boosted trees) can be layered on top as a future enhancement.
 
 ---
 
@@ -28,36 +29,42 @@ spread = β_h − β_a + α     (α = 0 for neutral site)
 
 This is immediately available from the stored `TeamPowerRatingSnapshot` ratings and the `PowerModelParamSnapshot` HCA parameter `"hca"`, using the most recent snapshot dated strictly before the game date.
 
-### 1.2 Massey Extended → Over/Under
+### 1.2 Massey Totals → Over/Under
 
 This is the natural extension. Instead of fitting score *differences*, we fit a second independent linear system using score *sums*:
 
 ```
-total_predicted = γ_h + γ_a + δ
+total_predicted = β_h + β_a + γ₀ + δ·home_indicator
 ```
 
-where γ_i is a per-team scoring-strength parameter and δ is a home-game scoring intercept (home courts tend to produce slightly more total points). The dependent variable is:
+where β_i is a per-team scoring-pace parameter, γ₀ is a global baseline intercept (roughly the average total score for two league-average teams, ~145–150 in CBB), and δ is the home-court scoring bump. The dependent variable is:
 
 ```
 z_g = homeScore_g + awayScore_g
 ```
 
-The design matrix differs from the spread system only in the signs: both teams contribute `+1` to the row (both teams score in the game, so both γ pull the total up):
+The design matrix has T + 2 columns (T team columns, 1 intercept column, 1 HCA column):
 
 - Column j: `X[g, j] = +1` if team j played in game g (home **or** away), 0 otherwise
-- Column T (HCA column): `X[g, T] = 1` if non-neutral site, 0 if neutral
+- Column T (intercept column): `X[g, T] = 1` for **all** games (including neutral site)
+- Column T+1 (HCA column): `X[g, T+1] = 1` if non-neutral site, 0 if neutral
 
 The predicted O/U for a future game is:
 
 ```
-total = γ_h + γ_a + δ     (δ = 0 for neutral site)
+total = β_h + β_a + γ₀ + (neutralSite ? 0 : δ)
 ```
 
-The same Cholesky/LU solve used for Massey spread applies here. The normal-equations accumulator is maintained the same way — one outer-product update per game — so the two systems can share the same date-loop pass over game data.
+Note that γ₀ is always added (it is the unconditional intercept, not the HCA term). The same Cholesky/LU solve used for Massey spread applies here. The normal-equations accumulator is maintained the same way — one outer-product update per game — so the two systems can share the same date-loop pass over game data.
 
-Per-team γ ratings are stored as `TeamPowerRatingSnapshot` rows with `modelType = "MASSEY_TOTAL"`. The δ intercept is stored as a `PowerModelParamSnapshot` row with `modelType = "MASSEY_TOTAL"`, `paramName = "hca_total"`.
+Per-team β ratings are stored as `TeamPowerRatingSnapshot` rows with `modelType = "MASSEY_TOTALS"`. Two global parameters are stored as `PowerModelParamSnapshot` rows with `modelType = "MASSEY_TOTALS"`:
 
-The string `"MASSEY_TOTAL"` is 12 characters and fits within the `VARCHAR(20)` column in both snapshot tables.
+- `paramName = "intercept"` → γ₀ (the global scoring baseline; always added to predictions)
+- `paramName = "hca_total"` → δ (the home-court scoring increment; omitted for neutral sites)
+
+The string `"MASSEY_TOTALS"` is 13 characters and fits within the `VARCHAR(20)` column in both snapshot tables.
+
+> **Code note:** The current `PredictionService.buildPrediction()` fetches only the `"hca_total"` param for MASSEY_TOTALS and does not fetch `"intercept"`. This means the intercept γ₀ is silently omitted and totals predictions will be systematically ~145–150 points too low. The fetch logic must be updated to also retrieve `"intercept"` and add it unconditionally to the total formula.
 
 ### 1.3 Bradley-Terry → Win Probability
 
@@ -78,6 +85,20 @@ else:         moneyline = +round((1 − p) / p × 100)     // underdog, e.g. +13
 
 Note this is the no-vig fair line. Actual sportsbook prices include a vig of ~4–6%.
 
+### 1.4 Weighted Bradley-Terry → Alternative Win Probability
+
+The Weighted Bradley-Terry model is identical in structure to the standard BT model but assigns a weight `w_g = 1 + ln(max(1, |margin_g|))` to each game observation, amplifying the influence of decisive wins. The model predicts:
+
+```
+P(home wins) = σ(θ_h − θ_a + α)     where σ(x) = 1 / (1 + e^−x)
+```
+
+The θ ratings are solved via Newton-Raphson on the weighted log-likelihood. Because blowout wins are up-weighted, teams with dominant margin-of-victory records earn distinctly higher θ values than teams with similar binary win records. This makes the weighted model a useful complement to the standard BT model — when they agree strongly, confidence in the win-probability estimate increases; when they disagree, it signals a team whose winning record is driven by close wins (standard BT) or margin (weighted BT).
+
+Available from stored `TeamPowerRatingSnapshot` ratings with `modelType = "BRADLEY_TERRY_W"` and HCA param `"hca"` with `modelType = "BRADLEY_TERRY_W"`.
+
+The win probability and implied moneylines are computed the same way as for standard BT.
+
 ---
 
 ## 2. Can ML Methods Improve on These?
@@ -94,8 +115,9 @@ Use Massey/BT ratings **as features**, not replacements. Additional features:
 
 **Team-level (per team, from the snapshot before game date):**
 - Massey β rating (spread model)
-- Massey γ rating (total model)
-- Bradley-Terry θ rating
+- Massey β rating (totals / pace model)
+- Bradley-Terry θ rating (unweighted)
+- Weighted Bradley-Terry θ_w rating (margin-weighted)
 - Win % last 5 / last 10 games
 - Average margin last 5 / last 10 games
 - Average total last 5 / last 10 games
@@ -105,8 +127,9 @@ Use Massey/BT ratings **as features**, not replacements. Additional features:
 
 **Game-level:**
 - `β_h − β_a` (Massey spread prediction)
-- `γ_h + γ_a` (Massey total prediction)
-- `θ_h − θ_a` (BT log-odds)
+- `β_h + β_a` (Massey totals component; γ₀ and δ are constants, not per-team features)
+- `θ_h − θ_a + α` (BT log-odds, unweighted)
+- `θ_w_h − θ_w_a + α_w` (weighted BT log-odds)
 - HCA flag (neutral site?)
 - Conference matchup (same conference?)
 - Season week / games played (early-season models are noisier)
@@ -178,36 +201,42 @@ If interpretability is a priority, Random Forest is easier to explain.
 
 ### Phase 1 — Baseline predictions from existing models
 
-Phase 1 delivers the prediction API using only data already computed by the Massey and Bradley-Terry models, plus the new Massey-Total model. No new entities, no new Flyway migration — the existing `team_power_rating_snapshots` and `power_model_param_snapshots` tables are reused under a new `model_type` value.
+Phase 1 delivers the prediction API using only data already computed by the Massey and Bradley-Terry models, plus the new Massey-Totals and Weighted Bradley-Terry models. No new entities, no new Flyway migration — the existing `team_power_rating_snapshots` and `power_model_param_snapshots` tables are reused under new `model_type` values.
 
-#### 3.1 Massey-Total Rating Computation
+#### 3.1 Massey-Totals Rating Computation
 
-MASSEY_TOTAL is computed inside `MasseyRatingService` alongside the existing MASSEY solve. Both systems share the same single pass over game data (one DB query, one date-loop), with a second accumulator pair `(A_total, b_total)` added alongside the existing `(A, b)`.
+MASSEY_TOTALS is computed inside `MasseyRatingService` alongside the existing MASSEY solve. Both systems share the same single pass over game data (one DB query, one date-loop), with a second accumulator pair `(A_total, b_total)` added alongside the existing `(A, b)`.
 
-- `MODEL_TYPE = "MASSEY_TOTAL"`
-- At the start of `calculateAndStoreForSeason()`, deletes existing rows for both `"MASSEY"` and `"MASSEY_TOTAL"` from both snapshot tables
+- `MODEL_TYPE_TOTALS = "MASSEY_TOTALS"`; matrix is size T+2 (T teams + intercept + HCA)
+- At the start of `calculateAndStoreForSeason()`, deletes existing rows for both `"MASSEY"` and `"MASSEY_TOTALS"` from both snapshot tables
 - Iterates final games in date order, updating both accumulators on each game:
-  - `(A, b)` for spread — existing logic, unchanged
-  - `(A_total, b_total)` for totals — same matrix structure, different right-hand side and sign convention (both teams `+1`, not `+1/−1`)
-- On each date, calls `solve(A_total, b_total, T, size)` and stores:
-  - Per-team γ as `TeamPowerRatingSnapshot` rows with `modelType = "MASSEY_TOTAL"`
-  - The HCA intercept δ as a `PowerModelParamSnapshot` row with `modelType = "MASSEY_TOTAL"`, `paramName = "hca_total"`
-- The `rank` field in MASSEY_TOTAL snapshots reflects ordering by γ (highest scoring-strength first)
+  - `(A, b)` for spread — existing logic, unchanged (matrix size T+1)
+  - `(A_total, b_total)` for totals — T+2 matrix; intercept column T is always-on; HCA column T+1 is non-neutral only
+- On each date, calls `solve(A_total, b_total, T, size2)` and stores:
+  - Per-team β as `TeamPowerRatingSnapshot` rows with `modelType = "MASSEY_TOTALS"`
+  - The global intercept γ₀ as a `PowerModelParamSnapshot` row with `modelType = "MASSEY_TOTALS"`, `paramName = "intercept"`
+  - The HCA bump δ as a `PowerModelParamSnapshot` row with `modelType = "MASSEY_TOTALS"`, `paramName = "hca_total"`
+- The `rank` field in MASSEY_TOTALS snapshots reflects ordering by β (highest scoring-pace first)
 
-The accumulator update for each game in the total system:
+The accumulator update for each game in the total system (size2 = T+2):
 
 ```
 A_total[hi][hi] += 1
 A_total[ai][ai] += 1
-A_total[hi][ai] += 1      ← positive (both contribute)
+A_total[hi][ai] += 1      ← positive (both contribute to the total)
 A_total[ai][hi] += 1
+# Intercept column T — always added (for all games, including neutral)
+A_total[hi][T]  += 1;  A_total[T][hi]  += 1
+A_total[ai][T]  += 1;  A_total[T][ai]  += 1
+A_total[T][T]   += 1
+b_total[hi] += total;  b_total[ai] += total;  b_total[T] += total
+# HCA column T+1 — only for non-neutral games
 if non-neutral:
-    A_total[hi][T] += 1;  A_total[T][hi] += 1
-    A_total[ai][T] += 1;  A_total[T][ai] += 1
-    A_total[T][T]  += 1
-b_total[hi] += total
-b_total[ai] += total
-b_total[T]  += hca * total
+    A_total[hi][T+1] += 1;  A_total[T+1][hi] += 1
+    A_total[ai][T+1] += 1;  A_total[T+1][ai] += 1
+    A_total[T][T+1]  += 1;  A_total[T+1][T]  += 1
+    A_total[T+1][T+1]+= 1
+    b_total[T+1] += total
 ```
 
 where `total = homeScore + awayScore`.
@@ -264,18 +293,21 @@ The service method is `@Transactional(readOnly = true)`, which keeps all lazy lo
 2. If `game.getStatus()` is `POSTPONED` or `CANCELLED`, return a result with all prediction sub-blocks set to `null`.
 3. Derive the cutoff date: `LocalDate cutoff = game.getGameDate().toLocalDate()`. Snapshots with `snapshotDate < cutoff` are valid pre-game information.
 4. Determine `seasonId = game.getSeason().getId()` and `neutralSite = Boolean.TRUE.equals(game.getNeutralSite())`.
-5. For each of the three model types (`MASSEY`, `MASSEY_TOTAL`, `BRADLEY_TERRY`):
+5. For each of the four model types (`MASSEY`, `MASSEY_TOTALS`, `BRADLEY_TERRY`, `BRADLEY_TERRY_W`):
    - Fetch the most recent pre-cutoff snapshot for `homeTeam`
    - Fetch the most recent pre-cutoff snapshot for `awayTeam`
-   - Fetch the most recent pre-cutoff HCA param (`"hca"` for MASSEY and BT, `"hca_total"` for MASSEY_TOTAL)
+   - Fetch the most recent pre-cutoff HCA param(s): `"hca"` for MASSEY, BRADLEY_TERRY, BRADLEY_TERRY_W; `"intercept"` and `"hca_total"` for MASSEY_TOTALS
 6. If either team's snapshot is missing for a model, that model's prediction block is `null` (not an error).
 7. When both snapshots are present, `modelDate` is set to the **earlier** of the two snapshot dates (the more conservative bound on information freshness).
 8. Compute predictions from available snapshots:
    - `masseySpread = β_h − β_a + (neutralSite ? 0 : α_massey)`
-   - `masseyTotal = γ_h + γ_a + (neutralSite ? 0 : δ_total)`
+   - `masseyTotal = β_h + β_a + γ₀ + (neutralSite ? 0 : δ_total)`   ← intercept γ₀ is **always** added; δ only for non-neutral
    - `btProbHome = sigmoid(θ_h − θ_a + (neutralSite ? 0 : α_bt))`
    - `btProbAway = 1 − btProbHome`
    - `btMoneylineHome` and `btMoneylineAway` via the implied-moneyline formula
+   - `btWeightedProbHome = sigmoid(θ_w_h − θ_w_a + (neutralSite ? 0 : α_btw))` (using BRADLEY_TERRY_W ratings)
+   - `btWeightedProbAway = 1 − btWeightedProbHome`
+   - `btWeightedMoneylineHome` and `btWeightedMoneylineAway` via the same implied-moneyline formula
 9. If `game.getStatus() == FINAL`, populate the actual-result fields (`actualHomeScore`, `actualAwayScore`, `actualMargin`, `actualTotal`) from the game entity.
 10. Return a `PredictionResult` containing all of the above, plus game metadata.
 
@@ -305,7 +337,7 @@ PredictionResult {
         modelDate:            LocalDate // earlier of the two teams' snapshot dates
 
     masseyTotal: MasseyTotalPrediction | null
-        total:                Double    // γ_h + γ_a + δ
+        total:                Double    // β_h + β_a + γ₀ + (neutralSite ? 0 : δ)
         homeGamesPlayed:      int
         awayGamesPlayed:      int
         modelDate:            LocalDate
@@ -314,6 +346,15 @@ PredictionResult {
         homeWinProbability:   Double    // p_home = σ(θ_h − θ_a + α)
         awayWinProbability:   Double    // 1 − p_home
         homeImpliedMoneyline: Integer   // no-vig American odds
+        awayImpliedMoneyline: Integer
+        homeGamesPlayed:      int
+        awayGamesPlayed:      int
+        modelDate:            LocalDate
+
+    bradleyTerryWeighted: BradleyTerryPrediction | null    // same shape, different model
+        homeWinProbability:   Double    // p_home = σ(θ_w_h − θ_w_a + α_w); margin-weighted ratings
+        awayWinProbability:   Double
+        homeImpliedMoneyline: Integer
         awayImpliedMoneyline: Integer
         homeGamesPlayed:      int
         awayGamesPlayed:      int
@@ -349,12 +390,12 @@ The `JOIN FETCH g.season` resolves the lazy season in the same query, eliminatin
 
 #### 3.6 Orchestration
 
-Because MASSEY_TOTAL is computed inside `MasseyRatingService`, the existing `PowerRatingService` pipeline is unchanged:
+Because MASSEY_TOTALS is computed inside `MasseyRatingService` and BRADLEY_TERRY_W is computed inside `BradleyTerryRatingService`, the existing `PowerRatingService` pipeline is unchanged:
 
 ```
 PowerRatingService.calculateAndStoreForSeason(year)
-  → masseyRatingService.calculateAndStoreForSeason(year)        // now produces both MASSEY and MASSEY_TOTAL
-  → bradleyTerryRatingService.calculateAndStoreForSeason(year)  // unchanged
+  → masseyRatingService.calculateAndStoreForSeason(year)        // produces both MASSEY and MASSEY_TOTALS
+  → bradleyTerryRatingService.calculateAndStoreForSeason(year)  // produces both BRADLEY_TERRY and BRADLEY_TERRY_W
 ```
 
 The existing admin endpoint `POST /admin/power-ratings/{year}` triggers this chain asynchronously via `AsyncScrapeService.calculatePowerRatingsAsync()` → `ScrapeOrchestrator.calculatePowerRatings()` → `PowerRatingService.calculateAndStoreForSeason()`. No new admin endpoint is needed for Phase 1.
@@ -363,14 +404,16 @@ No new Flyway migration is required. The `team_power_rating_snapshots` and `powe
 
 #### 3.7 Summary of New Files and Changes
 
-| File                                | Change                                                                                              |
-|-------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `MasseyRatingService`               | Add second accumulator `(A_total, b_total)`; produce `MASSEY_TOTAL` snapshots in the same date-loop |
-| `TeamPowerRatingSnapshotRepository` | Add `findLatestBefore(teamId, seasonId, modelType, beforeDate)` (native SQL)                        |
-| `PowerModelParamSnapshotRepository` | Add `findLatestParamBefore(seasonId, modelType, paramName, beforeDate)` (native SQL)                |
-| `GameRepository`                    | Add `findScheduledBetween(start, end)` with join-fetch on homeTeam, awayTeam, season                |
-| `PredictionService`                 | New `@Service`; `@Transactional(readOnly = true)`; assembles predictions from snapshots             |
-| `PredictionController`              | New `@RestController` at `/api/predictions`                                                         |
+| File                                | Change                                                                                                                                                 |
+|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `MasseyRatingService`               | Add second accumulator `(A_total, b_total)` (size T+2); produce `MASSEY_TOTALS` snapshots + "intercept" and "hca_total" params in the same date-loop   |
+| `BradleyTerryRatingService`         | Add `BRADLEY_TERRY_W` model; weighted NR pass per date (w_g = 1 + ln(margin)); store separate θ_w snapshots alongside existing BRADLEY_TERRY snapshots |
+| `TeamPowerRatingSnapshotRepository` | Add `findLatestBefore(teamId, seasonId, modelType, beforeDate)` (native SQL)                                                                           |
+| `PowerModelParamSnapshotRepository` | Add `findLatestParamBefore(seasonId, modelType, paramName, beforeDate)` (native SQL)                                                                   |
+| `GameRepository`                    | Add `findScheduledBetween(start, end)` with join-fetch on homeTeam, awayTeam, season                                                                   |
+| `PredictionService`                 | New `@Service`; `@Transactional(readOnly = true)`; assembles predictions from all four model snapshots; fetches "intercept" param for MASSEY_TOTALS     |
+| `PredictionResult`                  | Add `bradleyTerryWeighted: BradleyTerryPrediction` sub-block                                                                                           |
+| `PredictionController`              | New `@RestController` at `/api/predictions`                                                                                                            |
 
 ---
 
@@ -400,15 +443,18 @@ The feature vector is fixed-width and fully numeric. Categorical flags are encod
 
 ```
 # Rating features (from Phase 1 snapshots, pre-game)
-massey_beta_home          # Massey β for home team
+massey_beta_home          # Massey β for home team (spread model)
 massey_beta_away          # Massey β for away team
 massey_beta_diff          # β_home − β_away (the Massey spread prediction, linear feature)
-massey_gamma_home         # Massey γ for home team
-massey_gamma_away         # Massey γ for away team
-massey_gamma_sum          # γ_home + γ_away (the Massey total prediction)
-bt_theta_home             # BT θ for home team
+massey_gamma_home         # Massey Totals β for home team (pace model)
+massey_gamma_away         # Massey Totals β for away team
+massey_gamma_sum          # β_h + β_a (the Massey totals component; add γ₀+δ for full prediction)
+bt_theta_home             # BT θ for home team (unweighted)
 bt_theta_away             # BT θ for away team
 bt_logodds                # θ_home − θ_away + α (the BT log-odds, linear feature)
+bt_theta_weighted_home    # Weighted BT θ_w for home team
+bt_theta_weighted_away    # Weighted BT θ_w for away team
+bt_logodds_weighted       # θ_w_home − θ_w_away + α_w (weighted BT log-odds)
 
 # Rolling form — home team (last 5 completed games before game date)
 home_win_pct_l5           # wins / games, last 5
@@ -434,7 +480,7 @@ is_neutral_site           # 1 if neutral, 0 otherwise
 is_conference_game        # 1 if conferenceGame == true, 0 otherwise
 ```
 
-Total: **24 features**. The Python training script exports this list to `features.json` alongside the ONNX files. The Java runtime reads `features.json` on startup to validate model input dimensions and to enforce feature ordering.
+Total: **27 features** (9 rating features including 3 new weighted BT features, 8 rolling form, 6 season-to-date, 2 game context, plus 2 game-played). The Python training script exports this list to `features.json` alongside the ONNX files. The Java runtime reads `features.json` on startup to validate model input dimensions and to enforce feature ordering.
 
 #### 4.3 Training Side (Python)
 
@@ -456,10 +502,10 @@ numpy
 **Training data construction:**
 
 For every FINAL game in the training seasons:
-1. Fetch the most recent pre-game Massey, MASSEY_TOTAL, and BT snapshot for each team (same `snapshot_date < game_date` logic as the Java service).
+1. Fetch the most recent pre-game MASSEY, MASSEY_TOTALS, BRADLEY_TERRY, and BRADLEY_TERRY_W snapshot for each team (same `snapshot_date < game_date` logic as the Java service).
 2. Compute rolling features by querying the last 5 FINAL games for each team before the game date (SQL window function or Pandas groupby-apply on the full game history loaded into memory).
 3. Compute `home_days_rest` and `away_days_rest` as `game_date − previous_game_date` for each team.
-4. Assemble the 27-feature row. If any snapshot is missing (team has < 5 games played), skip the row or impute — see 4.5.
+4. Assemble the 27-feature row. If any snapshot is missing (team has < 5 games played), skip the row or impute — see 4.6.
 
 **Train/test split:** Time-based. Train on all seasons except the most recent; test on the most recent complete season. Do not use random splits — future games must never appear in the training set.
 
@@ -497,7 +543,7 @@ Hyperparameters are reasonable starting values. Cross-validation on the training
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType
 
-initial_type = [("float_input", FloatTensorType([None, 24]))]
+initial_type = [("float_input", FloatTensorType([None, 27]))]
 
 spread_onnx  = convert_sklearn(spread_model,  initial_types=initial_type)
 total_onnx   = convert_sklearn(total_model,   initial_types=initial_type)
@@ -515,6 +561,7 @@ For the XGBoost models, `onnxmltools.convert_xgboost()` may be needed if `skl2on
     "massey_beta_home", "massey_beta_away", "massey_beta_diff",
     "massey_gamma_home", "massey_gamma_away", "massey_gamma_sum",
     "bt_theta_home", "bt_theta_away", "bt_logodds",
+    "bt_theta_weighted_home", "bt_theta_weighted_away", "bt_logodds_weighted",
     "home_win_pct_l5", "home_avg_margin_l5", "home_avg_total_l5", "home_margin_stddev_l5",
     "away_win_pct_l5", "away_avg_margin_l5", "away_avg_total_l5", "away_margin_stddev_l5",
     "home_games_played", "away_games_played",
@@ -561,7 +608,7 @@ When `ML_ENABLED=false`, or when the model directory does not contain all three 
 A new `@Service` with the following structure:
 
 - `@PostConstruct init()`: reads `features.json`, validates the feature count, loads the three `OrtSession` objects from the ONNX files using `OrtEnvironment.getEnvironment().createSession(path)`. If any file is missing or malformed, logs a warning and sets `enabled = false`.
-- `predict(MlFeatureVector v)`: constructs a `float[1][24]` array in the exact order from `features.json`, wraps it in an `OnnxTensor`, runs all three sessions, extracts outputs:
+- `predict(MlFeatureVector v)`: constructs a `float[1][27]` array in the exact order from `features.json`, wraps it in an `OnnxTensor`, runs all three sessions, extracts outputs:
   - Spread session: `output[0]` is a float (predicted margin)
   - Total session: `output[0]` is a float (predicted total)
   - Win prob session: `output[1]` (probability array from `predict_proba`) is a `float[1][2]`; take column index 1 for P(home wins)
@@ -572,13 +619,14 @@ A new `@Service` with the following structure:
 
 **`MlFeatureVector` record:**
 
-A plain Java record holding all 24 named fields. Rating and game-context features use primitives (always available from snapshots). Rolling features use boxed `Double` / `Integer` so that a missing value can be represented as `null` (e.g., `homeDaysRest = null` when no prior game exists this season). `MlPredictionService.predict()` checks for any null field and returns `null` if the vector is incomplete.
+A plain Java record holding all 27 named fields. Rating and game-context features use primitives (always available from snapshots). Rolling features use boxed `Double` / `Integer` so that a missing value can be represented as `null` (e.g., `homeDaysRest = null` when no prior game exists this season). `MlPredictionService.predict()` checks for any null field and returns `null` if the vector is incomplete.
 
 ```java
 record MlFeatureVector(
     double masseyBetaHome, double masseyBetaAway, double masseyBetaDiff,
     double masseyGammaHome, double masseyGammaAway, double masseyGammaSum,
     double btThetaHome, double btThetaAway, double btLogodds,
+    double btThetaWeightedHome, double btThetaWeightedAway, double btLogoddsWeighted,
     Double homeWinPctL5, Double homeAvgMarginL5, Double homeAvgTotalL5, Double homeMarginStddevL5,
     Double awayWinPctL5, Double awayAvgMarginL5, Double awayAvgTotalL5, Double awayMarginStddevL5,
     int homeGamesPlayed, int awayGamesPlayed,
@@ -650,9 +698,9 @@ The retraining workflow is Docker-based and described fully in Phase 2a (section
 
 **Java / application changes:**
 - `MlPredictionService` — new `@Service`; ONNX session lifecycle; `predict()`, `reload()`, `getStatus()`
-- `MlFeatureVector` — new record; 27 named feature fields
-- `PredictionService` — extended to compute rolling features and call `MlPredictionService`
-- `PredictionResult` — add `ml: MlPrediction` field
+- `MlFeatureVector` — new record; 27 named feature fields (including `btThetaWeightedHome`, `btThetaWeightedAway`, `btLogoddsWeighted`)
+- `PredictionService` — extended to fetch BRADLEY_TERRY_W snapshots for feature vector; compute rolling features; call `MlPredictionService`; populate `bradleyTerryWeighted` sub-block in result
+- `PredictionResult` — add `bradleyTerryWeighted: BradleyTerryPrediction` field; add `ml: MlPrediction` field
 - `GameRepository` — add `findRecentFinalGamesForTeam(teamId, beforeDate, pageable)`
 - `application.properties` — add `prediction.ml.model-dir` and `prediction.ml.enabled`
 - `pom.xml` — add `com.microsoft.onnxruntime:onnxruntime` dependency
@@ -791,7 +839,7 @@ The existing admin dashboard (`/admin`) gets a new **ML Models** card alongside 
 - Status badge: **Enabled** (green) / **Disabled** (grey)
 - Model version: the `version` string from `features.json` (e.g. `2025-12-15`)
 - Trained at: `features.json` last-modified timestamp
-- Feature count: number of features in the schema (should always be 27; mismatch indicates a stale model)
+- Feature count: number of features in the schema (must be 27 after the weighted BT features were added; mismatch indicates a stale or incompatible model)
 - **Reload Models** button — `hx-post="/admin/ml/reload"`, `hx-target="#ml-status-card"`, `hx-swap="outerHTML"`. Disabled if ML is already disabled (no point reloading absent files).
 - Static note: *"To retrain models, run `./scripts/retrain.sh` on the server after a full season scrape."*
 
