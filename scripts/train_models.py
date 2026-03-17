@@ -66,13 +66,14 @@ FEATURE_NAMES = [
     "massey_beta_home", "massey_beta_away", "massey_beta_diff",
     "massey_gamma_home", "massey_gamma_away", "massey_gamma_sum",
     "bt_theta_home", "bt_theta_away", "bt_logodds",
+    "bt_theta_weighted_home", "bt_theta_weighted_away", "bt_logodds_weighted",
     "home_win_pct_l5", "home_avg_margin_l5", "home_avg_total_l5", "home_margin_stddev_l5",
     "away_win_pct_l5", "away_avg_margin_l5", "away_avg_total_l5", "away_margin_stddev_l5",
     "home_games_played", "away_games_played",
     "home_days_rest", "away_days_rest", "season_week",
     "is_neutral_site", "is_conference_game",
 ]
-N_FEATURES = len(FEATURE_NAMES)  # 24
+N_FEATURES = len(FEATURE_NAMES)  # 27
 
 
 # ── Database helpers ───────────────────────────────────────────────────────────
@@ -151,7 +152,7 @@ def load_bt_snapshots(conn, season_years):
             r.games_played
         FROM team_power_rating_snapshots r
         JOIN seasons s ON r.season_id = s.id
-        WHERE r.model_type = 'BRADLEY_TERRY'
+        WHERE r.model_type IN ('BRADLEY_TERRY', 'BRADLEY_TERRY_W')
           AND s.year IN ({placeholders})
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -349,6 +350,16 @@ def build_feature_row(row, team_game_index, snapshot_index, param_index):
     bt_alpha   = 0.0 if neutral else lookup_param(param_index, season_id, "BRADLEY_TERRY", "hca", game_date)
     bt_logodds = theta_home - theta_away + bt_alpha
 
+    # ── Weighted Bradley-Terry ratings ────────────────────────────────────────
+    snap_bwh = lookup_snapshot(snapshot_index, home_id, season_id, "BRADLEY_TERRY_W", game_date)
+    snap_bwa = lookup_snapshot(snapshot_index, away_id, season_id, "BRADLEY_TERRY_W", game_date)
+    if snap_bwh is None or snap_bwa is None:
+        return None
+    theta_w_home = snap_bwh[0]
+    theta_w_away = snap_bwa[0]
+    bt_w_alpha   = 0.0 if neutral else lookup_param(param_index, season_id, "BRADLEY_TERRY_W", "hca", game_date)
+    bt_logodds_w = theta_w_home - theta_w_away + bt_w_alpha
+
     # ── Rolling features ───────────────────────────────────────────────────────
     h_win_pct, h_avg_margin, h_avg_total, h_stddev, h_rest = rolling_stats_fast(team_game_index, home_id, game_date)
     a_win_pct, a_avg_margin, a_avg_total, a_stddev, a_rest = rolling_stats_fast(team_game_index, away_id, game_date)
@@ -362,6 +373,7 @@ def build_feature_row(row, team_game_index, snapshot_index, param_index):
         beta_home, beta_away, beta_home - beta_away,
         gamma_home, gamma_away, gamma_home + gamma_away,
         theta_home, theta_away, bt_logodds,
+        theta_w_home, theta_w_away, bt_logodds_w,
         h_win_pct, h_avg_margin, h_avg_total, h_stddev,
         a_win_pct, a_avg_margin, a_avg_total, a_stddev,
         home_gp, away_gp,
