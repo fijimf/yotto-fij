@@ -62,9 +62,12 @@ public class GameScraper {
             return null;
         }
 
-        // Collect dates to re-fetch: today + dates of non-final games
+        // Collect dates to re-fetch: today + next 8 days + dates of non-final games
         Set<LocalDate> datesToFetch = new HashSet<>();
-        datesToFetch.add(LocalDate.now());
+        LocalDate today = LocalDate.now();
+        for (int i = 0; i <= 8; i++) {
+            datesToFetch.add(today.plusDays(i));
+        }
 
         List<Game> nonFinalGames = gameRepository.findBySeasonIdAndStatusNot(season.getId(), Game.GameStatus.FINAL);
         for (Game game : nonFinalGames) {
