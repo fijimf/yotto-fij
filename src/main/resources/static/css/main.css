@@ -1201,9 +1201,14 @@ tbody tr:hover {
     border-bottom: 1px solid var(--color-border);
 }
 .predictions-games {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 0.75rem;
+}
+@media (min-width: 768px) {
+    .predictions-games {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 /* Prediction card */
@@ -1251,9 +1256,10 @@ tbody tr:hover {
 .prediction-card__prob-pct {
     margin-left: auto;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 1rem;
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
+    color: #ffffff !important;
 }
 .prediction-card__logo {
     border-radius: 2px;
