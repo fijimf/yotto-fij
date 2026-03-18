@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Matchup Predictor</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <h1 class="page-title">Matchup Predictor</h1>
+    <p class="predictions-disclaimer">
+        Model predictions are for analytical purposes only and do not constitute betting advice.
+    </p>
+
+    <div class="card matchup-form-card">
+        <form id="matchup-form"
+              hx-get="/predictions/matchup/result"
+              hx-target="#matchup-result"
+              hx-swap="innerHTML"
+              hx-indicator="#matchup-spinner">
+
+            <div class="matchup-form__row">
+
+                <div class="form-group">
+                    <label class="form-label" for="homeTeamId">Home Team</label>
+                    <select id="homeTeamId" name="homeTeamId" class="form-input" required>
+                        <option value="">Select team…</option>
+                        <option th:each="t : ${teams}"
+                                th:value="${t.id}"
+                                th:text="${t.name}">Team</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="awayTeamId">Away Team</label>
+                    <select id="awayTeamId" name="awayTeamId" class="form-input" required>
+                        <option value="">Select team…</option>
+                        <option th:each="t : ${teams}"
+                                th:value="${t.id}"
+                                th:text="${t.name}">Team</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="date">Game Date</label>
+                    <input id="date" name="date" type="date" class="form-input"
+                           th:value="${#temporals.format(today, 'yyyy-MM-dd')}" required />
+                </div>
+
+                <div class="form-group matchup-form__neutral">
+                    <label class="form-label" for="neutral">Options</label>
+                    <label class="matchup-checkbox-label">
+                        <input id="neutral" name="neutral" type="checkbox" value="true" class="matchup-checkbox" />
+                        Neutral site
+                    </label>
+                </div>
+
+                <div class="form-group matchup-form__submit">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn--primary btn--full">Predict</button>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    <div class="htmx-indicator" id="matchup-spinner" style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">
+        Loading…
+    </div>
+
+    <div id="matchup-result" style="margin-top: 1.5rem;"></div>
+
+</main>
+</body>
+</html>

@@ -2,11 +2,14 @@ package com.yotto.basketball.service;
 
 import com.yotto.basketball.entity.BettingOdds;
 import com.yotto.basketball.entity.Game;
+import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.PowerModelParamSnapshotRepository;
+import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
+import com.yotto.basketball.repository.TeamRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -33,15 +36,21 @@ public class PredictionService {
     static final int MAX_UPCOMING_DAYS     = 30;
 
     private final GameRepository gameRepository;
+    private final TeamRepository teamRepository;
+    private final SeasonRepository seasonRepository;
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final PowerModelParamSnapshotRepository paramRepository;
     private final MlPredictionService mlPredictionService;
 
     public PredictionService(GameRepository gameRepository,
+                             TeamRepository teamRepository,
+                             SeasonRepository seasonRepository,
                              TeamPowerRatingSnapshotRepository ratingRepository,
                              PowerModelParamSnapshotRepository paramRepository,
                              MlPredictionService mlPredictionService) {
         this.gameRepository       = gameRepository;
+        this.teamRepository       = teamRepository;
+        this.seasonRepository     = seasonRepository;
         this.ratingRepository     = ratingRepository;
         this.paramRepository      = paramRepository;
         this.mlPredictionService  = mlPredictionService;
@@ -66,6 +75,48 @@ public class PredictionService {
                 .stream()
                 .map(this::buildPrediction)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a prediction for a hypothetical matchup between two teams on a given date.
+     * Uses the most recent rating snapshots strictly before {@code gameDate}.
+     * Season is resolved from the date; falls back to the most recent season if unmatched.
+     */
+    public PredictionResult predictMatchup(Long homeTeamId, Long awayTeamId,
+                                           LocalDate gameDate, boolean neutralSite) {
+        if (homeTeamId.equals(awayTeamId)) {
+            throw new IllegalArgumentException("Home and away teams must be different.");
+        }
+        Team home = teamRepository.findById(homeTeamId)
+                .orElseThrow(() -> new EntityNotFoundException("Team not found: " + homeTeamId));
+        Team away = teamRepository.findById(awayTeamId)
+                .orElseThrow(() -> new EntityNotFoundException("Team not found: " + awayTeamId));
+        Season season = seasonRepository.findByDate(gameDate)
+                .orElseGet(() -> seasonRepository.findTopByOrderByYearDesc()
+                        .orElseThrow(() -> new IllegalStateException("No seasons configured")));
+
+        GameRatings ratings = fetchGameRatings(homeTeamId, awayTeamId, season.getId(), gameDate, neutralSite);
+
+        PredictionResult.MasseyPrediction       massey      = toMassey(ratings);
+        PredictionResult.MasseyTotalPrediction  masseyTotal = toMasseyTotal(ratings);
+        PredictionResult.BradleyTerryPrediction bt          = toBradleyTerry(ratings);
+        PredictionResult.BradleyTerryPrediction btWeighted  = toBradleyTerryWeighted(ratings);
+
+        PredictionResult.MlPrediction ml = null;
+        if (mlPredictionService.isEnabled() && ratings.hasAll()) {
+            LocalDateTime gameDatetime = gameDate.atStartOfDay();
+            MlFeatureVector features = buildMlFeatureVector(
+                    homeTeamId, awayTeamId, gameDatetime, season.getStartDate(),
+                    neutralSite, false, ratings);
+            ml = mlPredictionService.predict(features);
+        }
+
+        return new PredictionResult(
+                null, gameDate, null, neutralSite,
+                toTeamSummary(home), toTeamSummary(away),
+                null, null, null, null,
+                massey, masseyTotal, bt, btWeighted, ml,
+                null, null);
     }
 
     // ── Core prediction logic ─────────────────────────────────────────────────
@@ -227,10 +278,17 @@ public class PredictionService {
     // ── Phase 2 ML feature builder ────────────────────────────────────────────
 
     private MlFeatureVector buildMlFeatureVector(Game game, GameRatings r) {
-        Long homeId = game.getHomeTeam().getId();
-        Long awayId = game.getAwayTeam().getId();
-        LocalDateTime gameDatetime = game.getGameDate();
+        return buildMlFeatureVector(
+                game.getHomeTeam().getId(), game.getAwayTeam().getId(),
+                game.getGameDate(), game.getSeason().getStartDate(),
+                Boolean.TRUE.equals(game.getNeutralSite()),
+                Boolean.TRUE.equals(game.getConferenceGame()), r);
+    }
 
+    private MlFeatureVector buildMlFeatureVector(Long homeId, Long awayId,
+                                                  LocalDateTime gameDatetime, LocalDate seasonStartDate,
+                                                  boolean neutralSite, boolean conferenceGame,
+                                                  GameRatings r) {
         List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, gameDatetime, PageRequest.of(0, 5));
         List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, gameDatetime, PageRequest.of(0, 5));
 
@@ -241,16 +299,16 @@ public class PredictionService {
         Integer awayDaysRest = daysRest(awayId, awayRecent, gameDatetime);
 
         int seasonWeek = (int) (ChronoUnit.DAYS.between(
-                game.getSeason().getStartDate(), gameDatetime.toLocalDate()) / 7) + 1;
+                seasonStartDate, gameDatetime.toLocalDate()) / 7) + 1;
 
-        double betaHome         = r.masseyHome().getRating();
-        double betaAway         = r.masseyAway().getRating();
-        double gammaHome        = r.masseyTotalHome().getRating();
-        double gammaAway        = r.masseyTotalAway().getRating();
-        double thetaHome        = r.btHome().getRating();
-        double thetaAway        = r.btAway().getRating();
-        double thetaWHome       = r.btWeightedHome() != null ? r.btWeightedHome().getRating() : 0.0;
-        double thetaWAway       = r.btWeightedAway() != null ? r.btWeightedAway().getRating() : 0.0;
+        double betaHome   = r.masseyHome().getRating();
+        double betaAway   = r.masseyAway().getRating();
+        double gammaHome  = r.masseyTotalHome().getRating();
+        double gammaAway  = r.masseyTotalAway().getRating();
+        double thetaHome  = r.btHome().getRating();
+        double thetaAway  = r.btAway().getRating();
+        double thetaWHome = r.btWeightedHome() != null ? r.btWeightedHome().getRating() : 0.0;
+        double thetaWAway = r.btWeightedAway() != null ? r.btWeightedAway().getRating() : 0.0;
 
         return new MlFeatureVector(
                 betaHome, betaAway, betaHome - betaAway,
@@ -261,8 +319,7 @@ public class PredictionService {
                 awayStats.winPct(),   awayStats.avgMargin(),   awayStats.avgTotal(),   awayStats.marginStddev(),
                 r.masseyHome().getGamesPlayed(), r.masseyAway().getGamesPlayed(),
                 homeDaysRest, awayDaysRest, seasonWeek,
-                Boolean.TRUE.equals(game.getNeutralSite()),
-                Boolean.TRUE.equals(game.getConferenceGame()));
+                neutralSite, conferenceGame);
     }
 
     /**

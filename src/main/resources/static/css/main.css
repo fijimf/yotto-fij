@@ -1350,6 +1350,101 @@ tbody tr:hover {
     color: var(--color-text-muted);
 }
 
+/* Matchup predictor page */
+.matchup-form-card {
+    margin-bottom: 0;
+}
+.matchup-form__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    align-items: end;
+}
+@media (min-width: 900px) {
+    .matchup-form__row {
+        grid-template-columns: 2fr 2fr 1.2fr auto auto;
+    }
+}
+.matchup-form__neutral {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+.matchup-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--color-text);
+    cursor: pointer;
+    padding: 0.6rem 0;
+}
+.matchup-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+.matchup-form__submit {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+/* Matchup result card */
+.matchup-result-card {
+    padding: 1.25rem;
+}
+.matchup-result__meta {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.matchup-neutral-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+    background: rgba(147, 147, 163, 0.15);
+    border: 1px solid var(--color-border);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+.matchup-no-data {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    padding: 1rem 0;
+}
+.matchup-models {
+    margin-top: 0.5rem;
+    overflow-x: auto;
+}
+.matchup-models table {
+    min-width: 420px;
+}
+.matchup-models thead th {
+    font-size: 0.72rem;
+    padding: 0.5rem 0.75rem;
+}
+.matchup-models tbody td {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+.matchup-model-name {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+.matchup-cell--muted {
+    color: var(--color-border);
+}
+
 /* Schedule table date link */
 .schedule-table__date-link {
     color: var(--color-text);
