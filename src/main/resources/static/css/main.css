@@ -1835,3 +1835,147 @@ tbody tr:hover {
         display: none;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Comprehensive Rankings page
+   ═══════════════════════════════════════════════════════════════ */
+
+.comp-rankings-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.comp-rankings-count {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    margin-left: auto;
+}
+
+.comp-rankings-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.comp-rankings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.71rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* ── Sticky identity columns (rank + team) ── */
+.comp-rankings-table th:nth-child(1),
+.comp-rankings-table td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-bg, #0f0f1a);
+}
+.comp-rankings-table th:nth-child(2),
+.comp-rankings-table td:nth-child(2) {
+    position: sticky;
+    left: 32px;
+    z-index: 2;
+    background: var(--color-bg, #0f0f1a);
+}
+.comp-rankings-table tbody tr:hover td:nth-child(1),
+.comp-rankings-table tbody tr:hover td:nth-child(2) {
+    background: var(--color-surface-hover, #16162a);
+}
+
+/* ── Group label row ── */
+.comp-rankings-group-row th {
+    padding: 4px 7px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    text-align: center;
+    border-bottom: 2px solid;
+}
+.comp-rankings__g-identity {
+    background: #131324;
+    border-color: #1a1a2e;
+    color: #5050a0;
+    text-align: left;
+}
+.comp-rankings__g-record {
+    background: #161630;
+    border-color: #2a2a6a;
+    color: #7070b8;
+}
+.comp-rankings__g-scoring {
+    background: #152a1a;
+    border-color: #1a5a2a;
+    color: #507050;
+}
+.comp-rankings__g-ratings {
+    background: #2a1a30;
+    border-color: #5a2a6a;
+    color: #8050a0;
+}
+
+/* ── Sortable column row ── */
+.comp-rankings-col-row th {
+    padding: 4px 7px;
+    font-size: 0.64rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: right;
+    border-bottom: 1px solid #2a2a44;
+    cursor: pointer;
+    user-select: none;
+    color: #8080b0;
+}
+.comp-rankings-col-row th:hover { color: #c0c0f0; }
+.comp-rankings__col--sort-active { color: #a0a0f0 !important; }
+.comp-rankings__g-identity-col { text-align: left; }
+.comp-rankings__g-record-col   { background: rgba(22,22,48,0.5); }
+.comp-rankings__g-scoring-col  { background: rgba(21,42,26,0.5); }
+.comp-rankings__g-ratings-col  { background: rgba(42,26,48,0.5); }
+
+/* ── Rank column ── */
+.comp-rankings__col--rank { width: 32px; color: #5060a0; }
+.comp-rankings__cell--rank { color: #5060a0; text-align: right; }
+
+/* ── Team column ── */
+.comp-rankings__col--team { min-width: 140px; }
+.comp-rankings__cell--team { text-align: left; }
+
+/* ── Conf column ── */
+.comp-rankings__col--conf { width: 60px; }
+.comp-rankings__cell--conf { text-align: left; color: #8080b0; }
+
+/* ── Body rows ── */
+.comp-rankings-table tbody tr {
+    border-bottom: 1px solid #18182e;
+}
+.comp-rankings-table tbody tr:hover { background: var(--color-surface-hover, #16162a); }
+.comp-rankings-table tbody td {
+    padding: 5px 7px;
+    text-align: right;
+    color: #c8c8dc;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Group cell tints ── */
+.comp-rankings__g-record-td   { background: rgba(22,22,48,0.25); }
+.comp-rankings__g-scoring-td  { background: rgba(21,42,26,0.25); }
+.comp-rankings__g-ratings-td  { background: rgba(42,26,48,0.25); }
+
+/* ── Mobile scroll hint ── */
+.comp-rankings-scroll-hint {
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    margin-top: 0.4rem;
+    display: none;
+}
+@media (max-width: 900px) {
+    .comp-rankings-scroll-hint { display: block; }
+}
