@@ -1945,7 +1945,7 @@ tbody tr:hover {
 
 /* ── Team column ── */
 .comp-rankings__col--team { min-width: 140px; }
-.comp-rankings__cell--team { text-align: left; }
+.comp-rankings-table .comp-rankings__cell--team { text-align: left; }
 
 /* ── Conf column ── */
 .comp-rankings__col--conf { width: 60px; }
