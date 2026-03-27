@@ -20,6 +20,9 @@ config/
 .DS_Store
 Thumbs.db
 
+# Git worktrees
+.worktrees/
+
 # ML model artifacts (runtime artifacts produced by trainer; not versioned)
 models/*.onnx
 models/features.json
