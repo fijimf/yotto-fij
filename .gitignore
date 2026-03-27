@@ -13,8 +13,8 @@
 *.swp
 
 
-# Server config
-config/
+# Server config (nginx/deploy config at project root — NOT the Java config package)
+/config/
 
 # OS
 .DS_Store
