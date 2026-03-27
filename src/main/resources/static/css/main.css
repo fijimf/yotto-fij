@@ -1636,7 +1636,13 @@ tbody tr:hover {
 
 .rankings-panel {
     padding: 0;
+    overflow: visible;
+}
+
+.rankings-table-wrap,
+.rankings-empty {
     overflow: hidden;
+    border-radius: 0 0 var(--radius) var(--radius);
 }
 
 .rankings-panel__header {
@@ -1658,6 +1664,50 @@ tbody tr:hover {
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
+}
+
+.rankings-panel__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+    color: var(--color-bg, #fff);
+    cursor: default;
+    position: relative;
+    vertical-align: middle;
+    margin-left: 0.25rem;
+}
+
+.rankings-panel__badge::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 220px;
+    padding: 0.5rem 0.625rem;
+    background: var(--color-surface-alt, #222);
+    color: var(--color-text, #eee);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
+    border-radius: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+    white-space: normal;
+}
+
+.rankings-panel__badge:hover::after {
+    opacity: 1;
 }
 
 .rankings-empty {
