@@ -21,7 +21,7 @@
                     class="form-input form-input--sm"
                     onchange="compRankingsFilter()">
                 <option value="">All conferences</option>
-                <option th:each="conf : ${#lists.sort(rows.![conferenceAbbr].stream().distinct().sorted().toList())}"
+                <option th:each="conf : ${rows.![conferenceAbbr].stream().distinct().sorted().toList()}"
                         th:value="${conf}"
                         th:text="${conf}">SEC</option>
             </select>
