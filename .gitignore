@@ -23,6 +23,9 @@ Thumbs.db
 # Git worktrees
 .worktrees/
 
+# Visual brainstorming session artifacts
+.superpowers/
+
 # ML model artifacts (runtime artifacts produced by trainer; not versioned)
 models/*.onnx
 models/features.json
