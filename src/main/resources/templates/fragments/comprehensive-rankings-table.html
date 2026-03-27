@@ -1,8 +1,217 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
+
 <div th:fragment="comp-rankings-table">
-  <span th:text="${hasData}">stub</span>
+
+    <div th:if="${!hasData}" class="teams-empty">
+        No rankings data found for this selection.
+    </div>
+
+    <div th:if="${hasData}">
+
+        <!-- Filter bar -->
+        <div class="comp-rankings-filters">
+            <input id="comp-filter-name"
+                   class="form-input form-input--sm"
+                   type="text"
+                   placeholder="Filter team…"
+                   oninput="compRankingsFilter()" />
+            <select id="comp-filter-conf"
+                    class="form-input form-input--sm"
+                    onchange="compRankingsFilter()">
+                <option value="">All conferences</option>
+                <option th:each="conf : ${#lists.sort(rows.![conferenceAbbr].stream().distinct().sorted().toList())}"
+                        th:value="${conf}"
+                        th:text="${conf}">SEC</option>
+            </select>
+            <span class="comp-rankings-count" id="comp-rankings-count"></span>
+        </div>
+
+        <!-- Table -->
+        <div class="comp-rankings-wrap">
+            <table class="comp-rankings-table" id="comp-rankings-table">
+                <thead>
+                    <!-- Group label row -->
+                    <tr class="comp-rankings-group-row">
+                        <th class="comp-rankings__g-identity" colspan="3">Team</th>
+                        <th class="comp-rankings__g-record" colspan="3">Record</th>
+                        <th class="comp-rankings__g-scoring" colspan="3">Scoring</th>
+                        <th class="comp-rankings__g-ratings" colspan="4">Model Ratings</th>
+                    </tr>
+                    <!-- Sortable column row -->
+                    <tr class="comp-rankings-col-row">
+                        <th class="comp-rankings__g-identity-col comp-rankings__col--rank"
+                            onclick="compRankingsSort(0, 'num')">#</th>
+                        <th class="comp-rankings__g-identity-col comp-rankings__col--team"
+                            onclick="compRankingsSort(1, 'str')">Team</th>
+                        <th class="comp-rankings__g-identity-col comp-rankings__col--conf"
+                            onclick="compRankingsSort(2, 'str')">Conf</th>
+                        <th class="comp-rankings__g-record-col" onclick="compRankingsSort(3, 'num')">W</th>
+                        <th class="comp-rankings__g-record-col" onclick="compRankingsSort(4, 'num')">L</th>
+                        <th class="comp-rankings__g-record-col" onclick="compRankingsSort(5, 'num')">W%</th>
+                        <th class="comp-rankings__g-scoring-col" onclick="compRankingsSort(6, 'num')">PPG</th>
+                        <th class="comp-rankings__g-scoring-col" onclick="compRankingsSort(7, 'num')">OPP</th>
+                        <th class="comp-rankings__g-scoring-col" onclick="compRankingsSort(8, 'num')">±</th>
+                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(9, 'num')">RPI</th>
+                        <th class="comp-rankings__g-ratings-col comp-rankings__col--sort-active"
+                            onclick="compRankingsSort(10, 'num')" id="comp-sort-massey">Massey ▼</th>
+                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(11, 'num')">B-T</th>
+                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(12, 'num')">BTW</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="r : ${rows}"
+                        th:attr="data-conf=${r.conferenceAbbr}">
+                        <!-- rank (row number, updated by JS after sort) -->
+                        <td class="comp-rankings__cell--rank comp-rankings__g-identity-td" th:text="${rStat.count}">1</td>
+                        <!-- team -->
+                        <td class="comp-rankings__cell--team comp-rankings__g-identity-td">
+                            <a th:href="@{'/teams/' + ${r.team.id}}" class="rankings-team-link">
+                                <img th:if="${r.team.logoUrl != null}"
+                                     th:src="${r.team.logoUrl}"
+                                     th:alt="${r.team.name}"
+                                     class="rankings-team-logo"
+                                     loading="lazy" />
+                                <span th:if="${r.team.logoUrl == null}"
+                                      class="rankings-team-logo-placeholder"
+                                      th:style="'background: #' + (${r.team.color} != null ? ${r.team.color} : '555')"
+                                      th:text="${#strings.substring(r.team.name, 0, 1)}">A</span>
+                                <span class="rankings-team-name" th:text="${r.team.name}">Team</span>
+                            </a>
+                        </td>
+                        <!-- conf -->
+                        <td class="comp-rankings__cell--conf comp-rankings__g-identity-td"
+                            th:text="${r.conferenceAbbr}">SEC</td>
+                        <!-- record -->
+                        <td class="comp-rankings__g-record-td" th:text="${r.wins != null} ? ${r.wins} : '—'">20</td>
+                        <td class="comp-rankings__g-record-td" th:text="${r.losses != null} ? ${r.losses} : '—'">5</td>
+                        <td class="comp-rankings__g-record-td"
+                            th:text="${r.winPct != null} ? ${#numbers.formatDecimal(r.winPct, 1, 3)} : '—'">.800</td>
+                        <!-- scoring -->
+                        <td class="comp-rankings__g-scoring-td"
+                            th:text="${r.meanPtsFor != null} ? ${#numbers.formatDecimal(r.meanPtsFor, 1, 1)} : '—'">80.0</td>
+                        <td class="comp-rankings__g-scoring-td"
+                            th:text="${r.meanPtsAgainst != null} ? ${#numbers.formatDecimal(r.meanPtsAgainst, 1, 1)} : '—'">65.0</td>
+                        <td class="comp-rankings__g-scoring-td"
+                            th:classappend="${r.meanMargin != null and r.meanMargin > 0} ? 'rankings-rating--pos' : (${r.meanMargin != null and r.meanMargin < 0} ? 'rankings-rating--neg' : '')"
+                            th:text="${r.meanMargin != null} ? (${r.meanMargin >= 0} ? '+' : '') + ${#numbers.formatDecimal(r.meanMargin, 1, 1)} : '—'">+15.0</td>
+                        <!-- ratings -->
+                        <td class="comp-rankings__g-ratings-td"
+                            th:text="${r.rpi != null} ? ${#numbers.formatDecimal(r.rpi, 1, 4)} : '—'">.6200</td>
+                        <td class="comp-rankings__g-ratings-td"
+                            th:classappend="${r.masseyRating != null and r.masseyRating > 0} ? 'rankings-rating--pos' : (${r.masseyRating != null and r.masseyRating < 0} ? 'rankings-rating--neg' : '')"
+                            th:text="${r.masseyRating != null} ? (${r.masseyRating >= 0} ? '+' : '') + ${#numbers.formatDecimal(r.masseyRating, 1, 2)} : '—'">+12.50</td>
+                        <td class="comp-rankings__g-ratings-td"
+                            th:text="${r.bradleyTerryRating != null} ? ${#numbers.formatDecimal(r.bradleyTerryRating, 1, 3)} : '—'">1.842</td>
+                        <td class="comp-rankings__g-ratings-td"
+                            th:text="${r.bradleyTerryWeightedRating != null} ? ${#numbers.formatDecimal(r.bradleyTerryWeightedRating, 1, 3)} : '—'">2.104</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- mobile note -->
+        <p class="comp-rankings-scroll-hint">← scroll for more columns →</p>
+
+    </div>
+
 </div>
+
+<script th:inline="none">
+(function () {
+    var sortCol = 10;   // default: Massey
+    var sortDir = -1;   // -1 = desc, 1 = asc
+
+    // Update visible row count display
+    function updateCount() {
+        var tbody = document.querySelector('#comp-rankings-table tbody');
+        if (!tbody) return;
+        var visible = Array.from(tbody.rows).filter(r => r.style.display !== 'none').length;
+        var total   = tbody.rows.length;
+        var el = document.getElementById('comp-rankings-count');
+        if (el) el.textContent = visible === total ? total + ' teams' : visible + ' of ' + total + ' teams';
+    }
+
+    // Re-number rank column after sort/filter
+    function renumberRanks() {
+        var tbody = document.querySelector('#comp-rankings-table tbody');
+        if (!tbody) return;
+        var rank = 1;
+        Array.from(tbody.rows).forEach(function (row) {
+            if (row.style.display !== 'none') {
+                row.cells[0].textContent = rank++;
+            }
+        });
+    }
+
+    window.compRankingsSort = function (colIdx, type) {
+        var table = document.getElementById('comp-rankings-table');
+        if (!table) return;
+
+        // Toggle direction if same column, else default desc for numerics, asc for strings
+        if (colIdx === sortCol) {
+            sortDir = -sortDir;
+        } else {
+            sortDir = type === 'str' ? 1 : -1;
+            sortCol = colIdx;
+        }
+
+        // Update header arrow indicators
+        table.querySelectorAll('.comp-rankings-col-row th').forEach(function (th, i) {
+            th.classList.toggle('comp-rankings__col--sort-active', i === colIdx);
+            // Strip old arrows
+            th.textContent = th.textContent.replace(/ [▲▼]$/, '');
+            if (i === colIdx) th.textContent += (sortDir === -1 ? ' ▼' : ' ▲');
+        });
+
+        // Sort rows
+        var tbody = table.querySelector('tbody');
+        var rows = Array.from(tbody.rows);
+        rows.sort(function (a, b) {
+            var va = a.cells[colIdx] ? a.cells[colIdx].textContent.trim() : '';
+            var vb = b.cells[colIdx] ? b.cells[colIdx].textContent.trim() : '';
+            if (type === 'num') {
+                var na = parseFloat(va.replace(/[+,]/g, ''));
+                var nb = parseFloat(vb.replace(/[+,]/g, ''));
+                var aNull = isNaN(na) || va === '—';
+                var bNull = isNaN(nb) || vb === '—';
+                if (aNull && bNull) return 0;
+                if (aNull) return 1;   // nulls always last
+                if (bNull) return -1;
+                return sortDir * (na - nb);
+            } else {
+                return sortDir * va.localeCompare(vb);
+            }
+        });
+        rows.forEach(function (r) { tbody.appendChild(r); });
+        renumberRanks();
+        updateCount();
+    };
+
+    window.compRankingsFilter = function () {
+        var nameVal = (document.getElementById('comp-filter-name') || {}).value || '';
+        var confVal = (document.getElementById('comp-filter-conf') || {}).value || '';
+        nameVal = nameVal.toLowerCase();
+
+        var tbody = document.querySelector('#comp-rankings-table tbody');
+        if (!tbody) return;
+        Array.from(tbody.rows).forEach(function (row) {
+            var name = row.cells[1] ? row.cells[1].textContent.toLowerCase() : '';
+            var conf = row.getAttribute('data-conf') || '';
+            var matchName = !nameVal || name.includes(nameVal);
+            var matchConf = !confVal || conf === confVal;
+            row.style.display = (matchName && matchConf) ? '' : 'none';
+        });
+        renumberRanks();
+        updateCount();
+    };
+
+    // Initialize count on load
+    document.addEventListener('DOMContentLoaded', updateCount);
+    // Also run immediately (HTMX swap may have already fired)
+    updateCount();
+})();
+</script>
+
 </body>
 </html>
