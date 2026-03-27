@@ -16,6 +16,7 @@
             <li><a class="nav__link" th:href="@{/games}" th:classappend="${#strings.equals(currentPage, 'games')} ? 'nav__link--active'">Games</a></li>
             <li><a class="nav__link" th:href="@{/seasons}" th:classappend="${#strings.equals(currentPage, 'seasons')} ? 'nav__link--active'">Seasons</a></li>
             <li><a class="nav__link" th:href="@{/rankings}" th:classappend="${#strings.equals(currentPage, 'rankings')} ? 'nav__link--active'">Rankings</a></li>
+            <li><a class="nav__link" th:href="@{/rankings/comprehensive}" th:classappend="${#strings.equals(currentPage, 'comprehensive-rankings')} ? 'nav__link--active'">Comp. Rankings</a></li>
             <li><a class="nav__link" th:href="@{/predictions}" th:classappend="${#strings.equals(currentPage, 'predictions')} ? 'nav__link--active'">Predictions</a></li>
             <li><a class="nav__link" th:href="@{/predictions/matchup}" th:classappend="${#strings.equals(currentPage, 'matchup')} ? 'nav__link--active'">Matchup</a></li>
         </ul>
