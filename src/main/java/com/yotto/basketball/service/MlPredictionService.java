@@ -48,6 +48,9 @@ public class MlPredictionService {
     private OrtSession spreadSession;
     private OrtSession totalSession;
     private OrtSession winprobSession;
+    private String spreadOutputName;
+    private String totalOutputName;
+    private String winprobProbOutputName;
     private boolean enabled = false;
     private String modelVersion;
     private Instant trainedAt;
@@ -81,9 +84,9 @@ public class MlPredictionService {
             try (OnnxTensor tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(input), shape)) {
                 var inputs = java.util.Map.of("float_input", tensor);
 
-                double spread   = runRegressor(spreadSession,   inputs);
-                double total    = runRegressor(totalSession,    inputs);
-                double pHome    = runClassifier(winprobSession, inputs);
+                double spread   = runRegressor(spreadSession,   inputs, spreadOutputName);
+                double total    = runRegressor(totalSession,    inputs, totalOutputName);
+                double pHome    = runClassifier(winprobSession, inputs, winprobProbOutputName);
                 double pAway    = 1.0 - pHome;
 
                 return new PredictionResult.MlPrediction(
@@ -169,17 +172,23 @@ public class MlPredictionService {
                 return;
             }
 
-            env          = OrtEnvironment.getEnvironment();
+            env            = OrtEnvironment.getEnvironment();
             spreadSession  = env.createSession(spreadFile.getAbsolutePath());
             totalSession   = env.createSession(totalFile.getAbsolutePath());
             winprobSession = env.createSession(winprobFile.getAbsolutePath());
+
+            // Discover output names from the session metadata rather than hardcoding them.
+            spreadOutputName      = firstOutputName(spreadSession);
+            totalOutputName       = firstOutputName(totalSession);
+            winprobProbOutputName = probOutputName(winprobSession);
 
             modelVersion = features.path("version").asText(null);
             trainedAt    = Instant.ofEpochMilli(featuresFile.lastModified());
             featureCount = count;
             enabled      = true;
 
-            log.info("ML models loaded — version={}, featureCount={}", modelVersion, featureCount);
+            log.info("ML models loaded — version={}, featureCount={}, spreadOut={}, totalOut={}, winprobOut={}",
+                    modelVersion, featureCount, spreadOutputName, totalOutputName, winprobProbOutputName);
         } catch (Exception e) {
             log.warn("Failed to load ML models from {}: {} — running in Phase 1-only mode",
                     modelDir, e.getMessage());
@@ -192,11 +201,14 @@ public class MlPredictionService {
         closeQuietly(totalSession);
         closeQuietly(winprobSession);
         closeQuietly(env);
-        spreadSession  = null;
-        totalSession   = null;
-        winprobSession = null;
-        env            = null;
-        enabled        = false;
+        spreadSession         = null;
+        totalSession          = null;
+        winprobSession        = null;
+        spreadOutputName      = null;
+        totalOutputName       = null;
+        winprobProbOutputName = null;
+        env                   = null;
+        enabled               = false;
     }
 
     private static void closeQuietly(AutoCloseable c) {
@@ -204,12 +216,12 @@ public class MlPredictionService {
     }
 
     /** Runs a regressor session and returns output[0] (single-batch float). */
-    private static double runRegressor(OrtSession session, java.util.Map<String, OnnxTensor> inputs)
-            throws OrtException {
+    private static double runRegressor(OrtSession session, java.util.Map<String, OnnxTensor> inputs,
+                                       String outputName) throws OrtException {
         try (OrtSession.Result result = session.run(inputs)) {
-            // Use named access to avoid Map.Entry vs OnnxValue ambiguity across ORT versions.
-            // onnxmltools may produce float[] (shape [1]) or float[][] (shape [1,1]).
-            Object raw = result.get("variable").get().getValue();
+            Object raw = result.get(outputName)
+                    .orElseThrow(() -> new OrtException("Output '" + outputName + "' not found in regressor result"))
+                    .getValue();
             if (raw instanceof float[][]) return ((float[][]) raw)[0][0];
             return ((float[]) raw)[0];
         }
@@ -218,17 +230,36 @@ public class MlPredictionService {
     /**
      * Runs the calibrated-classifier session and returns P(home wins).
      *
-     * <p>The Python training script exports with {@code zipmap=False}, so
-     * {@code output_probability} is a float tensor of shape [1, 2]. Column 1 is P(class 1)
-     * = P(home wins).
+     * <p>The Python training script exports with {@code zipmap=False}, so the probability
+     * output is a float tensor of shape [1, 2]. Column 1 is P(class 1) = P(home wins).
      */
-    private static double runClassifier(OrtSession session, java.util.Map<String, OnnxTensor> inputs)
-            throws OrtException {
+    private static double runClassifier(OrtSession session, java.util.Map<String, OnnxTensor> inputs,
+                                        String probOutputName) throws OrtException {
         try (OrtSession.Result result = session.run(inputs)) {
-            // "output_probability" is float[1][2] when zipmap=False
-            float[][] probs = (float[][]) result.get("output_probability").get().getValue();
+            float[][] probs = (float[][]) result.get(probOutputName)
+                    .orElseThrow(() -> new OrtException("Output '" + probOutputName + "' not found in classifier result"))
+                    .getValue();
             return probs[0][1];
         }
+    }
+
+    /** Returns the name of the first (and for regressors, only) output of the session. */
+    private static String firstOutputName(OrtSession session) throws OrtException {
+        return session.getOutputInfo().keySet().iterator().next();
+    }
+
+    /**
+     * Returns the probability output name from a calibrated-classifier session.
+     * Prefers any output whose name contains "prob"; falls back to the last output
+     * (skl2onnx always emits label first, probability second).
+     */
+    private static String probOutputName(OrtSession session) throws OrtException {
+        String last = null;
+        for (String name : session.getOutputInfo().keySet()) {
+            if (name.contains("prob")) return name;
+            last = name;
+        }
+        return last;
     }
 
     /** Converts the feature record to a float array in canonical feature order. */
