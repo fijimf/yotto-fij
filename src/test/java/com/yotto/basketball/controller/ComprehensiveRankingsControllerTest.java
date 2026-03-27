@@ -16,7 +16,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -130,7 +129,8 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
     void withSeason_noData_hasDataFalse() throws Exception {
         mockMvc.perform(get("/rankings/comprehensive"))
                 .andExpect(status().isOk())
-                .andExpect(model().attribute("hasData", false));
+                .andExpect(model().attribute("hasData", false))
+                .andExpect(model().attributeExists("rows"));
     }
 
     @Test
@@ -142,13 +142,11 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         addRating(teamA, MasseyRatingService.MODEL_TYPE, 12.5);
         addRating(teamB, MasseyRatingService.MODEL_TYPE,  4.0);
 
-        mockMvc.perform(get("/rankings/comprehensive"))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("hasData", true))
-                .andExpect(model().attributeExists("rows"));
-
         // Verify both teams appear and Alabama (higher Massey) is first
         var result = mockMvc.perform(get("/rankings/comprehensive"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("hasData", true))
+                .andExpect(model().attributeExists("rows"))
                 .andReturn();
         @SuppressWarnings("unchecked")
         List<ComprehensiveRankingRow> rows = (List<ComprehensiveRankingRow>)
@@ -191,7 +189,9 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
     void tableFragment_unknownYear_returns200() throws Exception {
         mockMvc.perform(get("/rankings/comprehensive/9999/table")
                         .param("date", SNAP_DATE.toString()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("hasData", false))
+                .andExpect(model().attributeExists("rows"));
     }
 
     @Test
