@@ -1,5 +1,68 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/default}">
-<head><title>Comprehensive Rankings</title></head>
-<body><main layout:fragment="content"><div th:text="${season}">stub</div></main></body>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${season != null} ? ${season.year} + ' Comprehensive Rankings' : 'Comprehensive Rankings'">
+        Comprehensive Rankings
+    </title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title"
+            th:text="${season != null} ? ${season.year} + ' Comprehensive Rankings' : 'Comprehensive Rankings'">
+            2026 Comprehensive Rankings
+        </h1>
+        <div class="page-header__actions">
+            <select class="form-input form-input--sm"
+                    onchange="window.location='/rankings/comprehensive?year='+this.value">
+                <option value="" th:if="${season == null}">Select season</option>
+                <option th:each="s : ${allSeasons}"
+                        th:value="${s.year}"
+                        th:text="${s.year}"
+                        th:selected="${season != null and s.year == season.year}">2026</option>
+            </select>
+        </div>
+    </div>
+
+    <div th:if="${season == null}" class="teams-empty">
+        No seasons found. Add a season in the admin panel to get started.
+    </div>
+
+    <div th:if="${season != null}">
+
+        <div class="analytics-date-row" th:if="${latestDate != null}">
+            <label class="form-label" for="comp-rankings-date">As of:</label>
+            <select id="comp-rankings-date"
+                    class="form-input form-input--sm"
+                    style="width: auto;"
+                    hx-get="@{'/rankings/comprehensive/' + ${season.year} + '/table'}"
+                    hx-target="#comp-rankings-container"
+                    hx-swap="innerHTML"
+                    hx-include="this"
+                    name="date">
+                <option th:each="d : ${availableDates}"
+                        th:value="${d}"
+                        th:text="${d}"
+                        th:selected="${selectedDate != null and d.equals(selectedDate)}">2026-03-01</option>
+            </select>
+            <span style="font-size: 0.85rem; color: var(--color-text-muted);"
+                  th:text="'Latest: ' + ${latestDate}">Latest: 2026-03-14</span>
+        </div>
+
+        <div th:if="${latestDate == null}" class="alert alert--warning" style="margin-bottom: 1.5rem;">
+            No ratings calculated yet for this season. Use the admin panel to run a power ratings calculation.
+        </div>
+
+        <div id="comp-rankings-container">
+            <div th:replace="~{fragments/comprehensive-rankings-table :: comp-rankings-table}"></div>
+        </div>
+
+    </div>
+
+</main>
+</body>
 </html>
