@@ -1862,7 +1862,7 @@ tbody tr:hover {
 .comp-rankings-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.71rem;
+    font-size: 0.81rem;
     line-height: 1.2;
     white-space: nowrap;
 }
