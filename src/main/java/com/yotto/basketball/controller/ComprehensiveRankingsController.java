@@ -1,5 +1,7 @@
 package com.yotto.basketball.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yotto.basketball.dto.ComprehensiveRankingRow;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.SeasonStatistics;
@@ -22,6 +24,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,15 +37,18 @@ public class ComprehensiveRankingsController {
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final TeamSeasonStatSnapshotRepository statSnapshotRepository;
     private final SeasonStatisticsRepository seasonStatisticsRepository;
+    private final ObjectMapper objectMapper;
 
     public ComprehensiveRankingsController(SeasonRepository seasonRepository,
                                            TeamPowerRatingSnapshotRepository ratingRepository,
                                            TeamSeasonStatSnapshotRepository statSnapshotRepository,
-                                           SeasonStatisticsRepository seasonStatisticsRepository) {
+                                           SeasonStatisticsRepository seasonStatisticsRepository,
+                                           ObjectMapper objectMapper) {
         this.seasonRepository = seasonRepository;
         this.ratingRepository = ratingRepository;
         this.statSnapshotRepository = statSnapshotRepository;
         this.seasonStatisticsRepository = seasonStatisticsRepository;
+        this.objectMapper = objectMapper;
     }
 
 
@@ -77,6 +83,22 @@ public class ComprehensiveRankingsController {
         LocalDate resolvedDate = resolveDate(season, date);
         populateModel(season, resolvedDate, List.of(), model);
         return "fragments/comprehensive-rankings-table :: comp-rankings-table";
+    }
+
+    @GetMapping("/rankings/comprehensive/{year}/scatter-matrix")
+    public String scatterMatrix(@PathVariable Integer year,
+                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                Model model) {
+        Season season = seasonRepository.findByYear(year).orElse(null);
+        if (season == null) {
+            model.addAttribute("hasData", false);
+            return "fragments/scatter-matrix :: scatter-matrix";
+        }
+        LocalDate resolvedDate = resolveDate(season, date);
+        List<ComprehensiveRankingRow> rows = resolvedDate != null ? buildRows(season, resolvedDate) : List.of();
+        model.addAttribute("scatterDataJson", buildScatterJson(rows));
+        model.addAttribute("hasData", !rows.isEmpty());
+        return "fragments/scatter-matrix :: scatter-matrix";
     }
 
     private void populateModel(Season season, LocalDate resolvedDate,
@@ -137,6 +159,29 @@ public class ComprehensiveRankingsController {
         .sorted(Comparator.comparingDouble((ComprehensiveRankingRow r) ->
                 r.masseyRating() != null ? r.masseyRating() : Double.NEGATIVE_INFINITY).reversed())
         .toList();
+    }
+
+    private String buildScatterJson(List<ComprehensiveRankingRow> rows) {
+        List<Map<String, Object>> data = rows.stream().map(r -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", r.team().getId());
+            m.put("name", r.team().getName());
+            m.put("conf", r.conferenceAbbr());
+            m.put("winPct", r.winPct());
+            m.put("ppg", r.meanPtsFor());
+            m.put("opp", r.meanPtsAgainst());
+            m.put("margin", r.meanMargin());
+            m.put("rpi", r.rpi());
+            m.put("massey", r.masseyRating());
+            m.put("bt", r.bradleyTerryRating());
+            m.put("btw", r.bradleyTerryWeightedRating());
+            return m;
+        }).toList();
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            return "[]";
+        }
     }
 
     private Season resolveSeason(Integer year, List<Season> allSeasons) {
