@@ -218,7 +218,8 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         mockMvc.perform(get("/rankings/comprehensive/9999/scatter-matrix")
                         .param("date", SNAP_DATE.toString()))
                 .andExpect(status().isOk())
-                .andExpect(model().attribute("hasData", false));
+                .andExpect(model().attribute("hasData", false))
+                .andExpect(model().attribute("scatterDataJson", "[]"));
     }
 
     @Test

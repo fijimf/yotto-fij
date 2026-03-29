@@ -92,6 +92,7 @@ public class ComprehensiveRankingsController {
         Season season = seasonRepository.findByYear(year).orElse(null);
         if (season == null) {
             model.addAttribute("hasData", false);
+            model.addAttribute("scatterDataJson", "[]");
             return "fragments/scatter-matrix :: scatter-matrix";
         }
         LocalDate resolvedDate = resolveDate(season, date);
