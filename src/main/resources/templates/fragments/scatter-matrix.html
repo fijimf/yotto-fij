@@ -3,6 +3,320 @@
 <body>
 
 <div th:fragment="scatter-matrix">
+
+    <div th:if="${!hasData}" class="teams-empty">
+        No data available for this selection.
+    </div>
+
+    <div th:if="${hasData}">
+
+        <!-- JSON data — Thymeleaf th:text HTML-encodes; JS reads via textContent which decodes -->
+        <script id="scatter-data" type="application/json" th:text="${scatterDataJson}">[]</script>
+
+        <!-- Selected-team banner -->
+        <div class="scatter-selected-label" id="scatter-selected-label" style="display:none"></div>
+
+        <!-- Matrix -->
+        <div class="scatter-matrix-wrap">
+            <div id="scatter-matrix-root" class="scatter-matrix-grid"></div>
+        </div>
+
+        <!-- Legend (populated by JS) -->
+        <div id="scatter-legend" class="scatter-legend"></div>
+
+        <!-- Tooltip -->
+        <div class="scatter-tooltip" id="scatter-tooltip" style="display:none"></div>
+
+        <script th:inline="none">
+        (function () {
+            var CELL = 90;
+            var VARS = [
+                { key: 'winPct',  label: 'W%',     fmt: function(v) { return v.toFixed(3); } },
+                { key: 'ppg',     label: 'PPG',    fmt: function(v) { return v.toFixed(1); } },
+                { key: 'opp',     label: 'OPP',    fmt: function(v) { return v.toFixed(1); } },
+                { key: 'margin',  label: '+/-',    fmt: function(v) { return (v >= 0 ? '+' : '') + v.toFixed(1); } },
+                { key: 'rpi',     label: 'RPI',    fmt: function(v) { return v.toFixed(4); } },
+                { key: 'massey',  label: 'Massey', fmt: function(v) { return (v >= 0 ? '+' : '') + v.toFixed(2); } },
+                { key: 'bt',      label: 'B-T',    fmt: function(v) { return v.toFixed(3); } },
+                { key: 'btw',     label: 'BTW',    fmt: function(v) { return v.toFixed(3); } }
+            ];
+            var N = VARS.length;
+
+            var COLORS = [
+                '#1A6FD4','#4BAED4','#A0D4F0','#0C3060','#1D9E75','#5DCAA5','#0F6E56','#7DC232',
+                '#3B6D11','#97C459','#6B8E23','#C0DD97','#EFB527','#BA7517','#F5C030','#F07A2A',
+                '#C0471A','#E07060','#C0272D','#8B1A1A','#7F77DD','#534AB7','#AFA9EC','#6A2BA0',
+                '#D4537E','#B0306A','#ED93B1','#444441','#888780','#B4B2A9','#A0522D','#8B7355','#C8B89A'
+            ];
+
+            function loadD3AndRender() {
+                if (window.d3) {
+                    render();
+                } else {
+                    var s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js';
+                    s.onload = render;
+                    document.head.appendChild(s);
+                }
+            }
+
+            function render() {
+                var raw = JSON.parse(document.getElementById('scatter-data').textContent || '[]');
+                if (!raw.length) return;
+
+                /* conference color map */
+                var confs = Array.from(new Set(raw.map(function(d) { return d.conf; }))).sort();
+                var confColorMap = {};
+                confs.forEach(function(c, i) { confColorMap[c] = COLORS[i % COLORS.length]; });
+                function dotColor(d) { return confColorMap[d.conf] || '#888'; }
+
+                /* Pearson r */
+                function pearsonR(data, xKey, yKey) {
+                    var valid = data.filter(function(d) { return d[xKey] != null && d[yKey] != null; });
+                    if (valid.length < 2) return null;
+                    var xs = valid.map(function(d) { return d[xKey]; });
+                    var ys = valid.map(function(d) { return d[yKey]; });
+                    var xm = xs.reduce(function(a,b){return a+b;},0) / xs.length;
+                    var ym = ys.reduce(function(a,b){return a+b;},0) / ys.length;
+                    var num = 0, dxSq = 0, dySq = 0;
+                    for (var i = 0; i < xs.length; i++) {
+                        var dx = xs[i] - xm, dy = ys[i] - ym;
+                        num += dx * dy; dxSq += dx * dx; dySq += dy * dy;
+                    }
+                    var den = Math.sqrt(dxSq * dySq);
+                    return den === 0 ? 0 : num / den;
+                }
+
+                var rMatrix = {};
+                for (var ri = 0; ri < N; ri++) {
+                    for (var ci = 0; ci < N; ci++) {
+                        if (ri !== ci) rMatrix[ri + ',' + ci] = pearsonR(raw, VARS[ci].key, VARS[ri].key);
+                    }
+                }
+
+                function corrClass(r) {
+                    if (r === null) return '';
+                    var abs = Math.abs(r), dir = r > 0 ? 'pos' : 'neg';
+                    if (abs < 0.3) return '';
+                    var str = abs < 0.6 ? 'light' : abs < 0.8 ? 'medium' : 'strong';
+                    return 'scatter-corr--' + dir + '-' + str;
+                }
+
+                /* tooltip — all user text via textContent */
+                var tooltip = document.getElementById('scatter-tooltip');
+
+                function showDotTooltip(event, d, xVar, yVar) {
+                    var nameEl = document.createElement('strong');
+                    nameEl.textContent = d.name;
+                    var confEl = document.createElement('div');
+                    confEl.className = 'scatter-tooltip-conf';
+                    confEl.textContent = d.conf;
+                    var xEl = document.createElement('div');
+                    xEl.textContent = xVar.label + ': ' + (d[xVar.key] != null ? xVar.fmt(d[xVar.key]) : '\u2014');
+                    var yEl = document.createElement('div');
+                    yEl.textContent = yVar.label + ': ' + (d[yVar.key] != null ? yVar.fmt(d[yVar.key]) : '\u2014');
+                    tooltip.textContent = '';
+                    tooltip.append(nameEl, confEl, xEl, yEl);
+                    tooltip.style.display = 'block';
+                    moveTooltip(event);
+                }
+
+                function showCorrTooltip(event, xVar, yVar, r) {
+                    var titleEl = document.createElement('strong');
+                    titleEl.textContent = xVar.label + ' vs ' + yVar.label;
+                    var rEl = document.createElement('div');
+                    rEl.textContent = 'Pearson r: ' + (r >= 0 ? '+' : '') + r.toFixed(4);
+                    tooltip.textContent = '';
+                    tooltip.append(titleEl, rEl);
+                    tooltip.style.display = 'block';
+                    moveTooltip(event);
+                }
+
+                function hideTooltip() { tooltip.style.display = 'none'; }
+                function moveTooltip(event) {
+                    tooltip.style.left = (event.clientX + 14) + 'px';
+                    tooltip.style.top  = (event.clientY + 14) + 'px';
+                }
+
+                /* highlight state */
+                var selectedTeamId = null;
+                var allDots = [];
+
+                function applyHighlight(teamId) {
+                    allDots.forEach(function(dot) {
+                        var id = +dot.getAttribute('data-team-id');
+                        var sel = id === teamId;
+                        dot.classList.toggle('scatter-dot--selected', sel);
+                        dot.classList.toggle('scatter-dot--dimmed', !sel);
+                        dot.setAttribute('r', sel ? 5 : 2.5);
+                        dot.setAttribute('opacity', sel ? 1 : 0.12);
+                    });
+                }
+
+                function clearHighlight() {
+                    selectedTeamId = null;
+                    var lbl = document.getElementById('scatter-selected-label');
+                    if (lbl) { lbl.style.display = 'none'; lbl.textContent = ''; }
+                    allDots.forEach(function(dot) {
+                        dot.classList.remove('scatter-dot--selected', 'scatter-dot--dimmed');
+                        dot.setAttribute('r', 2.5);
+                        dot.setAttribute('opacity', 0.7);
+                    });
+                }
+
+                function toggleHighlight(teamId, teamName) {
+                    if (selectedTeamId === teamId) {
+                        clearHighlight();
+                    } else {
+                        selectedTeamId = teamId;
+                        var lbl = document.getElementById('scatter-selected-label');
+                        if (lbl) { lbl.textContent = teamName; lbl.style.display = 'block'; }
+                        applyHighlight(teamId);
+                    }
+                }
+
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') clearHighlight();
+                });
+
+                /* cell renderers */
+                function renderDiagonal(cell, v) {
+                    cell.classList.add('scatter-cell--diag');
+                    var valid = raw.filter(function(d) { return d[v.key] != null; })
+                                   .map(function(d) { return d[v.key]; });
+                    var minV = d3.min(valid), maxV = d3.max(valid);
+                    var labelDiv = document.createElement('div');
+                    labelDiv.className = 'scatter-diag-label';
+                    labelDiv.textContent = v.label;
+                    var rangeDiv = document.createElement('div');
+                    rangeDiv.className = 'scatter-diag-range';
+                    rangeDiv.textContent =
+                        (minV != null ? v.fmt(minV) : '\u2014') + ' \u2013 ' +
+                        (maxV != null ? v.fmt(maxV) : '\u2014');
+                    cell.append(labelDiv, rangeDiv);
+                }
+
+                function renderScatter(cell, xVar, yVar) {
+                    cell.classList.add('scatter-cell--scatter');
+                    var valid = raw.filter(function(d) {
+                        return d[xVar.key] != null && d[yVar.key] != null;
+                    });
+                    if (!valid.length) return;
+                    var pad = 8;
+                    var xScale = d3.scaleLinear()
+                        .domain(d3.extent(valid, function(d) { return d[xVar.key]; }))
+                        .range([pad, CELL - pad]).nice();
+                    var yScale = d3.scaleLinear()
+                        .domain(d3.extent(valid, function(d) { return d[yVar.key]; }))
+                        .range([CELL - pad, pad]).nice();
+
+                    var svg = d3.select(cell).append('svg')
+                        .attr('width', CELL).attr('height', CELL);
+
+                    xScale.ticks(3).forEach(function(t) {
+                        svg.append('line')
+                            .attr('x1', xScale(t)).attr('x2', xScale(t))
+                            .attr('y1', CELL - pad - 2).attr('y2', CELL - pad + 2)
+                            .attr('stroke', '#444').attr('stroke-width', 0.5);
+                    });
+                    yScale.ticks(3).forEach(function(t) {
+                        svg.append('line')
+                            .attr('x1', pad - 2).attr('x2', pad + 2)
+                            .attr('y1', yScale(t)).attr('y2', yScale(t))
+                            .attr('stroke', '#444').attr('stroke-width', 0.5);
+                    });
+
+                    var circles = svg.selectAll('circle').data(valid).enter().append('circle')
+                        .attr('cx', function(d) { return xScale(d[xVar.key]); })
+                        .attr('cy', function(d) { return yScale(d[yVar.key]); })
+                        .attr('r', 2.5)
+                        .attr('fill', dotColor)
+                        .attr('opacity', 0.7)
+                        .attr('class', 'scatter-dot')
+                        .attr('data-team-id', function(d) { return d.id; })
+                        .on('mouseover', function(event, d) { showDotTooltip(event, d, xVar, yVar); })
+                        .on('mousemove', moveTooltip)
+                        .on('mouseout', hideTooltip)
+                        .on('click', function(event, d) {
+                            event.stopPropagation();
+                            toggleHighlight(d.id, d.name);
+                        });
+
+                    allDots.push.apply(allDots, circles.nodes());
+                    svg.on('click', clearHighlight);
+                }
+
+                function renderCorr(cell, row, col, xVar, yVar) {
+                    cell.classList.add('scatter-cell--corr');
+                    var r = rMatrix[row + ',' + col];
+                    var cls = corrClass(r);
+                    if (cls) cell.classList.add(cls);
+                    var valDiv = document.createElement('div');
+                    valDiv.className = 'scatter-corr-val';
+                    valDiv.textContent = r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) : '\u2014';
+                    cell.appendChild(valDiv);
+                    cell.addEventListener('mouseover', function(event) {
+                        if (r != null) showCorrTooltip(event, xVar, yVar, r);
+                    });
+                    cell.addEventListener('mousemove', moveTooltip);
+                    cell.addEventListener('mouseout', hideTooltip);
+                }
+
+                function renderCell(cell) {
+                    var row = +cell.dataset.row;
+                    var col = +cell.dataset.col;
+                    if (row === col)    renderDiagonal(cell, VARS[col]);
+                    else if (row > col) renderScatter(cell, VARS[col], VARS[row]);
+                    else                renderCorr(cell, row, col, VARS[col], VARS[row]);
+                }
+
+                /* build grid with lazy IntersectionObserver */
+                var grid = document.getElementById('scatter-matrix-root');
+                if (!grid) return;
+
+                var observer = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        if (entry.isIntersecting) {
+                            renderCell(entry.target);
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, { rootMargin: '120px' });
+
+                for (var row = 0; row < N; row++) {
+                    for (var col = 0; col < N; col++) {
+                        var cellEl = document.createElement('div');
+                        cellEl.className = 'scatter-cell';
+                        cellEl.dataset.row = row;
+                        cellEl.dataset.col = col;
+                        grid.appendChild(cellEl);
+                        observer.observe(cellEl);
+                    }
+                }
+
+                /* conference legend — all user strings via textContent */
+                var legend = document.getElementById('scatter-legend');
+                if (legend) {
+                    confs.forEach(function(conf) {
+                        var item = document.createElement('div');
+                        item.className = 'scatter-legend-item';
+                        var swatch = document.createElement('div');
+                        swatch.className = 'scatter-legend-swatch';
+                        swatch.style.background = confColorMap[conf];
+                        var label = document.createElement('span');
+                        label.textContent = conf;
+                        item.append(swatch, label);
+                        legend.appendChild(item);
+                    });
+                }
+            } // end render()
+
+            loadD3AndRender();
+        })();
+        </script>
+
+    </div>
+
 </div>
 
 </body>
