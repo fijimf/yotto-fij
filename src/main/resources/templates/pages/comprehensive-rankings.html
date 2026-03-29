@@ -57,11 +57,74 @@
             No ratings calculated yet for this season. Use the admin panel to run a power ratings calculation.
         </div>
 
-        <div id="comp-rankings-container">
-            <div th:replace="~{fragments/comprehensive-rankings-table :: comp-rankings-table}"></div>
+        <div th:if="${latestDate != null}">
+
+            <!-- Tab strip -->
+            <div class="comp-tab-strip">
+                <button class="comp-tab comp-tab--active"
+                        id="comp-tab-table"
+                        onclick="switchCompTab('table')">Table</button>
+                <button class="comp-tab"
+                        id="comp-tab-scatter"
+                        onclick="switchCompTab('scatter')">Scatter Matrix</button>
+            </div>
+
+            <!-- Table tab (pre-loaded on page render) -->
+            <div id="comp-rankings-container">
+                <div th:replace="~{fragments/comprehensive-rankings-table :: comp-rankings-table}"></div>
+            </div>
+
+            <!-- Scatter matrix tab (lazy-loaded via HTMX on first click) -->
+            <div id="scatter-matrix-container"
+                 th:attr="data-year=${season.year}, data-date=${selectedDate}"
+                 style="display:none">
+            </div>
+
         </div>
 
     </div>
+
+<script th:inline="none">
+(function () {
+    var scatterLoaded = false;
+
+    window.switchCompTab = function (tabName) {
+        document.querySelectorAll('.comp-tab').forEach(function (btn) {
+            btn.classList.remove('comp-tab--active');
+        });
+        var activeBtn = document.getElementById('comp-tab-' + tabName);
+        if (activeBtn) activeBtn.classList.add('comp-tab--active');
+
+        var tableContainer   = document.getElementById('comp-rankings-container');
+        var scatterContainer = document.getElementById('scatter-matrix-container');
+        if (tableContainer)   tableContainer.style.display   = (tabName === 'table')   ? '' : 'none';
+        if (scatterContainer) scatterContainer.style.display = (tabName === 'scatter') ? '' : 'none';
+
+        if (tabName === 'scatter' && !scatterLoaded && scatterContainer) {
+            var year = scatterContainer.dataset.year;
+            var date = scatterContainer.dataset.date;
+            htmx.ajax('GET',
+                '/rankings/comprehensive/' + year + '/scatter-matrix?date=' + date,
+                { target: '#scatter-matrix-container', swap: 'innerHTML' });
+            scatterLoaded = true;
+        }
+    };
+
+    // When date picker swaps the table, clear scatter so it reloads fresh
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+        if (evt.detail.target && evt.detail.target.id === 'comp-rankings-container') {
+            var scatterContainer = document.getElementById('scatter-matrix-container');
+            if (scatterContainer) {
+                scatterContainer.textContent = '';
+                var dateSelect = document.getElementById('comp-rankings-date');
+                if (dateSelect) scatterContainer.dataset.date = dateSelect.value;
+            }
+            scatterLoaded = false;
+            switchCompTab('table');
+        }
+    });
+})();
+</script>
 
 </main>
 </body>
