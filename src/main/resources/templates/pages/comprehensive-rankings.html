@@ -84,7 +84,10 @@
 
     </div>
 
-<script th:inline="none">
+</main>
+
+<th:block layout:fragment="scripts">
+<script>
 (function () {
     var scatterLoaded = false;
 
@@ -125,7 +128,6 @@
     });
 })();
 </script>
-
-</main>
+</th:block>
 </body>
 </html>
