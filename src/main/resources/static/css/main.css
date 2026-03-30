@@ -2067,6 +2067,7 @@ tbody tr:hover {
 .scatter-corr--neg-strong { background: rgba(231,  76,  60, 0.50); }
 .scatter-dot { cursor: pointer; }
 .scatter-dot--selected { stroke: #f5c030; stroke-width: 1.5px; }
+.scatter-dot--dimmed   { opacity: 0.12; }
 .scatter-selected-label {
     font-size: 0.82rem;
     color: #f5c030;
