@@ -233,6 +233,13 @@ Rendered below the matrix (stacks to a single column on narrow viewports). Lists
 
 ---
 
+## Appendix I – User notes.
+1. The matrix of plots respond to the container width, with the current size as a minimum.
+2. The matrix should have a title "Correlation of Measures od Team Strength"
+3. When the user clicks on an upper matrix cell we should pop up a larger version of the scatter plot correlating with the cell.
+
+---
+
 ## Out of Scope
 
 - Replacing or modifying the existing Table tab behavior

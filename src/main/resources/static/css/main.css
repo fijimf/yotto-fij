@@ -2014,14 +2014,13 @@ tbody tr:hover {
 }
 .scatter-matrix-grid {
     display: grid;
-    grid-template-columns: repeat(8, 90px);
-    grid-template-rows: repeat(8, 90px);
+    grid-template-columns: repeat(8, minmax(90px, 1fr));
     gap: 2px;
     background: var(--color-bg);
 }
 .scatter-cell {
-    width: 90px;
-    height: 90px;
+    aspect-ratio: 1;
+    min-width: 90px;
     background: var(--color-bg-surface);
     position: relative;
     overflow: hidden;
@@ -2051,7 +2050,7 @@ tbody tr:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: default;
+    cursor: pointer;
 }
 .scatter-corr-val {
     font-size: 0.82rem;
@@ -2088,7 +2087,7 @@ tbody tr:hover {
     font-size: 0.78rem;
     line-height: 1.6;
     pointer-events: none;
-    z-index: 200;
+    z-index: 600;
     max-width: 190px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     color: var(--color-text);
@@ -2113,3 +2112,50 @@ tbody tr:hover {
     border-radius: 50%;
     flex-shrink: 0;
 }
+.scatter-matrix-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 0.75rem;
+}
+.scatter-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.72);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.scatter-modal {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 20px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+}
+.scatter-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 16px;
+}
+.scatter-modal-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+.scatter-modal-close {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    flex-shrink: 0;
+}
+.scatter-modal-close:hover { color: var(--color-text); }
+.scatter-modal-body svg { display: block; }

@@ -10,13 +10,14 @@
 
     <div th:if="${hasData}">
 
-        <!-- JSON data — Thymeleaf th:text HTML-encodes; JS reads via textContent which decodes -->
-        <script id="scatter-data" type="application/json" th:text="${scatterDataJson}">[]</script>
+        <!-- JSON data — th:utext outputs raw (unescaped) so JSON.parse inside <script> works correctly -->
+        <script id="scatter-data" type="application/json" th:utext="${scatterDataJson}">[]</script>
 
         <!-- Selected-team banner -->
         <div class="scatter-selected-label" id="scatter-selected-label" style="display:none"></div>
 
         <!-- Matrix -->
+        <h2 class="scatter-matrix-title">Correlation of Measures of Team Strength</h2>
         <div class="scatter-matrix-wrap">
             <div id="scatter-matrix-root" class="scatter-matrix-grid"></div>
         </div>
@@ -26,6 +27,17 @@
 
         <!-- Tooltip -->
         <div class="scatter-tooltip" id="scatter-tooltip" style="display:none"></div>
+
+        <!-- Modal (populated by JS on upper-triangle click) -->
+        <div id="scatter-modal-overlay" class="scatter-modal-overlay" style="display:none">
+            <div class="scatter-modal">
+                <div class="scatter-modal-header">
+                    <span id="scatter-modal-title" class="scatter-modal-title"></span>
+                    <button class="scatter-modal-close" id="scatter-modal-close" aria-label="Close">&#x2715;</button>
+                </div>
+                <div id="scatter-modal-body" class="scatter-modal-body"></div>
+            </div>
+        </div>
 
         <script th:inline="none">
         (function () {
@@ -126,8 +138,11 @@
                     titleEl.textContent = xVar.label + ' vs ' + yVar.label;
                     var rEl = document.createElement('div');
                     rEl.textContent = 'Pearson r: ' + (r >= 0 ? '+' : '') + r.toFixed(4);
+                    var hintEl = document.createElement('div');
+                    hintEl.className = 'scatter-tooltip-conf';
+                    hintEl.textContent = 'Click to expand';
                     tooltip.textContent = '';
-                    tooltip.append(titleEl, rEl);
+                    tooltip.append(titleEl, rEl, hintEl);
                     tooltip.style.display = 'block';
                     moveTooltip(event);
                 }
@@ -175,8 +190,93 @@
                     }
                 }
 
+                /* modal */
+                var overlay = document.getElementById('scatter-modal-overlay');
+                var modalBody = document.getElementById('scatter-modal-body');
+                var modalTitle = document.getElementById('scatter-modal-title');
+
+                function openModal(xVar, yVar) {
+                    modalTitle.textContent = xVar.label + ' vs ' + yVar.label;
+                    modalBody.textContent = '';
+
+                    var margin = { top: 20, right: 20, bottom: 50, left: 60 };
+                    var totalW = 480, totalH = 480;
+                    var innerW = totalW - margin.left - margin.right;
+                    var innerH = totalH - margin.top - margin.bottom;
+
+                    var valid = raw.filter(function(d) {
+                        return d[xVar.key] != null && d[yVar.key] != null;
+                    });
+
+                    var xScale = d3.scaleLinear()
+                        .domain(d3.extent(valid, function(d) { return d[xVar.key]; }))
+                        .range([0, innerW]).nice();
+                    var yScale = d3.scaleLinear()
+                        .domain(d3.extent(valid, function(d) { return d[yVar.key]; }))
+                        .range([innerH, 0]).nice();
+
+                    var svg = d3.select(modalBody).append('svg')
+                        .attr('width', totalW).attr('height', totalH)
+                        .append('g')
+                        .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+                    svg.append('g')
+                        .attr('transform', 'translate(0,' + innerH + ')')
+                        .call(d3.axisBottom(xScale).ticks(5))
+                        .call(function(g) {
+                            g.selectAll('text').style('fill', 'var(--color-text-muted)').style('font-size', '0.72rem');
+                            g.select('.domain').style('stroke', 'var(--color-border)');
+                            g.selectAll('.tick line').style('stroke', 'var(--color-border)');
+                        });
+
+                    svg.append('text')
+                        .attr('x', innerW / 2).attr('y', innerH + 42)
+                        .attr('text-anchor', 'middle')
+                        .style('fill', 'var(--color-text)').style('font-size', '0.85rem')
+                        .text(xVar.label);
+
+                    svg.append('g')
+                        .call(d3.axisLeft(yScale).ticks(5))
+                        .call(function(g) {
+                            g.selectAll('text').style('fill', 'var(--color-text-muted)').style('font-size', '0.72rem');
+                            g.select('.domain').style('stroke', 'var(--color-border)');
+                            g.selectAll('.tick line').style('stroke', 'var(--color-border)');
+                        });
+
+                    svg.append('text')
+                        .attr('transform', 'rotate(-90)')
+                        .attr('x', -innerH / 2).attr('y', -48)
+                        .attr('text-anchor', 'middle')
+                        .style('fill', 'var(--color-text)').style('font-size', '0.85rem')
+                        .text(yVar.label);
+
+                    svg.selectAll('circle').data(valid).enter().append('circle')
+                        .attr('cx', function(d) { return xScale(d[xVar.key]); })
+                        .attr('cy', function(d) { return yScale(d[yVar.key]); })
+                        .attr('r', 3.5)
+                        .attr('fill', dotColor)
+                        .attr('opacity', 0.7)
+                        .attr('class', 'scatter-dot')
+                        .on('mouseover', function(event, d) { showDotTooltip(event, d, xVar, yVar); })
+                        .on('mousemove', moveTooltip)
+                        .on('mouseout', hideTooltip);
+
+                    overlay.style.display = 'flex';
+                }
+
+                function closeModal() {
+                    overlay.style.display = 'none';
+                    modalBody.textContent = '';
+                    hideTooltip();
+                }
+
+                document.getElementById('scatter-modal-close').addEventListener('click', closeModal);
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === overlay) closeModal();
+                });
+
                 document.addEventListener('keydown', function(e) {
-                    if (e.key === 'Escape') clearHighlight();
+                    if (e.key === 'Escape') { clearHighlight(); closeModal(); }
                 });
 
                 /* cell renderers */
@@ -210,8 +310,10 @@
                         .domain(d3.extent(valid, function(d) { return d[yVar.key]; }))
                         .range([CELL - pad, pad]).nice();
 
+                    /* viewBox keeps internal coord system at CELL×CELL; SVG scales with the cell */
                     var svg = d3.select(cell).append('svg')
-                        .attr('width', CELL).attr('height', CELL);
+                        .attr('viewBox', '0 0 ' + CELL + ' ' + CELL)
+                        .attr('width', '100%').attr('height', '100%');
 
                     xScale.ticks(3).forEach(function(t) {
                         svg.append('line')
@@ -260,6 +362,7 @@
                     });
                     cell.addEventListener('mousemove', moveTooltip);
                     cell.addEventListener('mouseout', hideTooltip);
+                    cell.addEventListener('click', function() { openModal(xVar, yVar); });
                 }
 
                 function renderCell(cell) {
