@@ -65,6 +65,8 @@ public class QuoteInitializer implements ApplicationRunner {
                     quote.setAttribution(attribution);
                     quote.setActive(true);
                     quotes.add(quote);
+                } else {
+                    log.warn("Skipping malformed line in init-quotes.txt: {}", line);
                 }
             }
         }

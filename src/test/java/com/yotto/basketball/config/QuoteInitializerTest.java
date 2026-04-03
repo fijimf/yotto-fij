@@ -19,10 +19,10 @@ class QuoteInitializerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void run_seedsQuotesFromFileWhenTableIsEmpty() throws Exception {
+    void run_seedsAllQuotesFromFileWhenTableIsEmpty() throws Exception {
         quoteInitializer.run(null);
 
-        assertThat(quoteRepository.count()).isGreaterThan(0);
+        assertThat(quoteRepository.count()).isEqualTo(114);
     }
 
     @Test
@@ -36,10 +36,9 @@ class QuoteInitializerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void run_parsesEscapedSingleQuotesCorrectly() throws Exception {
+    void run_seedsKnownQuoteText() throws Exception {
         quoteInitializer.run(null);
 
-        // "Can I kick it? Yes you can." — no escaped quotes, straight check
         assertThat(quoteRepository.findAll())
                 .anyMatch(q -> q.getQuoteText().contains("Can I kick it?"));
     }
