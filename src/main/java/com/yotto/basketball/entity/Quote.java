@@ -28,17 +28,37 @@ public class Quote {
 
     public Quote() {}
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getQuoteText() { return quoteText; }
-    public void setQuoteText(String quoteText) { this.quoteText = quoteText; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getAttribution() { return attribution; }
-    public void setAttribution(String attribution) { this.attribution = attribution; }
+    public String getQuoteText() {
+        return quoteText;
+    }
 
-    public Boolean getActive() { return active; }
-    public void setActive(Boolean active) { this.active = active; }
+    public void setQuoteText(String quoteText) {
+        this.quoteText = quoteText;
+    }
+
+    public String getAttribution() {
+        return attribution;
+    }
+
+    public void setAttribution(String attribution) {
+        this.attribution = attribution;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -49,5 +69,17 @@ public class Quote {
     }
 
     @Override
-    public int hashCode() { return Objects.hash(id); }
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return "Quote{" +
+                "id=" + id +
+                ", quoteText='" + quoteText + '\'' +
+                ", attribution='" + attribution + '\'' +
+                ", active=" + active +
+                '}';
+    }
 }
