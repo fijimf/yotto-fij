@@ -57,6 +57,26 @@ a:hover {
     z-index: 100;
 }
 
+/* ── Quote Banner ── */
+.quote-banner {
+    background: var(--color-bg-surface);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.4rem 1.5rem;
+    text-align: center;
+    font-size: 0.875rem;
+}
+
+.quote-banner__text {
+    font-style: italic;
+    color: var(--color-text);
+}
+
+.quote-banner__attribution {
+    color: var(--color-text-muted);
+    margin-left: 0.75rem;
+    font-size: 0.8rem;
+}
+
 .nav {
     max-width: 1200px;
     margin: 0 auto;

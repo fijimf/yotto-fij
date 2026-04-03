@@ -15,6 +15,11 @@
 
     <header class="site-header" th:replace="~{fragments/nav :: nav}"></header>
 
+    <div class="quote-banner" th:if="${randomQuote != null}">
+        <span class="quote-banner__text" th:text="${randomQuote.quoteText}"></span>
+        <span class="quote-banner__attribution" th:text="${randomQuote.attribution}"></span>
+    </div>
+
     <main layout:fragment="content">
         <p>Page content goes here.</p>
     </main>
