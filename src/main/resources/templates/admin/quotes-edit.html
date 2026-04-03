@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Edit Quote</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">Edit Quote</h1>
+        <a href="/admin/quotes" class="btn btn--outline btn--sm">&#8592; Back to Quotes</a>
+    </div>
+
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <section class="admin-section">
+        <div class="card">
+            <form th:action="@{/admin/quotes/{id}(id=${quote.id})}" method="post">
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <textarea name="quoteText" class="form-input" rows="3" required
+                              th:text="${quote.quoteText}"></textarea>
+                    <input type="text" name="attribution" class="form-input" required
+                           th:value="${quote.attribution}" />
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="active" th:checked="${quote.active}" />
+                        Active
+                    </label>
+                    <div>
+                        <button type="submit" class="btn btn--primary btn--sm">Save</button>
+                        <a href="/admin/quotes" class="btn btn--outline btn--sm"
+                           style="margin-left: 0.5rem;">Cancel</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+</main>
+</body>
+</html>

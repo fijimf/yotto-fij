@@ -10,7 +10,10 @@
 <main layout:fragment="content">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
         <h1 class="page-title" style="margin-bottom: 0;">Admin Dashboard</h1>
-        <a href="/admin/qa" class="btn btn--outline btn--sm">Scraping QA</a>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="/admin/quotes" class="btn btn--outline btn--sm">Quotes</a>
+            <a href="/admin/qa" class="btn btn--outline btn--sm">Scraping QA</a>
+        </div>
     </div>
 
     <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>

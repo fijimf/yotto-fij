@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Manage Quotes</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">Manage Quotes</h1>
+        <a href="/admin" class="btn btn--outline btn--sm">&#8592; Back to Dashboard</a>
+    </div>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <!-- Add Quote -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Add Quote</h2>
+        </div>
+        <div class="card">
+            <form th:action="@{/admin/quotes}" method="post">
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <textarea name="quoteText" placeholder="Quote text" class="form-input"
+                              rows="2" required></textarea>
+                    <input type="text" name="attribution" class="form-input" required
+                           placeholder='Attribution (e.g. "Song Title" - Artist)' />
+                    <div>
+                        <button type="submit" class="btn btn--primary btn--sm">Add Quote</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- Quote List -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">All Quotes</h2>
+        </div>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Quote</th>
+                        <th>Attribution</th>
+                        <th>Active</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="quote : ${quotes}">
+                        <td th:text="${#strings.abbreviate(quote.quoteText, 80)}">Quote text</td>
+                        <td th:text="${quote.attribution}">Attribution</td>
+                        <td th:text="${quote.active ? 'Yes' : 'No'}">Yes</td>
+                        <td class="admin-actions">
+                            <a th:href="@{/admin/quotes/{id}/edit(id=${quote.id})}"
+                               class="btn btn--outline btn--sm">Edit</a>
+                            <form th:action="@{/admin/quotes/{id}(id=${quote.id})}"
+                                  method="post" class="inline-form">
+                                <input type="hidden" name="_method" value="DELETE" />
+                                <button type="submit" class="btn btn--danger btn--sm"
+                                        onclick="return confirm('Delete this quote?')">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(quotes)}">
+                        <td colspan="4" style="text-align: center; color: var(--color-text-muted);">
+                            No quotes yet.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>
