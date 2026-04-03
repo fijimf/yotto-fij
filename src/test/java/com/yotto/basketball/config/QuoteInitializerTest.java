@@ -22,6 +22,7 @@ class QuoteInitializerTest extends BaseIntegrationTest {
     void run_seedsAllQuotesFromFileWhenTableIsEmpty() throws Exception {
         quoteInitializer.run(null);
 
+        // Update this count if init-quotes.txt is edited (lines added or removed)
         assertThat(quoteRepository.count()).isEqualTo(114);
     }
 
