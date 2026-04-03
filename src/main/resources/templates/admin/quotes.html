@@ -54,7 +54,7 @@
                 <tbody>
                     <tr th:each="quote : ${quotes}">
                         <td th:text="${#strings.abbreviate(quote.quoteText, 80)}">Quote text</td>
-                        <td th:text="${quote.attribution}">Attribution</td>
+                        <td th:text="${#strings.abbreviate(quote.attribution, 60)}">Attribution</td>
                         <td th:text="${quote.active ? 'Yes' : 'No'}">Yes</td>
                         <td class="admin-actions">
                             <a th:href="@{/admin/quotes/{id}/edit(id=${quote.id})}"

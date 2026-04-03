@@ -27,7 +27,7 @@ public class AdminQuoteController {
     public String create(@RequestParam String quoteText,
                          @RequestParam String attribution,
                          RedirectAttributes redirectAttributes) {
-        if (quoteText == null || quoteText.isBlank() || attribution == null || attribution.isBlank()) {
+        if (quoteText.isBlank() || attribution.isBlank()) {
             redirectAttributes.addFlashAttribute("error", "Quote text and attribution are required");
             return "redirect:/admin/quotes";
         }
@@ -58,15 +58,20 @@ public class AdminQuoteController {
                          @RequestParam String quoteText,
                          @RequestParam String attribution,
                          @RequestParam(defaultValue = "false") boolean active,
+                         Model model,
                          RedirectAttributes redirectAttributes) {
         Quote quote = quoteService.findById(id).orElse(null);
         if (quote == null) {
             redirectAttributes.addFlashAttribute("error", "Quote not found");
             return "redirect:/admin/quotes";
         }
-        if (quoteText == null || quoteText.isBlank() || attribution == null || attribution.isBlank()) {
-            redirectAttributes.addFlashAttribute("error", "Quote text and attribution are required");
-            return "redirect:/admin/quotes/" + id + "/edit";
+        if (quoteText.isBlank() || attribution.isBlank()) {
+            quote.setQuoteText(quoteText);
+            quote.setAttribution(attribution);
+            quote.setActive(active);
+            model.addAttribute("quote", quote);
+            model.addAttribute("error", "Quote text and attribution are required");
+            return "admin/quotes-edit";
         }
         quote.setQuoteText(quoteText.trim());
         quote.setAttribution(attribution.trim());
