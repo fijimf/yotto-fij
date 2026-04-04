@@ -60,6 +60,7 @@ a:hover {
 /* ── Quote Banner ── */
 .quote-banner {
     background: var(--color-bg-surface);
+    border-top: 1px solid var(--color-primary);
     border-bottom: 1px solid var(--color-border);
     padding: 0.4rem 1.5rem;
     text-align: center;
@@ -68,7 +69,23 @@ a:hover {
 
 .quote-banner__text {
     font-style: italic;
-    color: var(--color-text);
+    color: var(--color-primary-hover);
+}
+
+.quote-banner__text::before {
+    content: '\201C';
+    color: var(--color-primary);
+    font-size: 1.15em;
+    margin-right: 0.15em;
+    font-style: normal;
+}
+
+.quote-banner__text::after {
+    content: '\201D';
+    color: var(--color-primary);
+    font-size: 1.15em;
+    margin-left: 0.15em;
+    font-style: normal;
 }
 
 .quote-banner__attribution {
