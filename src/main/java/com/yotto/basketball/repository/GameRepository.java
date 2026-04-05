@@ -62,4 +62,35 @@ public interface GameRepository extends JpaRepository<Game, Long> {
             @Param("teamId") Long teamId,
             @Param("beforeDate") LocalDateTime beforeDate,
             org.springframework.data.domain.Pageable pageable);
+
+    /** All FINAL H2H games between two teams (any direction), excluding the given game, newest first. */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
+           "WHERE ((g.homeTeam.id = :teamAId AND g.awayTeam.id = :teamBId) OR " +
+           "       (g.homeTeam.id = :teamBId AND g.awayTeam.id = :teamAId)) " +
+           "  AND g.status = 'FINAL' AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL " +
+           "  AND g.id <> :excludeId ORDER BY g.gameDate DESC")
+    List<Game> findAllH2HGames(
+            @Param("teamAId") Long teamAId,
+            @Param("teamBId") Long teamBId,
+            @Param("excludeId") Long excludeId);
+
+    /** FINAL neutral-site games for a team in a given season. */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
+           "WHERE (g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId) " +
+           "  AND g.season.id = :seasonId AND g.status = 'FINAL' " +
+           "  AND g.neutralSite = true AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL")
+    List<Game> findNeutralSiteFinalGames(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId);
+
+    /** FINAL games for a team in a given season, strictly before the cutoff date, oldest first. */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
+           "WHERE (g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId) " +
+           "  AND g.season.id = :seasonId AND g.status = 'FINAL' " +
+           "  AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL " +
+           "  AND g.gameDate < :beforeDate ORDER BY g.gameDate ASC")
+    List<Game> findSeasonFinalGamesForTeamBefore(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId,
+            @Param("beforeDate") LocalDateTime beforeDate);
 }
