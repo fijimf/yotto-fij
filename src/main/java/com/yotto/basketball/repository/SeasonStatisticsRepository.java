@@ -26,4 +26,10 @@ public interface SeasonStatisticsRepository extends JpaRepository<SeasonStatisti
     @Query("SELECT ss FROM SeasonStatistics ss JOIN FETCH ss.team JOIN FETCH ss.conference " +
            "WHERE ss.season.id = :seasonId ORDER BY ss.team.name")
     List<SeasonStatistics> findBySeasonIdWithTeamAndConferenceOrdered(@Param("seasonId") Long seasonId);
+
+    @Query("SELECT ss FROM SeasonStatistics ss JOIN FETCH ss.conference " +
+           "WHERE ss.team.id = :teamId AND ss.season.id = :seasonId")
+    Optional<SeasonStatistics> findByTeamAndSeasonWithConference(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId);
 }
