@@ -78,7 +78,8 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
            "WHERE (g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId) " +
            "  AND g.season.id = :seasonId AND g.status = 'FINAL' " +
-           "  AND g.neutralSite = true AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL")
+           "  AND g.neutralSite = true AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL " +
+           "ORDER BY g.gameDate DESC")
     List<Game> findNeutralSiteFinalGames(
             @Param("teamId") Long teamId,
             @Param("seasonId") Long seasonId);

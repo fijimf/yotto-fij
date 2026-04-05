@@ -19,9 +19,8 @@ class GameRepositoryH2HTest extends BaseIntegrationTest {
     @Autowired GameRepository gameRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired SeasonRepository seasonRepo;
-    @Autowired ConferenceRepository conferenceRepo;
 
-    Team home, away, third;
+    Team home, away;
     Season season;
     Long currentGameId;
 
@@ -33,7 +32,6 @@ class GameRepositoryH2HTest extends BaseIntegrationTest {
 
         home = mkTeam("Duke", "DUKE");
         away = mkTeam("UNC", "UNC");
-        third = mkTeam("NC State", "NCST");
 
         season = new Season();
         season.setYear(2025);
