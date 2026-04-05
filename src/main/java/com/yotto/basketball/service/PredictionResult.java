@@ -34,7 +34,7 @@ public record PredictionResult(
         MlPrediction ml,
 
         // Book lines from BettingOdds (null if no odds recorded)
-        BigDecimal bookSpread,      // home team perspective (positive = home favored)
+        BigDecimal bookSpread,      // home team perspective (negative = home favored)
         BigDecimal bookOverUnder
 ) {
 
