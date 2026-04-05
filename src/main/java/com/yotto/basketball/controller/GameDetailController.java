@@ -269,7 +269,10 @@ public class GameDetailController {
     }
 
     private int countLosses(List<Game> games, Long teamId) {
-        return (int) games.stream().filter(g -> !isWinner(g, teamId)).count();
+        return (int) games.stream()
+                .filter(g -> g.getHomeScore() != null && g.getAwayScore() != null)
+                .filter(g -> !isWinner(g, teamId))
+                .count();
     }
 
     private LastMeetingDto toLastMeeting(Game g) {
