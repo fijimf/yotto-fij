@@ -26,4 +26,15 @@ public interface TeamSeasonStatSnapshotRepository extends JpaRepository<TeamSeas
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM TeamSeasonStatSnapshot s WHERE s.season.id = :seasonId")
     void deleteBySeasonId(@Param("seasonId") Long seasonId);
+
+    /** Most recent snapshot for a team/season strictly before the given date. */
+    @Query(value = "SELECT * FROM team_season_stat_snapshots " +
+                   "WHERE team_id = :teamId AND season_id = :seasonId " +
+                   "  AND snapshot_date < :beforeDate " +
+                   "ORDER BY snapshot_date DESC LIMIT 1",
+           nativeQuery = true)
+    Optional<TeamSeasonStatSnapshot> findLatestBefore(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId,
+            @Param("beforeDate") LocalDate beforeDate);
 }
