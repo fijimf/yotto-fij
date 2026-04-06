@@ -18,14 +18,30 @@ class StatSnapshotLatestBeforeTest extends BaseIntegrationTest {
     @Autowired TeamSeasonStatSnapshotRepository snapshotRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired SeasonRepository seasonRepo;
+    @Autowired GameRepository gameRepo;
+    @Autowired BettingOddsRepository oddsRepo;
+    @Autowired SeasonStatisticsRepository statsRepo;
+    @Autowired TeamPowerRatingSnapshotRepository ratingRepo;
+    @Autowired PowerModelParamSnapshotRepository paramRepo;
+    @Autowired SeasonPopulationStatRepository popStatRepo;
+    @Autowired ConferenceMembershipRepository membershipRepo;
+    @Autowired ConferenceRepository conferenceRepo;
 
     Team team;
     Season season;
 
     @BeforeEach
     void setUp() {
+        popStatRepo.deleteAll();
         snapshotRepo.deleteAll();
+        oddsRepo.deleteAll();
+        paramRepo.deleteAll();
+        ratingRepo.deleteAll();
+        statsRepo.deleteAll();
+        gameRepo.deleteAll();
+        membershipRepo.deleteAll();
         teamRepo.deleteAll();
+        conferenceRepo.deleteAll();
         seasonRepo.deleteAll();
 
         team = new Team();
