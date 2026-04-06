@@ -9,218 +9,411 @@
 <body>
 <main layout:fragment="content">
 
-    <!-- Header: Teams + Score -->
-    <div class="game-detail-header card">
+<!-- ── Game Header ──────────────────────────────────────────────────────── -->
+<div class="game-detail-header card">
+    <div class="game-detail-matchup">
 
-        <div class="game-detail-matchup">
-            <!-- Home team -->
-            <a th:href="@{'/teams/' + ${homeTeamId}}" class="game-detail-team">
-                <div class="game-detail-team__logo-wrap"
-                     th:if="${homeTeamLogoUrl}"
-                     th:style="'background-color: #' + (${homeTeamColor} ?: '1a1a2e')">
-                    <img th:src="${homeTeamLogoUrl}" th:alt="${homeTeamName}"
-                         class="game-detail-team__logo" />
-                </div>
-                <div class="game-detail-team__info">
-                    <span class="game-detail-team__name" th:text="${homeTeamName}">Duke</span>
-                    <span class="game-detail-team__mascot" th:text="${homeTeamMascot}">Blue Devils</span>
-                </div>
-            </a>
-
-            <!-- Score / Status -->
-            <div class="game-detail-score">
-                <div th:if="${status.name() == 'FINAL' and homeScore != null}" class="game-detail-score__final">
-                    <span class="game-detail-score__number" th:text="${homeScore}">78</span>
-                    <span class="game-detail-score__sep">–</span>
-                    <span class="game-detail-score__number" th:text="${awayScore}">71</span>
-                    <span th:if="${periods != null and periods > 2}" class="game-detail-score__ot"
-                          th:text="${periods - 2 == 1 ? 'OT' : (periods - 2) + 'OT'}">OT</span>
-                </div>
-                <div th:unless="${status.name() == 'FINAL' and homeScore != null}">
-                    <span class="game-detail-score__time"
-                          th:text="${#temporals.format(gameDate, 'MMM d · h:mm a')}">Mar 8 · 7:00 PM</span>
-                </div>
-                <div class="game-detail-score__badges">
-                    <span class="game-status-badge"
-                          th:classappend="${status.name() == 'FINAL'} ? ' game-status-badge--final' :
-                                         (${status.name() == 'SCHEDULED'} ? ' game-status-badge--scheduled' : ' game-status-badge--other')"
-                          th:text="${status.name()}">FINAL</span>
-                    <span th:if="${neutralSite}" class="game-detail-badge">Neutral</span>
-                    <span th:if="${conferenceGame}" class="game-detail-badge">Conference</span>
-                </div>
+        <!-- Home team -->
+        <a th:href="@{'/teams/' + ${homeTeamSlug}}" class="game-detail-team">
+            <div class="game-detail-team__logo-wrap"
+                 th:if="${homeTeamLogoUrl}"
+                 th:style="'background-color: #' + (${homeTeamColor} ?: '1a1a2e')">
+                <img th:src="${homeTeamLogoUrl}" th:alt="${homeTeamName}" class="game-detail-team__logo"/>
             </div>
+            <div class="game-detail-team__info">
+                <span class="game-detail-team__name" th:text="${homeTeamName}">Duke</span>
+                <span class="game-detail-team__mascot" th:text="${homeTeamMascot}">Blue Devils</span>
+            </div>
+        </a>
 
-            <!-- Away team -->
-            <a th:href="@{'/teams/' + ${awayTeamId}}" class="game-detail-team game-detail-team--away">
-                <div class="game-detail-team__info">
-                    <span class="game-detail-team__name" th:text="${awayTeamName}">UNC</span>
-                    <span class="game-detail-team__mascot" th:text="${awayTeamMascot}">Tar Heels</span>
-                </div>
-                <div class="game-detail-team__logo-wrap"
-                     th:if="${awayTeamLogoUrl}"
-                     th:style="'background-color: #' + (${awayTeamColor} ?: '1a1a2e')">
-                    <img th:src="${awayTeamLogoUrl}" th:alt="${awayTeamName}"
-                         class="game-detail-team__logo" />
-                </div>
-            </a>
+        <!-- Score / Status -->
+        <div class="game-detail-score">
+            <div th:if="${status.name() == 'FINAL' and homeScore != null}" class="game-detail-score__final">
+                <span class="game-detail-score__number" th:text="${homeScore}">78</span>
+                <span class="game-detail-score__sep">–</span>
+                <span class="game-detail-score__number" th:text="${awayScore}">71</span>
+                <span th:if="${periods != null and periods > 2}" class="game-detail-score__ot"
+                      th:text="${periods - 2 == 1 ? 'OT' : (periods - 2) + 'OT'}">OT</span>
+            </div>
+            <div th:unless="${status.name() == 'FINAL' and homeScore != null}">
+                <span class="game-detail-score__time"
+                      th:text="${#temporals.format(gameDate, 'MMM d · h:mm a')}">Mar 8 · 7:00 PM</span>
+            </div>
+            <div class="game-detail-score__badges">
+                <span class="game-status-badge"
+                      th:classappend="${status.name() == 'FINAL'} ? ' game-status-badge--final' :
+                                     (${status.name() == 'SCHEDULED'} ? ' game-status-badge--scheduled' : ' game-status-badge--other')"
+                      th:text="${status.name()}">FINAL</span>
+                <span th:if="${neutralSite}" class="game-detail-badge">Neutral</span>
+                <span th:if="${conferenceGame}" class="game-detail-badge">Conference</span>
+            </div>
         </div>
 
-        <div class="game-detail-meta" th:if="${venue}">
-            <span th:text="${venue}">Smith Center</span>
-        </div>
+        <!-- Away team -->
+        <a th:href="@{'/teams/' + ${awayTeamSlug}}" class="game-detail-team game-detail-team--away">
+            <div class="game-detail-team__info">
+                <span class="game-detail-team__name" th:text="${awayTeamName}">UNC</span>
+                <span class="game-detail-team__mascot" th:text="${awayTeamMascot}">Tar Heels</span>
+            </div>
+            <div class="game-detail-team__logo-wrap"
+                 th:if="${awayTeamLogoUrl}"
+                 th:style="'background-color: #' + (${awayTeamColor} ?: '1a1a2e')">
+                <img th:src="${awayTeamLogoUrl}" th:alt="${awayTeamName}" class="game-detail-team__logo"/>
+            </div>
+        </a>
     </div>
 
-    <!-- Prediction section -->
-    <section class="game-detail-section" th:if="${prediction != null and (prediction.massey != null or prediction.bradleyTerry != null or prediction.ml != null)}">
-        <h2 class="game-detail-section__title">Predictions</h2>
-        <div class="card game-detail-predictions">
+    <!-- Meta line: Conference · Venue · Date -->
+    <div class="game-detail-meta">
+        <span th:if="${conferenceName}" th:text="${conferenceName}" class="game-detail-meta__conf"></span>
+        <span th:if="${conferenceName}" class="game-detail-meta__sep">·</span>
+        <span th:if="${venue}" th:text="${venue + (neutralSite ? ' (Neutral)' : '')}">Smith Center</span>
+        <span th:if="${venue}" class="game-detail-meta__sep">·</span>
+        <span th:text="${#temporals.format(gameDate, 'MMMM d, yyyy')}">January 21, 2025</span>
+    </div>
+</div>
 
-            <!-- Win probability bar -->
-            <div th:with="pHome=${prediction.ml != null ? prediction.ml.homeWinProbability : (prediction.bradleyTerry != null ? prediction.bradleyTerry.homeWinProbability : null)}"
-                 class="game-detail-prob-section" th:if="${pHome != null}">
-                <div class="game-detail-prob-labels">
-                    <span th:text="${homeTeamName}">Duke</span>
-                    <span class="prediction-card__stat-label">Win Probability</span>
-                    <span th:text="${awayTeamName}">UNC</span>
-                </div>
-                <div class="prob-bar prob-bar--lg"
-                     th:style="'--team-color-home: #' + (${homeTeamColor} ?: '4a90d9') + '; --team-color-away: #' + (${awayTeamColor} ?: 'd94a4a')">
-                    <div class="prob-bar__home"
-                         th:style="'width:' + ${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'"
-                         th:text="${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'">62%</div>
-                    <div class="prob-bar__away"
-                         th:style="'width:' + ${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'"
-                         th:text="${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'">38%</div>
-                </div>
-            </div>
+<!-- ── Row 1: Betting + Predictions ─────────────────────────────────────── -->
+<div class="game-detail-row">
 
-            <!-- Spread + Total table -->
-            <div class="game-detail-model-grid">
-                <table class="game-detail-model-table">
-                    <thead>
-                        <tr>
-                            <th>Model</th>
-                            <th>Spread</th>
-                            <th>Total</th>
-                            <th th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">Spread Error</th>
-                            <th th:if="${status.name() == 'FINAL' and prediction.actualTotal != null}">Total Error</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Massey row -->
-                        <tr th:if="${prediction.massey != null}">
-                            <td>Massey</td>
-                            <td th:with="s=${prediction.massey.spread}, absS=${s >= 0 ? s : -s}, fav=${s >= 0 ? homeTeamName : awayTeamName}"
-                                th:text="${fav + ' -' + #numbers.formatDecimal(absS, 1, 1)}">Duke -3.2</td>
-                            <td th:if="${prediction.masseyTotal != null}"
-                                th:text="${#numbers.formatDecimal(prediction.masseyTotal.total, 3, 1)}">148.4</td>
-                            <td th:unless="${prediction.masseyTotal != null}">—</td>
-                            <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
-                                th:with="err=${prediction.actualMargin - prediction.massey.spread}"
-                                th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+10.2</td>
-                            <td th:if="${status.name() == 'FINAL' and prediction.actualTotal != null and prediction.masseyTotal != null}"
-                                th:with="err=${prediction.actualTotal - prediction.masseyTotal.total}"
-                                th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+2.6</td>
-                            <td th:if="${status.name() == 'FINAL' and prediction.actualTotal != null and prediction.masseyTotal == null}">—</td>
-                        </tr>
-                        <!-- Bradley-Terry row (win prob only) -->
-                        <tr th:if="${prediction.bradleyTerry != null}">
-                            <td>Bradley-Terry</td>
-                            <td>—</td>
-                            <td>—</td>
-                            <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">—</td>
-                            <td th:if="${status.name() == 'FINAL' and prediction.actualTotal != null}">—</td>
-                        </tr>
-                        <!-- ML row -->
-                        <tr th:if="${prediction.ml != null}">
-                            <td><span class="ml-badge" style="vertical-align: middle;">ML</span> Enhanced</td>
-                            <td th:with="s=${prediction.ml.spread}, absS=${s >= 0 ? s : -s}, fav=${s >= 0 ? homeTeamName : awayTeamName}"
-                                th:text="${fav + ' -' + #numbers.formatDecimal(absS, 1, 1)}">Duke -3.8</td>
-                            <td th:text="${#numbers.formatDecimal(prediction.ml.total, 3, 1)}">149.1</td>
-                            <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
-                                th:with="err=${prediction.actualMargin - prediction.ml.spread}"
-                                th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+3.2</td>
-                            <td th:if="${status.name() == 'FINAL' and prediction.actualTotal != null}"
-                                th:with="err=${prediction.actualTotal - prediction.ml.total}"
-                                th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+1.9</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Actual result summary for FINAL games -->
-            <div th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
-                 class="game-detail-actual">
-                Actual:
-                <strong th:text="${prediction.actualMargin >= 0 ? homeTeamName : awayTeamName}">Duke</strong>
-                won by
-                <strong th:text="${prediction.actualMargin >= 0 ? prediction.actualMargin : -prediction.actualMargin}">7</strong>
-                (total <strong th:text="${prediction.actualTotal}">149</strong>)
-            </div>
-
-        </div>
-    </section>
-
-    <!-- No prediction available -->
-    <section class="game-detail-section"
-             th:if="${prediction == null or (prediction.massey == null and prediction.bradleyTerry == null and prediction.ml == null)}">
-        <div class="card" style="color: var(--color-text-muted); text-align: center; padding: 2rem;">
-            Predictions not available for this game.
-        </div>
-    </section>
-
-    <!-- Betting odds section -->
-    <section class="game-detail-section" th:if="${odds != null}">
+    <!-- Betting Information -->
+    <section class="game-detail-col card"
+             th:if="${odds != null and (odds.spread != null or odds.overUnder != null or odds.homeMoneyline != null)}">
         <h2 class="game-detail-section__title">Betting Lines</h2>
-        <div class="card">
-            <table>
-                <tbody>
-                    <tr th:if="${odds.openingSpread != null}">
-                        <td style="color: var(--color-text-muted); width: 160px;">Opening spread</td>
-                        <td th:text="${odds.openingSpread}">-1.5</td>
-                    </tr>
-                    <tr th:if="${odds.spread != null}">
-                        <td style="color: var(--color-text-muted);">Closing spread</td>
-                        <td>
-                            <span th:text="${odds.spread}">-2.5</span>
-                            <!-- Outcome vs line (FINAL) -->
-                            <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualMargin != null}"
-                                  th:with="covered=${prediction.actualMargin > odds.spread.doubleValue()}"
-                                  class="game-detail-outcome"
-                                  th:classappend="${covered} ? ' game-detail-outcome--win' : ' game-detail-outcome--loss'"
-                                  th:text="${covered} ? 'Home covered' : 'Away covered'">Home covered</span>
-                        </td>
-                    </tr>
-                    <tr th:if="${odds.openingOverUnder != null}">
-                        <td style="color: var(--color-text-muted);">Opening O/U</td>
-                        <td th:text="${odds.openingOverUnder}">146.5</td>
-                    </tr>
-                    <tr th:if="${odds.overUnder != null}">
-                        <td style="color: var(--color-text-muted);">Closing O/U</td>
-                        <td>
-                            <span th:text="${odds.overUnder}">147.5</span>
-                            <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualTotal != null}"
-                                  th:with="wentOver=${prediction.actualTotal > odds.overUnder.doubleValue()}"
-                                  class="game-detail-outcome"
-                                  th:classappend="${wentOver} ? ' game-detail-outcome--win' : ' game-detail-outcome--loss'"
-                                  th:text="${wentOver} ? 'Over' : 'Under'">Over</span>
-                        </td>
-                    </tr>
-                    <tr th:if="${odds.homeMoneyline != null}">
-                        <td style="color: var(--color-text-muted);">Moneyline</td>
-                        <td>
-                            <span th:text="${homeTeamName}">Duke</span>
-                            <span th:text="${odds.homeMoneyline > 0 ? '+' + odds.homeMoneyline : odds.homeMoneyline}">-158</span>
-                            &nbsp;/&nbsp;
-                            <span th:text="${awayTeamName}">UNC</span>
-                            <span th:text="${odds.awayMoneyline > 0 ? '+' + odds.awayMoneyline : odds.awayMoneyline}">+133</span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <table class="game-detail-odds-table">
+            <tbody>
+                <!-- Spread -->
+                <tr th:if="${odds.spread != null}">
+                    <td class="game-detail-odds-table__label">Spread</td>
+                    <td th:with="s=${odds.spread.doubleValue()}">
+                        <span th:if="${s == 0}">Pick'em</span>
+                        <span th:if="${s != 0}"
+                              th:text="${s < 0 ? homeTeamAbbr + ' ' + #numbers.formatDecimal(s, 1, 1)
+                                               : awayTeamAbbr + ' -' + #numbers.formatDecimal(s, 1, 1)}">DUKE -1.5</span>
+                        <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualMargin != null}"
+                              th:with="covered=${prediction.actualMargin > s}"
+                              class="game-detail-outcome"
+                              th:classappend="${covered} ? ' game-detail-outcome--win' : ' game-detail-outcome--loss'"
+                              th:text="${covered} ? 'Home covered' : 'Away covered'">Home covered</span>
+                    </td>
+                </tr>
+                <!-- O/U -->
+                <tr th:if="${odds.overUnder != null}">
+                    <td class="game-detail-odds-table__label">O/U</td>
+                    <td>
+                        <span th:text="${#numbers.formatDecimal(odds.overUnder, 1, 1)}">147.5</span>
+                        <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualTotal != null}"
+                              th:with="wentOver=${prediction.actualTotal > odds.overUnder.doubleValue()}"
+                              class="game-detail-outcome"
+                              th:classappend="${wentOver} ? ' game-detail-outcome--win' : ' game-detail-outcome--loss'"
+                              th:text="${wentOver} ? 'Over' : 'Under'">Over</span>
+                    </td>
+                </tr>
+                <!-- Moneyline -->
+                <tr th:if="${odds.homeMoneyline != null or odds.awayMoneyline != null}">
+                    <td class="game-detail-odds-table__label">Money</td>
+                    <td>
+                        <span th:text="${homeTeamAbbr}">DUKE</span>
+                        <span th:if="${odds.homeMoneyline != null}"
+                              th:text="${odds.homeMoneyline > 0 ? '+' + odds.homeMoneyline : odds.homeMoneyline}">-158</span>
+                        <span th:unless="${odds.homeMoneyline != null}">N/A</span>
+                        <span class="game-detail-meta__sep">/</span>
+                        <span th:text="${awayTeamAbbr}">UNC</span>
+                        <span th:if="${odds.awayMoneyline != null}"
+                              th:text="${odds.awayMoneyline > 0 ? '+' + odds.awayMoneyline : odds.awayMoneyline}">+133</span>
+                        <span th:unless="${odds.awayMoneyline != null}">N/A</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Predictions -->
+    <section class="game-detail-col card"
+             th:if="${prediction != null and (prediction.massey != null or prediction.bradleyTerry != null or prediction.ml != null)}">
+        <h2 class="game-detail-section__title">Predictions</h2>
+
+        <!-- Win probability bar -->
+        <div th:with="pHome=${prediction.ml != null and prediction.ml.featuresComplete ? prediction.ml.homeWinProbability :
+                             (prediction.bradleyTerry != null ? prediction.bradleyTerry.homeWinProbability : null)}"
+             class="game-detail-prob-section" th:if="${pHome != null}">
+            <div class="game-detail-prob-labels">
+                <span th:text="${homeTeamName}">Duke</span>
+                <span class="prediction-card__stat-label">Win Probability</span>
+                <span th:text="${awayTeamName}">UNC</span>
+            </div>
+            <div class="prob-bar prob-bar--lg"
+                 th:style="'--team-color-home: #' + (${homeTeamColor} ?: '3b82f6') + '; --team-color-away: #' + (${awayTeamColor} ?: 'ef4444')">
+                <div class="prob-bar__home"
+                     th:style="'width:' + ${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'"
+                     th:text="${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'">62%</div>
+                <div class="prob-bar__away"
+                     th:style="'width:' + ${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'"
+                     th:text="${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'">38%</div>
+            </div>
+        </div>
+
+        <!-- Model table -->
+        <table class="game-detail-model-table">
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Prediction</th>
+                    <th th:if="${odds != null and odds.spread != null}">vs Line</th>
+                    <th th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Massey spread -->
+                <tr th:if="${prediction.massey != null}">
+                    <td>DeepFij Spread</td>
+                    <td th:with="s=${prediction.massey.spread}, absS=${s >= 0 ? s : -s}"
+                        th:text="${(s >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absS, 1, 1)}">DUKE -3.2</td>
+                    <td th:if="${odds != null and odds.spread != null}"
+                        th:with="delta=${prediction.massey.spread - odds.spread.doubleValue()}"
+                        th:classappend="${#numbers.abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${(delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1)}">+2.0</td>
+                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
+                        th:with="err=${prediction.actualMargin - prediction.massey.spread}"
+                        th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+10.2</td>
+                </tr>
+                <!-- Massey total -->
+                <tr th:if="${prediction.masseyTotal != null}">
+                    <td>DeepFij Total</td>
+                    <td th:text="${#numbers.formatDecimal(prediction.masseyTotal.total, 3, 1)}">148.4</td>
+                    <td th:if="${odds != null and odds.overUnder != null}"
+                        th:with="delta=${prediction.masseyTotal.total - odds.overUnder.doubleValue()}"
+                        th:classappend="${#numbers.abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${(delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1)}">-1.5</td>
+                    <td th:unless="${odds != null and odds.overUnder != null}"></td>
+                    <td th:if="${status.name() == 'FINAL' and prediction.actualTotal != null}"
+                        th:with="err=${prediction.actualTotal - prediction.masseyTotal.total}"
+                        th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+2.6</td>
+                </tr>
+                <!-- Bradley-Terry win prob -->
+                <tr th:if="${prediction.bradleyTerry != null}">
+                    <td>DeepFij Win Probability</td>
+                    <td th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.awayWinProbability * 100, 1, 0) + '%'}">DUKE 62% / UNC 38%</td>
+                    <td th:if="${odds != null and odds.spread != null}">—</td>
+                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">—</td>
+                </tr>
+                <!-- Bradley-Terry Weighted -->
+                <tr th:if="${prediction.bradleyTerryWeighted != null}">
+                    <td>DeepFij Win Probability (Weighted)</td>
+                    <td th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.awayWinProbability * 100, 1, 0) + '%'}">DUKE 64% / UNC 36%</td>
+                    <td th:if="${odds != null and odds.spread != null}">—</td>
+                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">—</td>
+                </tr>
+                <!-- ML -->
+                <tr th:if="${prediction.ml != null and prediction.ml.featuresComplete}">
+                    <td>DeepFij ML <span class="ml-badge" th:text="${prediction.ml.modelVersion}">v1</span></td>
+                    <td th:with="s=${prediction.ml.spread}, absS=${s >= 0 ? s : -s}"
+                        th:text="${(s >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absS, 1, 1)}">DUKE -3.8</td>
+                    <td th:if="${odds != null and odds.spread != null}"
+                        th:with="delta=${prediction.ml.spread - odds.spread.doubleValue()}"
+                        th:classappend="${#numbers.abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${(delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1)}">+1.2</td>
+                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
+                        th:with="err=${prediction.actualMargin - prediction.ml.spread}"
+                        th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+3.2</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Actual result for FINAL -->
+        <div th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
+             class="game-detail-actual">
+            Actual:
+            <strong th:text="${prediction.actualMargin >= 0 ? homeTeamName : awayTeamName}">Duke</strong>
+            won by
+            <strong th:text="${prediction.actualMargin >= 0 ? prediction.actualMargin : -prediction.actualMargin}">7</strong>
+            (total <strong th:text="${prediction.actualTotal}">149</strong>)
         </div>
     </section>
+</div><!-- end row 1 -->
+
+<!-- ── Row 2: Head-to-Head + Last Five Meetings ──────────────────────────── -->
+<div class="game-detail-row">
+
+    <!-- Head-to-Head Record -->
+    <section class="game-detail-col card">
+        <h2 class="game-detail-section__title">Head-to-Head</h2>
+        <p class="game-detail-h2h__summary">
+            <span th:if="${homeH2HWins == 0 and awayH2HWins == 0}">First meeting between these teams</span>
+            <span th:if="${homeH2HWins > awayH2HWins}"
+                  th:text="${homeTeamName + ' leads ' + homeH2HWins + '-' + awayH2HWins}">Duke leads 15-8</span>
+            <span th:if="${awayH2HWins > homeH2HWins}"
+                  th:text="${awayTeamName + ' leads ' + awayH2HWins + '-' + homeH2HWins}">UNC leads 8-5</span>
+            <span th:if="${homeH2HWins == awayH2HWins and homeH2HWins > 0}"
+                  th:text="'Series tied ' + homeH2HWins + '-' + awayH2HWins">Series tied 10-10</span>
+        </p>
+    </section>
+
+    <!-- Last Five Meetings -->
+    <section class="game-detail-col card" th:if="${not #lists.isEmpty(lastMeetings)}">
+        <h2 class="game-detail-section__title">Last 5 Meetings</h2>
+        <table class="game-detail-meetings-table">
+            <tbody>
+                <tr th:each="m, s : ${lastMeetings}"
+                    th:classappend="${s.odd} ? ' game-detail-meetings-table__row--alt'">
+                    <td class="game-detail-meetings-table__date"
+                        th:text="${#temporals.format(m.date, 'MMM d, yyyy')}">Jan 15, 2023</td>
+                    <td>
+                        <a th:href="@{'/games/' + ${m.gameId}}" class="game-detail-meetings-table__link">
+                            <strong th:text="${m.winnerAbbr}">DUKE</strong>
+                            <strong th:text="${m.winnerScore}">72</strong>
+                            –
+                            <span th:text="${m.loserScore}">68</span>
+                            <span th:text="${m.loserAbbr}">UNC</span>
+                        </a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+</div><!-- end row 2 -->
+
+<!-- ── Team Comparison Table ─────────────────────────────────────────────── -->
+<section class="game-detail-section card" th:if="${homeStats != null or awayStats != null}">
+    <h2 class="game-detail-section__title">Team Comparison</h2>
+    <div class="game-detail-comparison-wrap">
+        <table class="game-detail-comparison-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th th:text="${homeTeamName}">Duke</th>
+                    <th th:text="${awayTeamName}">UNC</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Records -->
+                <tr th:if="${homeStats != null and awayStats != null}">
+                    <td class="game-detail-comparison-table__label">Overall</td>
+                    <td th:text="${(homeStats.wins ?: 0) + '-' + (homeStats.losses ?: 0)}">10-8</td>
+                    <td th:text="${(awayStats.wins ?: 0) + '-' + (awayStats.losses ?: 0)}">14-3</td>
+                </tr>
+                <tr th:if="${homeStats != null and awayStats != null}">
+                    <td class="game-detail-comparison-table__label">Conference</td>
+                    <td th:text="${(homeStats.conferenceWins ?: 0) + '-' + (homeStats.conferenceLosses ?: 0)}">2-4</td>
+                    <td th:text="${(awayStats.conferenceWins ?: 0) + '-' + (awayStats.conferenceLosses ?: 0)}">5-1</td>
+                </tr>
+                <tr th:if="${homeStats != null and awayStats != null}">
+                    <td class="game-detail-comparison-table__label">Home</td>
+                    <td th:text="${(homeStats.homeWins ?: 0) + '-' + (homeStats.homeLosses ?: 0)}">7-2</td>
+                    <td th:text="${(awayStats.homeWins ?: 0) + '-' + (awayStats.homeLosses ?: 0)}">10-0</td>
+                </tr>
+                <tr th:if="${homeStats != null and awayStats != null}">
+                    <td class="game-detail-comparison-table__label">Away</td>
+                    <td th:text="${(homeStats.roadWins ?: 0) + '-' + (homeStats.roadLosses ?: 0)}">2-4</td>
+                    <td th:text="${(awayStats.roadWins ?: 0) + '-' + (awayStats.roadLosses ?: 0)}">2-2</td>
+                </tr>
+                <tr>
+                    <td class="game-detail-comparison-table__label">Neutral</td>
+                    <td th:text="${homeNeutralWins + '-' + homeNeutralLosses}">1-2</td>
+                    <td th:text="${awayNeutralWins + '-' + awayNeutralLosses}">2-1</td>
+                </tr>
+                <tr>
+                    <td class="game-detail-comparison-table__label">Last 5</td>
+                    <td th:text="${homeLast5Wins + '-' + homeLast5Losses}">2-3</td>
+                    <td th:text="${awayLast5Wins + '-' + awayLast5Losses}">4-1</td>
+                </tr>
+                <tr th:if="${homeStats != null and awayStats != null}">
+                    <td class="game-detail-comparison-table__label">Streak</td>
+                    <td th:with="s=${homeStats.calcStreak}"
+                        th:if="${s != null}"
+                        th:classappend="${s >= 0} ? ' game-detail-comparison-table__streak--win' : ' game-detail-comparison-table__streak--loss'"
+                        th:text="${s >= 0 ? 'W' + s : 'L' + (-s)}">W3</td>
+                    <td th:if="${homeStats == null or homeStats.calcStreak == null}">—</td>
+                    <td th:with="s=${awayStats.calcStreak}"
+                        th:if="${s != null}"
+                        th:classappend="${s >= 0} ? ' game-detail-comparison-table__streak--win' : ' game-detail-comparison-table__streak--loss'"
+                        th:text="${s >= 0 ? 'W' + s : 'L' + (-s)}">L2</td>
+                    <td th:if="${awayStats == null or awayStats.calcStreak == null}">—</td>
+                </tr>
+                <!-- Scoring -->
+                <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
+                    <td class="game-detail-comparison-table__label">Avg Pts For</td>
+                    <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
+                        th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">68.2</td>
+                    <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
+                        th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">71.2</td>
+                </tr>
+                <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
+                    <td class="game-detail-comparison-table__label">Avg Pts Against</td>
+                    <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
+                        th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">62.1</td>
+                    <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
+                        th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">58.5</td>
+                </tr>
+                <!-- Ratings -->
+                <tr>
+                    <td class="game-detail-comparison-table__label">Massey</td>
+                    <td th:if="${homeMassey != null}"
+                        th:text="${#numbers.formatDecimal(homeMassey.rating, 1, 1) + ' (#' + homeMassey.rank + ')'}">68.2 (#232)</td>
+                    <td th:unless="${homeMassey != null}">—</td>
+                    <td th:if="${awayMassey != null}"
+                        th:text="${#numbers.formatDecimal(awayMassey.rating, 1, 1) + ' (#' + awayMassey.rank + ')'}">71.2 (#150)</td>
+                    <td th:unless="${awayMassey != null}">—</td>
+                </tr>
+                <tr>
+                    <td class="game-detail-comparison-table__label">Bradley-Terry</td>
+                    <td th:if="${homeBT != null}"
+                        th:text="${#numbers.formatDecimal(homeBT.rating, 1, 2) + ' (#' + homeBT.rank + ')'}">-0.18 (#210)</td>
+                    <td th:unless="${homeBT != null}">—</td>
+                    <td th:if="${awayBT != null}"
+                        th:text="${#numbers.formatDecimal(awayBT.rating, 1, 2) + ' (#' + awayBT.rank + ')'}">1.39 (#14)</td>
+                    <td th:unless="${awayBT != null}">—</td>
+                </tr>
+                <tr>
+                    <td class="game-detail-comparison-table__label">W. Bradley-Terry</td>
+                    <td th:if="${homeBTW != null}"
+                        th:text="${#numbers.formatDecimal(homeBTW.rating, 1, 2) + ' (#' + homeBTW.rank + ')'}">-0.20 (#215)</td>
+                    <td th:unless="${homeBTW != null}">—</td>
+                    <td th:if="${awayBTW != null}"
+                        th:text="${#numbers.formatDecimal(awayBTW.rating, 1, 2) + ' (#' + awayBTW.rank + ')'}">1.41 (#12)</td>
+                    <td th:unless="${awayBTW != null}">—</td>
+                </tr>
+                <tr>
+                    <td class="game-detail-comparison-table__label">RPI</td>
+                    <td th:if="${homeSnap != null and homeSnap.rpi != null}"
+                        th:text="${#numbers.formatDecimal(homeSnap.rpi, 1, 3) + (homeRpiRank != null ? ' (#' + homeRpiRank + ')' : '')}">0.568 (#67)</td>
+                    <td th:unless="${homeSnap != null and homeSnap.rpi != null}">—</td>
+                    <td th:if="${awaySnap != null and awaySnap.rpi != null}"
+                        th:text="${#numbers.formatDecimal(awaySnap.rpi, 1, 3) + (awayRpiRank != null ? ' (#' + awayRpiRank + ')' : '')}">0.613 (#15)</td>
+                    <td th:unless="${awaySnap != null and awaySnap.rpi != null}">—</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ── Game Analysis Chart ─────────────────────────────────────────────── -->
+<section class="game-detail-section card">
+    <h2 class="game-detail-section__title">Game Analysis</h2>
+    <div class="game-detail-chart-wrap">
+        <div id="game-chart-loading" class="game-detail-chart-loading">Loading game analysis…</div>
+        <div id="game-chart-container" class="game-detail-chart-container"></div>
+        <div id="game-chart-legend" class="game-detail-chart-legend"></div>
+    </div>
+</section>
+
+<!-- Inline chart data -->
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    var GAME_CHART_DATA = /*[[${chartDataJson}]]*/ null;
+    /*]]>*/
+</script>
 
 </main>
+
+<!-- Load D3 + chart script only on this page -->
+<th:block layout:fragment="scripts">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script th:src="@{/js/game-chart.js}"></script>
+</th:block>
 </body>
 </html>
