@@ -2195,4 +2195,188 @@ tbody tr:hover {
     flex-shrink: 0;
 }
 .scatter-modal-close:hover { color: var(--color-text); }
+
+/* ── Game Detail Page Layout ──────────────────────────────────────────── */
+
+/* Two-column rows (Betting+Predictions, H2H+Meetings) */
+.game-detail-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 1023px) {
+    .game-detail-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.game-detail-col {
+    /* card styling already applied via .card class */
+}
+
+/* Game detail section (full-width) */
+.game-detail-section {
+    margin-bottom: 1rem;
+}
+
+/* Meta line */
+.game-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 0.75rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+.game-detail-meta__sep { color: var(--color-border); }
+.game-detail-meta__conf { font-weight: 600; }
+
+/* H2H summary */
+.game-detail-h2h__summary {
+    font-size: 1.1rem;
+    text-align: center;
+    padding: 1rem 0;
+    color: var(--color-text);
+}
+
+/* Odds table */
+.game-detail-odds-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.game-detail-odds-table tr + tr td {
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.5rem;
+}
+.game-detail-odds-table td {
+    padding: 0.4rem 0.25rem;
+}
+.game-detail-odds-table__label {
+    color: var(--color-text-muted);
+    width: 80px;
+    font-size: 0.85rem;
+}
+
+/* Last meetings table */
+.game-detail-meetings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.game-detail-meetings-table td {
+    padding: 0.45rem 0.5rem;
+}
+.game-detail-meetings-table__row--alt td {
+    background: var(--color-bg-surface);
+}
+.game-detail-meetings-table__date {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    width: 110px;
+}
+.game-detail-meetings-table__link {
+    color: var(--color-text);
+    display: block;
+}
+.game-detail-meetings-table__link:hover {
+    color: var(--color-primary-hover);
+}
+
+/* Model table delta highlight */
+.game-detail-model-table__delta--alert {
+    color: #d97706;
+    font-weight: 600;
+}
+
+/* ── Team Comparison Table ──────────────────────────────────────────────── */
+.game-detail-comparison-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.game-detail-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.game-detail-comparison-table th {
+    text-align: center;
+    padding: 0.5rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    border-bottom: 2px solid var(--color-border);
+}
+.game-detail-comparison-table th:first-child { text-align: left; }
+.game-detail-comparison-table td {
+    padding: 0.4rem 0.5rem;
+    text-align: center;
+    border-bottom: 1px solid var(--color-border);
+}
+.game-detail-comparison-table__label {
+    text-align: left !important;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    padding-left: 0.75rem !important;
+}
+.game-detail-comparison-table__streak--win { color: var(--color-success); font-weight: 600; }
+.game-detail-comparison-table__streak--loss { color: var(--color-danger); font-weight: 600; }
+
+/* ── Game Analysis Chart ────────────────────────────────────────────────── */
+.game-detail-chart-wrap {
+    position: relative;
+}
+.game-detail-chart-loading {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: 3rem;
+}
+.game-detail-chart-container {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+}
+.game-detail-chart-container svg {
+    width: 100%;
+    height: auto;
+}
+.game-detail-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    justify-content: center;
+    padding: 1rem 0;
+    font-size: 0.85rem;
+}
+.game-detail-chart-legend__item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    user-select: none;
+    color: var(--color-text);
+    transition: opacity 0.2s;
+}
+.game-detail-chart-legend__item--hidden {
+    opacity: 0.4;
+}
+.game-detail-chart-legend__swatch {
+    width: 16px;
+    height: 3px;
+    border-radius: 2px;
+}
+.game-detail-chart-legend__swatch--rect {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 2px solid currentColor;
+    background: transparent;
+}
+
+@media (max-width: 767px) {
+    .game-detail-comparison-wrap {
+        overflow-x: scroll;
+    }
+}
 .scatter-modal-body svg { display: block; }
