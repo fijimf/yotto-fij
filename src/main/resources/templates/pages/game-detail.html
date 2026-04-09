@@ -77,9 +77,9 @@
 <div class="game-detail-row">
 
     <!-- Betting Information -->
-    <section class="game-detail-col card"
+    <details class="game-detail-col card game-detail-accordion" open
              th:if="${odds != null and (odds.spread != null or odds.overUnder != null or odds.homeMoneyline != null)}">
-        <h2 class="game-detail-section__title">Betting Lines</h2>
+        <summary class="game-detail-section__title game-detail-accordion__summary">Betting Lines</summary>
         <table class="game-detail-odds-table">
             <tbody>
                 <!-- Spread -->
@@ -126,12 +126,12 @@
                 </tr>
             </tbody>
         </table>
-    </section>
+    </details>
 
     <!-- Predictions -->
-    <section class="game-detail-col card"
+    <details class="game-detail-col card game-detail-accordion" open
              th:if="${prediction != null and (prediction.massey != null or prediction.bradleyTerry != null or prediction.ml != null)}">
-        <h2 class="game-detail-section__title">Predictions</h2>
+        <summary class="game-detail-section__title game-detail-accordion__summary">Predictions</summary>
 
         <!-- Win probability bar -->
         <div th:with="pHome=${prediction.ml != null and prediction.ml.featuresComplete ? prediction.ml.homeWinProbability :
@@ -159,7 +159,7 @@
                 <tr>
                     <th>Model</th>
                     <th>Prediction</th>
-                    <th th:if="${odds != null and odds.spread != null}">vs Line</th>
+                    <th th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}">vs Line</th>
                     <th th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">Error</th>
                 </tr>
             </thead>
@@ -169,11 +169,11 @@
                     <td>DeepFij Spread</td>
                     <td th:with="s=${prediction.massey.spread}, absS=${s >= 0 ? s : -s}"
                         th:text="${(s >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absS, 1, 1)}">DUKE -3.2</td>
-                    <td th:if="${odds != null and odds.spread != null}"
-                        th:with="delta=${prediction.massey.spread - odds.spread.doubleValue()}"
-                        th:classappend="${#numbers.abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${(delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1)}">+2.0</td>
-                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
+                        th:with="delta=${odds.spread != null ? prediction.massey.spread - odds.spread.doubleValue() : null}"
+                        th:classappend="${delta != null and T(java.lang.Math).abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${delta != null ? (delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1) : '—'}">+2.0</td>
+                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
                     <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
                         th:with="err=${prediction.actualMargin - prediction.massey.spread}"
                         th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+10.2</td>
@@ -182,11 +182,11 @@
                 <tr th:if="${prediction.masseyTotal != null}">
                     <td>DeepFij Total</td>
                     <td th:text="${#numbers.formatDecimal(prediction.masseyTotal.total, 3, 1)}">148.4</td>
-                    <td th:if="${odds != null and odds.overUnder != null}"
-                        th:with="delta=${prediction.masseyTotal.total - odds.overUnder.doubleValue()}"
-                        th:classappend="${#numbers.abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${(delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1)}">-1.5</td>
-                    <td th:unless="${odds != null and odds.overUnder != null}"></td>
+                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
+                        th:with="delta=${odds.overUnder != null ? prediction.masseyTotal.total - odds.overUnder.doubleValue() : null}"
+                        th:classappend="${delta != null and T(java.lang.Math).abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${delta != null ? (delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1) : '—'}">-1.5</td>
+                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
                     <td th:if="${status.name() == 'FINAL' and prediction.actualTotal != null}"
                         th:with="err=${prediction.actualTotal - prediction.masseyTotal.total}"
                         th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+2.6</td>
@@ -194,29 +194,50 @@
                 <!-- Bradley-Terry win prob -->
                 <tr th:if="${prediction.bradleyTerry != null}">
                     <td>DeepFij Win Probability</td>
-                    <td th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.awayWinProbability * 100, 1, 0) + '%'}">DUKE 62% / UNC 38%</td>
-                    <td th:if="${odds != null and odds.spread != null}">—</td>
-                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td>
+                        <span th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.awayWinProbability * 100, 1, 0) + '%'}">DUKE 62% / UNC 38%</span>
+                        <br/>
+                        <span class="game-detail-implied-ml"
+                              th:text="${(prediction.bradleyTerry.homeImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerry.homeImpliedMoneyline + ' / ' + (prediction.bradleyTerry.awayImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerry.awayImpliedMoneyline}">-272 / +272</span>
+                    </td>
+                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
+                        th:with="diff=${odds.homeMoneyline != null ? prediction.bradleyTerry.homeImpliedMoneyline - odds.homeMoneyline : null}"
+                        th:classappend="${diff != null and T(java.lang.Math).abs(diff) > 15} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${diff != null ? (diff > 0 ? '+' + diff : diff) : '—'}">—</td>
+                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
                     <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">—</td>
                 </tr>
                 <!-- Bradley-Terry Weighted -->
                 <tr th:if="${prediction.bradleyTerryWeighted != null}">
                     <td>DeepFij Win Probability (Weighted)</td>
-                    <td th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.awayWinProbability * 100, 1, 0) + '%'}">DUKE 64% / UNC 36%</td>
-                    <td th:if="${odds != null and odds.spread != null}">—</td>
-                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td>
+                        <span th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.awayWinProbability * 100, 1, 0) + '%'}">DUKE 64% / UNC 36%</span>
+                        <br/>
+                        <span class="game-detail-implied-ml"
+                              th:text="${(prediction.bradleyTerryWeighted.homeImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerryWeighted.homeImpliedMoneyline + ' / ' + (prediction.bradleyTerryWeighted.awayImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerryWeighted.awayImpliedMoneyline}">-272 / +272</span>
+                    </td>
+                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
+                        th:with="diff=${odds.homeMoneyline != null ? prediction.bradleyTerryWeighted.homeImpliedMoneyline - odds.homeMoneyline : null}"
+                        th:classappend="${diff != null and T(java.lang.Math).abs(diff) > 15} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${diff != null ? (diff > 0 ? '+' + diff : diff) : '—'}">—</td>
+                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
                     <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">—</td>
                 </tr>
                 <!-- ML -->
                 <tr th:if="${prediction.ml != null and prediction.ml.featuresComplete}">
                     <td>DeepFij ML <span class="ml-badge" th:text="${prediction.ml.modelVersion}">v1</span></td>
-                    <td th:with="s=${prediction.ml.spread}, absS=${s >= 0 ? s : -s}"
-                        th:text="${(s >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absS, 1, 1)}">DUKE -3.8</td>
-                    <td th:if="${odds != null and odds.spread != null}"
-                        th:with="delta=${prediction.ml.spread - odds.spread.doubleValue()}"
-                        th:classappend="${#numbers.abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${(delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1)}">+1.2</td>
-                    <td th:unless="${odds != null and odds.spread != null}"></td>
+                    <td>
+                        <span th:with="s=${prediction.ml.spread}, absS=${s >= 0 ? s : -s}"
+                              th:text="${(s >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absS, 1, 1)}">DUKE -3.8</span>
+                        <br/>
+                        <span class="game-detail-implied-ml"
+                              th:text="${(prediction.ml.homeImpliedMoneyline > 0 ? '+' : '') + prediction.ml.homeImpliedMoneyline + ' / ' + (prediction.ml.awayImpliedMoneyline > 0 ? '+' : '') + prediction.ml.awayImpliedMoneyline}">-220 / +185</span>
+                    </td>
+                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
+                        th:with="delta=${odds.spread != null ? prediction.ml.spread - odds.spread.doubleValue() : null}"
+                        th:classappend="${delta != null and T(java.lang.Math).abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
+                        th:text="${delta != null ? (delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1) : '—'}">+1.2</td>
+                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
                     <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
                         th:with="err=${prediction.actualMargin - prediction.ml.spread}"
                         th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+3.2</td>
@@ -233,7 +254,7 @@
             <strong th:text="${prediction.actualMargin >= 0 ? prediction.actualMargin : -prediction.actualMargin}">7</strong>
             (total <strong th:text="${prediction.actualTotal}">149</strong>)
         </div>
-    </section>
+    </details>
 </div><!-- end row 1 -->
 
 <!-- ── Row 2: Head-to-Head + Last Five Meetings ──────────────────────────── -->
@@ -393,9 +414,19 @@
 
 <!-- ── Game Analysis Chart ─────────────────────────────────────────────── -->
 <section class="game-detail-section card">
-    <h2 class="game-detail-section__title">Game Analysis</h2>
+    <div class="game-detail-chart-header">
+        <h2 class="game-detail-section__title" style="margin:0">Game Analysis</h2>
+        <button id="game-chart-color-toggle" class="game-detail-chart-color-toggle"
+                title="Swap to standard blue/red colors for teams with similar palettes">
+            Swap Colors
+        </button>
+    </div>
     <div class="game-detail-chart-wrap">
         <div id="game-chart-loading" class="game-detail-chart-loading">Loading game analysis…</div>
+        <div id="game-chart-error" class="game-detail-chart-error">
+            <p>Failed to load game analysis.</p>
+            <button class="game-detail-chart-retry" id="game-chart-retry">Retry</button>
+        </div>
         <div id="game-chart-container" class="game-detail-chart-container"></div>
         <div id="game-chart-legend" class="game-detail-chart-legend"></div>
     </div>
@@ -404,7 +435,7 @@
 <!-- Inline chart data -->
 <script th:inline="javascript">
     /*<![CDATA[*/
-    var GAME_CHART_DATA = /*[[${chartDataJson}]]*/ null;
+    var GAME_CHART_DATA = JSON.parse(/*[[${chartDataJson}]]*/ "null");
     /*]]>*/
 </script>
 

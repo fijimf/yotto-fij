@@ -9,9 +9,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -136,6 +138,111 @@ class GameDetailPageTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("homeH2HWins", 0L))
                 .andExpect(model().attribute("awayH2HWins", 0L));
+    }
+
+    // ── Task 1: BT implied moneylines rendered ───────────────────────────────
+
+    /**
+     * With BT ratings 1.5 (home) / 0.5 (away), no HCA param:
+     *   pHome ≈ sigmoid(1.0) ≈ 0.7311  →  homeImpliedML = -272
+     *   pAway ≈ 0.2689                  →  awayImpliedML = +272
+     * The predictions table must render these as a "game-detail-implied-ml" span.
+     */
+    @Test
+    void btPrediction_rendersImpliedMoneylines_inPredictionsTable() throws Exception {
+        addBtSnapshots(1.5, 0.5);
+
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("game-detail-implied-ml")))
+                .andExpect(content().string(containsString("-272")))
+                .andExpect(content().string(containsString("+272")));
+    }
+
+    // ── Task 2: BT vs book moneyline comparison ──────────────────────────────
+
+    /**
+     * homeImpliedML = -272, bookHomeML = -200 → diff = -72 (|72| > 15 → amber class).
+     */
+    @Test
+    void btPrediction_vsBookColumn_showsMoneylineDiffWithAmberWhenLarge() throws Exception {
+        addBtSnapshots(1.5, 0.5);
+        addOddsWithMoneylines(-200, 165); // book: home -200, away +165
+
+        // diff = -272 - (-200) = -72
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("-72")))
+                .andExpect(content().string(containsString("game-detail-model-table__delta--alert")));
+    }
+
+    /**
+     * When no book moneyline is recorded the vs-Line cell for BT rows must show "—".
+     */
+    @Test
+    void btPrediction_vsBookColumn_showsDashWhenNoBookMoneyline() throws Exception {
+        addBtSnapshots(1.5, 0.5);
+        // No BettingOdds added
+
+        String html = mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // BT section should contain "—" (em-dash used in the table)
+        // and must NOT contain "-72" or any diff value
+        org.assertj.core.api.Assertions.assertThat(html).contains("DeepFij Win Probability");
+        org.assertj.core.api.Assertions.assertThat(html).doesNotContain("-72");
+    }
+
+    // ── Task 3: Mobile accordion markup present ──────────────────────────────
+
+    /**
+     * The betting and predictions sections must be wrapped in <details> elements
+     * so browsers render them as native accordions on mobile.
+     */
+    @Test
+    void bettingAndPredictions_haveAccordionMarkup() throws Exception {
+        addBtSnapshots(1.5, 0.5);
+        addOddsWithMoneylines(-150, 130);
+
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<details")))
+                .andExpect(content().string(containsString("<summary")));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void addBtSnapshots(double homeRating, double awayRating) {
+        Team home = teamRepo.findAll().stream()
+                .filter(t -> "DUKE".equals(t.getAbbreviation())).findFirst().orElseThrow();
+        Team away = teamRepo.findAll().stream()
+                .filter(t -> "UNC".equals(t.getAbbreviation())).findFirst().orElseThrow();
+        Season season = seasonRepo.findAll().get(0);
+
+        ratingRepo.save(mkBtSnapshot(home, season, homeRating));
+        ratingRepo.save(mkBtSnapshot(away, season, awayRating));
+    }
+
+    private TeamPowerRatingSnapshot mkBtSnapshot(Team team, Season season, double rating) {
+        TeamPowerRatingSnapshot s = new TeamPowerRatingSnapshot();
+        s.setTeam(team);
+        s.setSeason(season);
+        s.setModelType("BRADLEY_TERRY");
+        s.setRating(rating);
+        s.setGamesPlayed(10);
+        s.setSnapshotDate(LocalDate.of(2025, 2, 14)); // day before game
+        s.setCalculatedAt(LocalDateTime.of(2025, 2, 14, 6, 0));
+        return s;
+    }
+
+    private void addOddsWithMoneylines(int homeML, int awayML) {
+        Game game = gameRepo.findById(gameId).orElseThrow();
+        BettingOdds odds = new BettingOdds();
+        odds.setGame(game);
+        odds.setHomeMoneyline(homeML);
+        odds.setAwayMoneyline(awayML);
+        oddsRepo.save(odds);
     }
 
     private Team mkTeam(String name, String abbr) {

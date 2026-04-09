@@ -2380,3 +2380,117 @@ tbody tr:hover {
     }
 }
 .scatter-modal-body svg { display: block; }
+
+/* ── Implied moneyline label in predictions table ───────────────────────── */
+.game-detail-implied-ml {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Accordion: Betting / Predictions cards ─────────────────────────────── */
+/* Desktop (≥768px): force all content visible, hide the <summary> toggle   */
+@media (min-width: 768px) {
+    details.game-detail-accordion > summary {
+        list-style: none;
+        pointer-events: none;
+        cursor: default;
+    }
+    details.game-detail-accordion > summary::-webkit-details-marker { display: none; }
+    /* Override UA stylesheet that hides non-summary children when not [open] */
+    details.game-detail-accordion > :not(summary) {
+        display: block !important;
+    }
+}
+
+/* Mobile (<768px): native accordion with visual affordance */
+@media (max-width: 767px) {
+    details.game-detail-accordion {
+        cursor: pointer;
+    }
+    details.game-detail-accordion > summary {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+    details.game-detail-accordion > summary::-webkit-details-marker { display: none; }
+    details.game-detail-accordion > summary::after {
+        content: '▾';
+        font-size: 0.9rem;
+        color: var(--color-text-muted);
+        transition: transform 0.2s;
+    }
+    details.game-detail-accordion[open] > summary::after {
+        transform: rotate(180deg);
+    }
+    details.game-detail-accordion > :not(summary) {
+        margin-top: 0.75rem;
+    }
+}
+
+/* ── Chart: mobile 4:3 aspect ratio ─────────────────────────────────────── */
+@media (max-width: 600px) {
+    .game-detail-chart-container {
+        aspect-ratio: 4 / 3;
+        overflow: hidden;
+    }
+}
+
+/* ── Chart: color override toggle button ────────────────────────────────── */
+.game-detail-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.game-detail-chart-color-toggle {
+    font-size: 0.78rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+.game-detail-chart-color-toggle:hover {
+    border-color: var(--color-primary);
+    color: var(--color-text);
+}
+.game-detail-chart-color-toggle.active {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb, 100, 130, 255), 0.08);
+}
+
+/* ── Chart: error state ─────────────────────────────────────────────────── */
+.game-detail-chart-error {
+    text-align: center;
+    color: var(--color-danger, #e74c3c);
+    padding: 2rem;
+    display: none;
+}
+.game-detail-chart-error p { margin-bottom: 0.75rem; }
+.game-detail-chart-retry {
+    font-size: 0.85rem;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--color-danger, #e74c3c);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-danger, #e74c3c);
+    cursor: pointer;
+}
+.game-detail-chart-retry:hover { opacity: 0.8; }
+
+/* ── Chart: legend warning icon ─────────────────────────────────────────── */
+.game-detail-chart-legend__warning {
+    font-size: 0.75rem;
+    color: #f59e0b;
+    margin-left: 2px;
+    cursor: help;
+}
