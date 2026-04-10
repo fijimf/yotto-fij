@@ -119,17 +119,21 @@ public String searchTeams(@RequestParam String name, Model model) {
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `--color-bg` | `#1a1a2e` | Page background |
-| `--color-bg-surface` | `#16213e` | Cards, panels, elevated surfaces |
-| `--color-bg-surface-hover` | `#1f3056` | Hovered cards/rows |
-| `--color-primary` | `#e94560` | Primary accent — headings, buttons, links, active states |
-| `--color-primary-hover` | `#d63851` | Hovered primary elements |
-| `--color-text` | `#e0e0e0` | Body text |
-| `--color-text-muted` | `#a0a0b0` | Secondary text, labels, captions |
-| `--color-text-inverse` | `#1a1a2e` | Text on primary-colored backgrounds |
-| `--color-border` | `#2a2a4a` | Subtle borders and dividers |
-| `--color-success` | `#2ecc71` | Win indicators, positive stats |
-| `--color-danger` | `#e74c3c` | Loss indicators, errors |
+| `--color-bg` | `#f4f6f8` | Page background |
+| `--color-bg-surface` | `#ffffff` | Cards, panels, elevated surfaces |
+| `--color-bg-surface-hover` | `#eef3f8` | Hovered cards/rows |
+| `--color-primary` | `#3b82f6` | Primary accent — headings, buttons, links, active states |
+| `--color-primary-hover` | `#2563eb` | Hovered primary elements |
+| `--color-text` | `#1e293b` | Body text |
+| `--color-text-muted` | `#64748b` | Secondary text, labels, captions |
+| `--color-text-inverse` | `#ffffff` | Text on primary-colored backgrounds |
+| `--color-border` | `#dce3ea` | Subtle borders and dividers |
+| `--color-success` | `#16a34a` | Win indicators, positive stats |
+| `--color-danger` | `#dc2626` | Loss indicators, errors |
+| `--color-nav-bg` | `#1e3a5f` | Navigation bar background |
+| `--color-nav-text` | `#93b4d8` | Navigation link text |
+| `--color-nav-text-active` | `#ffffff` | Active/hover navigation link text |
+| `--color-nav-border` | `#2d5188` | Navigation bar border |
 
 ### Typography
 
@@ -144,21 +148,27 @@ Define all tokens as CSS custom properties on `:root` in `main.css`:
 
 ```css
 :root {
-    --color-bg: #1a1a2e;
-    --color-bg-surface: #16213e;
-    --color-bg-surface-hover: #1f3056;
-    --color-primary: #e94560;
-    --color-primary-hover: #d63851;
-    --color-text: #e0e0e0;
-    --color-text-muted: #a0a0b0;
-    --color-text-inverse: #1a1a2e;
-    --color-border: #2a2a4a;
-    --color-success: #2ecc71;
-    --color-danger: #e74c3c;
+    --color-bg: #f4f6f8;
+    --color-bg-surface: #ffffff;
+    --color-bg-surface-hover: #eef3f8;
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-primary-rgb: 59, 130, 246;
+    --color-text: #1e293b;
+    --color-text-muted: #64748b;
+    --color-text-inverse: #ffffff;
+    --color-border: #dce3ea;
+    --color-success: #16a34a;
+    --color-danger: #dc2626;
+
+    --color-nav-bg: #1e3a5f;
+    --color-nav-text: #93b4d8;
+    --color-nav-text-active: #ffffff;
+    --color-nav-border: #2d5188;
 
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --radius: 8px;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 ```
 
@@ -170,7 +180,7 @@ Always reference tokens (`var(--color-primary)`) rather than raw hex values in c
 
 ### General Rules
 
-1. **Dark theme only** — the entire UI uses a dark color scheme. Do not add a light mode toggle.
+1. **Light theme (public), dark theme (admin)** — public pages use a light color scheme; `/admin` routes use `[data-theme="dark"]` and retain the dark palette. Do not add a user-facing mode toggle.
 2. **Server-rendered first** — pages load fully rendered. HTMX enhances with partial updates.
 3. **No JS frameworks** — no React, Vue, Angular, etc. HTMX + vanilla JS covers all needs.
 4. **No CSS frameworks** — no Tailwind, Bootstrap, etc. Write semantic CSS using the design tokens above.
