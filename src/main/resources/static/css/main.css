@@ -1939,18 +1939,18 @@ tbody tr:hover {
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--color-bg, #0f0f1a);
+    background: var(--color-bg, #f4f6f8);
 }
 .comp-rankings-table th:nth-child(2),
 .comp-rankings-table td:nth-child(2) {
     position: sticky;
     left: 32px;
     z-index: 2;
-    background: var(--color-bg, #0f0f1a);
+    background: var(--color-bg, #f4f6f8);
 }
 .comp-rankings-table tbody tr:hover td:nth-child(1),
 .comp-rankings-table tbody tr:hover td:nth-child(2) {
-    background: var(--color-surface-hover, #16162a);
+    background: var(--color-bg-surface-hover, #eef3f8);
 }
 
 /* ── Group label row ── */
@@ -1964,25 +1964,25 @@ tbody tr:hover {
     border-bottom: 2px solid;
 }
 .comp-rankings__g-identity {
-    background: #131324;
-    border-color: #1a1a2e;
-    color: #5050a0;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #3730a3;
     text-align: left;
 }
 .comp-rankings__g-record {
-    background: #161630;
-    border-color: #2a2a6a;
-    color: #7070b8;
+    background: #f0f9ff;
+    border-color: #bae6fd;
+    color: #0369a1;
 }
 .comp-rankings__g-scoring {
-    background: #152a1a;
-    border-color: #1a5a2a;
-    color: #507050;
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #15803d;
 }
 .comp-rankings__g-ratings {
-    background: #2a1a30;
-    border-color: #5a2a6a;
-    color: #8050a0;
+    background: #faf5ff;
+    border-color: #e9d5ff;
+    color: #7c3aed;
 }
 
 /* ── Sortable column row ── */
@@ -1993,21 +1993,21 @@ tbody tr:hover {
     text-transform: uppercase;
     letter-spacing: 0.03em;
     text-align: right;
-    border-bottom: 1px solid #2a2a44;
+    border-bottom: 1px solid #e2e8f0;
     cursor: pointer;
     user-select: none;
-    color: #8080b0;
+    color: #64748b;
 }
-.comp-rankings-col-row th:hover { color: #c0c0f0; }
-.comp-rankings__col--sort-active { color: #a0a0f0 !important; }
+.comp-rankings-col-row th:hover { color: #334155; }
+.comp-rankings__col--sort-active { color: #3b82f6 !important; }
 .comp-rankings__g-identity-col { text-align: left; }
-.comp-rankings__g-record-col   { background: rgba(22,22,48,0.5); }
-.comp-rankings__g-scoring-col  { background: rgba(21,42,26,0.5); }
-.comp-rankings__g-ratings-col  { background: rgba(42,26,48,0.5); }
+.comp-rankings__g-record-col   { background: rgba(186, 230, 253, 0.3); }
+.comp-rankings__g-scoring-col  { background: rgba(187, 247, 208, 0.3); }
+.comp-rankings__g-ratings-col  { background: rgba(233, 213, 255, 0.3); }
 
 /* ── Rank column ── */
-.comp-rankings__col--rank { width: 32px; color: #5060a0; }
-.comp-rankings__cell--rank { color: #5060a0; text-align: right; }
+.comp-rankings__col--rank { width: 32px; color: #94a3b8; }
+.comp-rankings__cell--rank { color: #94a3b8; text-align: right; }
 
 /* ── Team column ── */
 .comp-rankings__col--team { min-width: 140px; }
@@ -2015,24 +2015,24 @@ tbody tr:hover {
 
 /* ── Conf column ── */
 .comp-rankings__col--conf { width: 60px; }
-.comp-rankings__cell--conf { text-align: left; color: #8080b0; }
+.comp-rankings__cell--conf { text-align: left; color: #64748b; }
 
 /* ── Body rows ── */
 .comp-rankings-table tbody tr {
-    border-bottom: 1px solid #18182e;
+    border-bottom: 1px solid #f1f5f9;
 }
-.comp-rankings-table tbody tr:hover { background: var(--color-surface-hover, #16162a); }
+.comp-rankings-table tbody tr:hover { background: var(--color-bg-surface-hover, #eef3f8); }
 .comp-rankings-table tbody td {
     padding: 5px 7px;
     text-align: right;
-    color: #c8c8dc;
+    color: #334155;
     font-variant-numeric: tabular-nums;
 }
 
 /* ── Group cell tints ── */
-.comp-rankings__g-record-td   { background: rgba(22,22,48,0.25); }
-.comp-rankings__g-scoring-td  { background: rgba(21,42,26,0.25); }
-.comp-rankings__g-ratings-td  { background: rgba(42,26,48,0.25); }
+.comp-rankings__g-record-td   { background: rgba(186, 230, 253, 0.2); }
+.comp-rankings__g-scoring-td  { background: rgba(187, 247, 208, 0.2); }
+.comp-rankings__g-ratings-td  { background: rgba(233, 213, 255, 0.2); }
 
 /* ── Mobile scroll hint ── */
 .comp-rankings-scroll-hint {
