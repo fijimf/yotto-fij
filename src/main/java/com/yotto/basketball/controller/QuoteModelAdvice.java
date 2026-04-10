@@ -2,6 +2,7 @@ package com.yotto.basketball.controller;
 
 import com.yotto.basketball.entity.Quote;
 import com.yotto.basketball.service.QuoteService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -18,5 +19,10 @@ public class QuoteModelAdvice {
     @ModelAttribute("randomQuote")
     public Quote randomQuote() {
         return quoteService.getRandomQuote().orElse(null);
+    }
+
+    @ModelAttribute("isAdminPage")
+    public boolean isAdminPage(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/admin");
     }
 }

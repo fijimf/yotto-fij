@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"
-      th:attr="data-theme=${#request.requestURI.startsWith('/admin') ? 'dark' : null}"
+      th:attr="data-theme=${isAdminPage ? 'dark' : null}"
       xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
 <head>
