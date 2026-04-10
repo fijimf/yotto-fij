@@ -22,6 +22,29 @@
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+/* ── Admin dark theme override ── */
+[data-theme="dark"] {
+    --color-bg: #1a1a2e;
+    --color-bg-surface: #16213e;
+    --color-bg-surface-hover: #1f3056;
+    --color-primary: #9393a3;
+    --color-primary-hover: #b3b3d3;
+    --color-primary-rgb: 147, 147, 163;
+    --color-text: #e0e0e0;
+    --color-text-muted: #a0a0b0;
+    --color-text-inverse: #1a1a2e;
+    --color-border: #2a2a4a;
+    --color-success: #2ecc71;
+    --color-danger: #e74c3c;
+
+    --color-nav-bg: #16213e;
+    --color-nav-text: #a0a0b0;
+    --color-nav-text-active: #9393a3;
+    --color-nav-border: #2a2a4a;
+
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 /* ── Reset ── */
 *, *::before, *::after {
     margin: 0;
