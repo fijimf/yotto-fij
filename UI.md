@@ -122,8 +122,8 @@ public String searchTeams(@RequestParam String name, Model model) {
 | `--color-bg` | `#f4f6f8` | Page background |
 | `--color-bg-surface` | `#ffffff` | Cards, panels, elevated surfaces |
 | `--color-bg-surface-hover` | `#eef3f8` | Hovered cards/rows |
-| `--color-primary` | `#3b82f6` | Primary accent — headings, buttons, links, active states |
-| `--color-primary-hover` | `#2563eb` | Hovered primary elements |
+| `--color-primary` | `#b45309` | Primary accent — headings, buttons, links, active states |
+| `--color-primary-hover` | `#92400e` | Hovered primary elements |
 | `--color-text` | `#1e293b` | Body text |
 | `--color-text-muted` | `#64748b` | Secondary text, labels, captions |
 | `--color-text-inverse` | `#ffffff` | Text on primary-colored backgrounds |
@@ -137,10 +137,11 @@ public String searchTeams(@RequestParam String name, Model model) {
 
 ### Typography
 
-- **Font stack:** `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-- **Headings:** Bold, use `--color-primary` for page titles
-- **Body:** 1rem base, `--color-text`
+- **Body font:** `Inter` (Google Fonts) — `var(--font-family)`. Excellent tabular figures for data tables.
+- **Display font:** `Barlow Condensed` (Google Fonts, weights 600–800) — `var(--font-display)`. Used for all headings, page titles, team names, score numbers, section headers, and the nav brand.
+- **Body:** 1rem base, `--color-text`, `line-height: 1.5`
 - **Small/captions:** 0.85rem, `--color-text-muted`
+- Apply `var(--font-display)` to any heading or large label. Never use it for table cell content or body copy.
 
 ### CSS Custom Properties
 
@@ -151,9 +152,9 @@ Define all tokens as CSS custom properties on `:root` in `main.css`:
     --color-bg: #f4f6f8;
     --color-bg-surface: #ffffff;
     --color-bg-surface-hover: #eef3f8;
-    --color-primary: #3b82f6;
-    --color-primary-hover: #2563eb;
-    --color-primary-rgb: 59, 130, 246;
+    --color-primary: #b45309;
+    --color-primary-hover: #92400e;
+    --color-primary-rgb: 180, 83, 9;
     --color-text: #1e293b;
     --color-text-muted: #64748b;
     --color-text-inverse: #ffffff;
@@ -166,7 +167,8 @@ Define all tokens as CSS custom properties on `:root` in `main.css`:
     --color-nav-text-active: #ffffff;
     --color-nav-border: #2d5188;
 
-    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Barlow Condensed', sans-serif;
     --radius: 8px;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }

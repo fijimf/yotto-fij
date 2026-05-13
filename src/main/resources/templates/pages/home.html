@@ -9,26 +9,60 @@
 <body>
 
 <main layout:fragment="content">
-    <h1 class="page-title">College Basketball Statistics</h1>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-        <a th:href="@{/teams}" class="card" style="text-decoration: none; color: inherit;">
-            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Teams</h2>
-            <p style="color: var(--color-text-muted); font-size: 0.9rem;">Browse all teams and their rosters</p>
+    <section class="home-hero">
+        <div class="home-hero__inner">
+            <p class="home-hero__eyebrow">Yotto FIJ</p>
+            <h1 class="home-hero__title">DeepFij</h1>
+            <p class="home-hero__tagline">College Basketball &middot; Quantified</p>
+            <div class="home-hero__stats">
+                <div class="home-hero__stat">
+                    <span class="home-hero__stat-num" th:text="${#numbers.formatInteger(teamCount, 1, 'COMMA')}">361</span>
+                    <span class="home-hero__stat-label">Teams</span>
+                </div>
+                <div class="home-hero__stat">
+                    <span class="home-hero__stat-num" th:text="${#numbers.formatInteger(gameCount, 1, 'COMMA')}">50,000</span>
+                    <span class="home-hero__stat-label">Games</span>
+                </div>
+                <div class="home-hero__stat">
+                    <span class="home-hero__stat-num" th:text="${seasonCount}">10</span>
+                    <span class="home-hero__stat-label">Seasons</span>
+                </div>
+                <div class="home-hero__stat">
+                    <span class="home-hero__stat-num" th:text="${conferenceCount}">32</span>
+                    <span class="home-hero__stat-label">Conferences</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <nav class="home-nav" aria-label="Site sections">
+        <a th:href="@{/teams}" class="home-nav__item">
+            <h2 class="home-nav__title">Teams</h2>
+            <p class="home-nav__desc">Every program, every season record, every schedule.</p>
         </a>
-        <a th:href="@{/conferences}" class="card" style="text-decoration: none; color: inherit;">
-            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Conferences</h2>
-            <p style="color: var(--color-text-muted); font-size: 0.9rem;">View conference standings and membership</p>
+        <a th:href="@{/rankings}" class="home-nav__item">
+            <h2 class="home-nav__title">Rankings</h2>
+            <p class="home-nav__desc">Power ratings and strength-of-schedule analysis.</p>
         </a>
-        <a th:href="@{/games}" class="card" style="text-decoration: none; color: inherit;">
-            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Games</h2>
-            <p style="color: var(--color-text-muted); font-size: 0.9rem;">Scores, schedules, and results</p>
+        <a th:href="@{/rankings/comprehensive}" class="home-nav__item">
+            <h2 class="home-nav__title">Full Rankings</h2>
+            <p class="home-nav__desc">All metrics — record, scoring, ratings — in one sortable table.</p>
         </a>
-        <a th:href="@{/seasons}" class="card" style="text-decoration: none; color: inherit;">
-            <h2 style="color: var(--color-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Seasons</h2>
-            <p style="color: var(--color-text-muted); font-size: 0.9rem;">Historical season data</p>
+        <a th:href="@{/predictions}" class="home-nav__item">
+            <h2 class="home-nav__title">Predictions</h2>
+            <p class="home-nav__desc">ML-driven win probabilities for upcoming games.</p>
         </a>
-    </div>
+        <a th:href="@{/predictions/matchup}" class="home-nav__item">
+            <h2 class="home-nav__title">Matchup</h2>
+            <p class="home-nav__desc">Simulate any head-to-head across multiple models.</p>
+        </a>
+        <a th:href="@{/conferences}" class="home-nav__item">
+            <h2 class="home-nav__title">Conferences</h2>
+            <p class="home-nav__desc">Conference standings and historical membership.</p>
+        </a>
+    </nav>
+
 </main>
 
 </body>

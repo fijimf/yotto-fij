@@ -2,9 +2,9 @@
     --color-bg: #f4f6f8;
     --color-bg-surface: #ffffff;
     --color-bg-surface-hover: #eef3f8;
-    --color-primary: #3b82f6;
-    --color-primary-hover: #2563eb;
-    --color-primary-rgb: 59, 130, 246;
+    --color-primary: #b45309;
+    --color-primary-hover: #92400e;
+    --color-primary-rgb: 180, 83, 9;
     --color-text: #1e293b;
     --color-text-muted: #64748b;
     --color-text-inverse: #ffffff;
@@ -17,7 +17,8 @@
     --color-nav-text-active: #ffffff;
     --color-nav-border: #2d5188;
 
-    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Barlow Condensed', sans-serif;
     --radius: 8px;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -27,9 +28,9 @@
     --color-bg: #1a1a2e;
     --color-bg-surface: #16213e;
     --color-bg-surface-hover: #1f3056;
-    --color-primary: #9393a3;
-    --color-primary-hover: #b3b3d3;
-    --color-primary-rgb: 147, 147, 163;
+    --color-primary: #d4920e;
+    --color-primary-hover: #f0a820;
+    --color-primary-rgb: 212, 146, 14;
     --color-text: #e0e0e0;
     --color-text-muted: #a0a0b0;
     --color-text-inverse: #1a1a2e;
@@ -62,10 +63,11 @@ body {
     font-family: var(--font-family);
     background: var(--color-bg);
     color: var(--color-text);
-    line-height: 1.6;
+    line-height: 1.5;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 a {
@@ -133,14 +135,16 @@ a:hover {
 }
 
 .nav__brand {
-    font-size: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--color-nav-text-active);
     margin-right: 2.5rem;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    text-transform: uppercase;
 }
 
 .nav__logo {
@@ -191,7 +195,161 @@ main {
     max-width: 1200px;
     width: 100%;
     margin: 0 auto;
-    padding: 2rem 1.5rem;
+    padding: 1.25rem 1.5rem;
+}
+
+/* ── Home page hero ── */
+.home-hero {
+    position: relative;
+    width: 100vw;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: -1.25rem;
+    margin-bottom: 2.5rem;
+    background: var(--color-nav-bg);
+    border-bottom: 3px solid var(--color-primary);
+}
+
+.home-hero__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 3rem;
+}
+
+.home-hero__eyebrow {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+    margin-bottom: 0.5rem;
+}
+
+.home-hero__title {
+    font-family: var(--font-display);
+    font-size: clamp(3.5rem, 8vw, 6rem);
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.6rem;
+}
+
+.home-hero__tagline {
+    font-size: 1rem;
+    color: var(--color-nav-text);
+    letter-spacing: 0.04em;
+    margin-bottom: 2.5rem;
+}
+
+.home-hero__stats {
+    display: flex;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+}
+
+.home-hero__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.home-hero__stat-num {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.home-hero__stat-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-nav-text);
+}
+
+/* ── Home page nav grid ── */
+.home-nav {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--color-bg-surface);
+}
+
+.home-nav__item {
+    display: block;
+    padding: 1.25rem 1.5rem;
+    text-decoration: none;
+    color: inherit;
+    border-right: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    border-left: 3px solid transparent;
+    transition: border-left-color 0.15s, background 0.15s;
+}
+
+.home-nav__item:hover {
+    background: var(--color-bg-surface-hover);
+    border-left-color: var(--color-primary);
+}
+
+/* remove right border on last column, bottom border on last row */
+.home-nav__item:nth-child(3n) { border-right: none; }
+.home-nav__item:nth-last-child(-n+3) { border-bottom: none; }
+
+.home-nav__title {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 0.35rem;
+    letter-spacing: 0.02em;
+    transition: color 0.15s;
+}
+
+.home-nav__item:hover .home-nav__title {
+    color: var(--color-primary);
+}
+
+.home-nav__desc {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+    .home-hero__stats {
+        gap: 1.5rem;
+    }
+
+    .home-hero__inner {
+        padding: 2.5rem 1rem 2rem;
+    }
+
+    .home-nav {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .home-nav__item:nth-child(3n) { border-right: 1px solid var(--color-border); }
+    .home-nav__item:nth-last-child(-n+3) { border-bottom: 1px solid var(--color-border); }
+    .home-nav__item:nth-child(2n) { border-right: none; }
+    .home-nav__item:nth-last-child(-n+2) { border-bottom: none; }
+}
+
+@media (max-width: 480px) {
+    .home-nav {
+        grid-template-columns: 1fr;
+    }
+
+    .home-nav__item:nth-child(2n) { border-right: none; }
+    .home-nav__item:nth-last-child(-n+2) { border-bottom: 1px solid var(--color-border); }
+    .home-nav__item:last-child { border-bottom: none; }
 }
 
 .site-footer {
@@ -204,10 +362,13 @@ main {
 
 /* ── Page title ── */
 .page-title {
-    font-size: 1.75rem;
+    font-family: var(--font-display);
+    font-size: 2.25rem;
     font-weight: 700;
     color: var(--color-primary);
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
 }
 
 /* ── Cards ── */
@@ -215,7 +376,7 @@ main {
     background: var(--color-bg-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    padding: 1.25rem;
+    padding: 0.875rem 1rem;
     box-shadow: var(--shadow);
 }
 
@@ -232,17 +393,18 @@ table {
 thead th {
     text-align: left;
     color: var(--color-text-muted);
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0.75rem 1rem;
+    letter-spacing: 0.06em;
+    padding: 0.45rem 0.75rem;
     border-bottom: 1px solid var(--color-border);
 }
 
 tbody td {
-    padding: 0.75rem 1rem;
+    padding: 0.4rem 0.75rem;
     border-bottom: 1px solid var(--color-border);
+    font-size: 0.875rem;
 }
 
 tbody tr:hover {
@@ -414,9 +576,11 @@ tbody tr:hover {
 }
 
 .admin-section__title {
-    font-size: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--color-primary);
+    letter-spacing: 0.02em;
 }
 
 .admin-actions {
@@ -436,8 +600,8 @@ tbody tr:hover {
 }
 
 .status-badge--running {
-    background: rgba(59, 130, 246, 0.12);
-    color: #2563eb;
+    background: rgba(180, 83, 9, 0.12);
+    color: #b45309;
 }
 
 .status-badge--completed {
@@ -525,12 +689,14 @@ tbody tr:hover {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 1.1rem;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
     font-weight: 700;
     color: var(--color-primary);
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.4rem;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.35rem;
     border-bottom: 1px solid var(--color-border);
+    letter-spacing: 0.02em;
 }
 
 .conference-group__logo {
@@ -658,10 +824,12 @@ tbody tr:hover {
 }
 
 .team-hero__name {
-    font-size: 1.75rem;
+    font-family: var(--font-display);
+    font-size: 2.25rem;
     font-weight: 700;
     color: var(--color-text);
-    line-height: 1.2;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
 }
 
 .team-hero__mascot {
@@ -704,10 +872,12 @@ tbody tr:hover {
 }
 
 .schedule-section__title {
-    font-size: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--color-primary);
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.02em;
 }
 
 /* Season tabs */
@@ -904,7 +1074,7 @@ tbody tr:hover {
     }
 
     main {
-        padding: 1.5rem 1rem;
+        padding: 1rem;
     }
 
     .team-grid {
@@ -1560,8 +1730,11 @@ tbody tr:hover {
 }
 .game-detail-team__name {
     display: block;
-    font-size: 1.1rem;
+    font-family: var(--font-display);
+    font-size: 1.4rem;
     font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
 }
 .game-detail-team__mascot {
     display: block;
@@ -1580,8 +1753,10 @@ tbody tr:hover {
     margin-bottom: 0.4rem;
 }
 .game-detail-score__number {
-    font-size: 2rem;
+    font-family: var(--font-display);
+    font-size: 2.5rem;
     font-weight: 700;
+    letter-spacing: 0.02em;
 }
 .game-detail-score__sep {
     font-size: 1.25rem;
@@ -1618,7 +1793,7 @@ tbody tr:hover {
     letter-spacing: 0.05em;
 }
 .game-status-badge--final { background: #dcfce7; color: #15803d; border-color: #16a34a; }
-.game-status-badge--scheduled { background: #dbeafe; color: #1d4ed8; border-color: #3b82f6; }
+.game-status-badge--scheduled { background: #fef3c7; color: #92400e; border-color: #b45309; }
 .game-detail-badge {
     display: inline-block;
     padding: 2px 8px;
@@ -1720,9 +1895,11 @@ tbody tr:hover {
 }
 
 .rankings-panel__title {
-    font-size: 1rem;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
     font-weight: 700;
     color: var(--color-primary);
+    letter-spacing: 0.02em;
 }
 
 .rankings-panel__subtitle {
@@ -1999,7 +2176,7 @@ tbody tr:hover {
     color: #64748b;
 }
 .comp-rankings-col-row th:hover { color: #334155; }
-.comp-rankings__col--sort-active { color: #3b82f6 !important; }
+.comp-rankings__col--sort-active { color: #b45309 !important; }
 .comp-rankings__g-identity-col { text-align: left; }
 .comp-rankings__g-record-col   { background: rgba(186, 230, 253, 0.3); }
 .comp-rankings__g-scoring-col  { background: rgba(187, 247, 208, 0.3); }

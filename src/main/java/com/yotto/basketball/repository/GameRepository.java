@@ -14,6 +14,8 @@ import java.util.Optional;
 @Repository
 public interface GameRepository extends JpaRepository<Game, Long> {
 
+    long countByStatus(Game.GameStatus status);
+
     Optional<Game> findByEspnId(String espnId);
 
     List<Game> findBySeasonId(Long seasonId);
