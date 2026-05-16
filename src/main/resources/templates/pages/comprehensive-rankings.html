@@ -4,21 +4,19 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}">
 <head>
-    <title th:text="${season != null} ? ${season.year} + ' Comprehensive Rankings' : 'Comprehensive Rankings'">
-        Comprehensive Rankings
-    </title>
+                <title th:text="${season != null} ? ${season.year} + ' Rankings' : 'Rankings'">Rankings</title>
 </head>
 <body>
 <main layout:fragment="content">
 
     <div class="page-header">
         <h1 class="page-title"
-            th:text="${season != null} ? ${season.year} + ' Comprehensive Rankings' : 'Comprehensive Rankings'">
-            2026 Comprehensive Rankings
+            th:text="${season != null} ? ${season.year} + ' Rankings' : 'Rankings'">
+            2026 Rankings
         </h1>
         <div class="page-header__actions">
             <select class="form-input form-input--sm"
-                    onchange="window.location='/rankings/comprehensive?year='+this.value">
+                    onchange="window.location='/rankings?year='+this.value">
                 <option value="" th:if="${season == null}">Select season</option>
                 <option th:each="s : ${allSeasons}"
                         th:value="${s.year}"
@@ -35,11 +33,11 @@
     <div th:if="${season != null}">
 
         <div class="analytics-date-row" th:if="${latestDate != null}">
-            <label class="form-label" for="comp-rankings-date">As of:</label>
-            <select id="comp-rankings-date"
+            <label class="form-label" for="rankings-date">As of:</label>
+            <select id="rankings-date"
                     class="form-input form-input--sm"
                     style="width: auto;"
-                    hx-get="@{'/rankings/comprehensive/' + ${season.year} + '/table'}"
+                    hx-get="@{'/rankings/' + ${season.year} + '/table'}"
                     hx-target="#comp-rankings-container"
                     hx-swap="innerHTML"
                     hx-include="this"
@@ -65,6 +63,9 @@
                         id="comp-tab-table"
                         onclick="switchCompTab('table')">Table</button>
                 <button class="comp-tab"
+                        id="comp-tab-model"
+                        onclick="switchCompTab('model')">Model View</button>
+                <button class="comp-tab"
                         id="comp-tab-scatter"
                         onclick="switchCompTab('scatter')">Scatter Matrix</button>
             </div>
@@ -72,6 +73,12 @@
             <!-- Table tab (pre-loaded on page render) -->
             <div id="comp-rankings-container">
                 <div th:replace="~{fragments/comprehensive-rankings-table :: comp-rankings-table}"></div>
+            </div>
+
+            <!-- Model view tab (lazy-loaded via HTMX on first click) -->
+            <div id="model-view-container"
+                 th:attr="data-year=${season.year}, data-date=${selectedDate}"
+                 style="display:none">
             </div>
 
             <!-- Scatter matrix tab (lazy-loaded via HTMX on first click) -->
@@ -90,6 +97,7 @@
 <script>
 (function () {
     var scatterLoaded = false;
+    var modelViewLoaded = false;
 
     window.switchCompTab = function (tabName) {
         document.querySelectorAll('.comp-tab').forEach(function (btn) {
@@ -98,31 +106,52 @@
         var activeBtn = document.getElementById('comp-tab-' + tabName);
         if (activeBtn) activeBtn.classList.add('comp-tab--active');
 
-        var tableContainer   = document.getElementById('comp-rankings-container');
-        var scatterContainer = document.getElementById('scatter-matrix-container');
+        var tableContainer     = document.getElementById('comp-rankings-container');
+        var modelContainer     = document.getElementById('model-view-container');
+        var scatterContainer   = document.getElementById('scatter-matrix-container');
         if (tableContainer)   tableContainer.style.display   = (tabName === 'table')   ? '' : 'none';
+        if (modelContainer)   modelContainer.style.display   = (tabName === 'model')   ? '' : 'none';
         if (scatterContainer) scatterContainer.style.display = (tabName === 'scatter') ? '' : 'none';
+
+        if (tabName === 'model' && !modelViewLoaded && modelContainer) {
+            var year = modelContainer.dataset.year;
+            var date = modelContainer.dataset.date;
+            htmx.ajax('GET',
+                '/rankings/' + year + '/model-view?date=' + date,
+                { target: '#model-view-container', swap: 'innerHTML' });
+            modelViewLoaded = true;
+        }
 
         if (tabName === 'scatter' && !scatterLoaded && scatterContainer) {
             var year = scatterContainer.dataset.year;
             var date = scatterContainer.dataset.date;
             htmx.ajax('GET',
-                '/rankings/comprehensive/' + year + '/scatter-matrix?date=' + date,
+                '/rankings/' + year + '/scatter-matrix?date=' + date,
                 { target: '#scatter-matrix-container', swap: 'innerHTML' });
             scatterLoaded = true;
         }
     };
 
-    // When date picker swaps the table, clear scatter so it reloads fresh
+    // When date picker swaps the table, clear lazy-loaded tabs so they reload fresh
     document.body.addEventListener('htmx:afterSwap', function (evt) {
         if (evt.detail.target && evt.detail.target.id === 'comp-rankings-container') {
+            var dateSelect = document.getElementById('rankings-date');
+            var newDate = dateSelect ? dateSelect.value : '';
+
+            var modelContainer = document.getElementById('model-view-container');
+            if (modelContainer) {
+                modelContainer.textContent = '';
+                if (newDate) modelContainer.dataset.date = newDate;
+            }
+            modelViewLoaded = false;
+
             var scatterContainer = document.getElementById('scatter-matrix-container');
             if (scatterContainer) {
                 scatterContainer.textContent = '';
-                var dateSelect = document.getElementById('comp-rankings-date');
-                if (dateSelect) scatterContainer.dataset.date = dateSelect.value;
+                if (newDate) scatterContainer.dataset.date = newDate;
             }
             scatterLoaded = false;
+
             switchCompTab('table');
         }
     });

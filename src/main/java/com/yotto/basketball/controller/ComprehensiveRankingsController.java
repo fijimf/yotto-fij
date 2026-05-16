@@ -53,14 +53,14 @@ public class ComprehensiveRankingsController {
 
 
 
-    @GetMapping("/rankings/comprehensive")
+    @GetMapping("/rankings")
     public String rankings(@RequestParam(required = false) Integer year,
                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                            Model model) {
         List<Season> allSeasons = seasonRepository.findAll()
                 .stream().sorted((a, b) -> b.getYear().compareTo(a.getYear())).toList();
         Season season = resolveSeason(year, allSeasons);
-        model.addAttribute("currentPage", "comprehensive-rankings");
+        model.addAttribute("currentPage", "rankings");
         if (season == null) {
             model.addAttribute("allSeasons", allSeasons);
             return "pages/comprehensive-rankings";
@@ -70,7 +70,12 @@ public class ComprehensiveRankingsController {
         return "pages/comprehensive-rankings";
     }
 
-    @GetMapping("/rankings/comprehensive/{year}/table")
+    @GetMapping("/rankings/comprehensive")
+    public String comprehensiveRedirect() {
+        return "redirect:/rankings";
+    }
+
+    @GetMapping("/rankings/{year}/table")
     public String rankingsTable(@PathVariable Integer year,
                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                 Model model) {
@@ -85,7 +90,42 @@ public class ComprehensiveRankingsController {
         return "fragments/comprehensive-rankings-table :: comp-rankings-table";
     }
 
-    @GetMapping("/rankings/comprehensive/{year}/scatter-matrix")
+    @GetMapping("/rankings/{year}/model-view")
+    public String modelView(@PathVariable Integer year,
+                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                            Model model) {
+        Season season = seasonRepository.findByYear(year).orElse(null);
+        if (season == null) {
+            model.addAttribute("hasData", false);
+            model.addAttribute("masseyRankings", List.of());
+            model.addAttribute("masseyTotalsRankings", List.of());
+            model.addAttribute("bradleyTerryRankings", List.of());
+            model.addAttribute("bradleyTerryWeightedRankings", List.of());
+            return "fragments/rankings-table :: rankings-table";
+        }
+        LocalDate resolvedDate = resolveDate(season, date);
+        List<TeamPowerRatingSnapshot> massey = resolvedDate != null
+                ? ratingRepository.findBySeasonModelAndDate(season.getId(), MasseyRatingService.MODEL_TYPE, resolvedDate)
+                : List.of();
+        List<TeamPowerRatingSnapshot> masseyTotals = resolvedDate != null
+                ? ratingRepository.findBySeasonModelAndDate(season.getId(), MasseyRatingService.MODEL_TYPE_TOTALS, resolvedDate)
+                : List.of();
+        List<TeamPowerRatingSnapshot> bradleyTerry = resolvedDate != null
+                ? ratingRepository.findBySeasonModelAndDate(season.getId(), BradleyTerryRatingService.MODEL_TYPE, resolvedDate)
+                : List.of();
+        List<TeamPowerRatingSnapshot> bradleyTerryWeighted = resolvedDate != null
+                ? ratingRepository.findBySeasonModelAndDate(season.getId(), BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, resolvedDate)
+                : List.of();
+        model.addAttribute("masseyRankings", massey);
+        model.addAttribute("masseyTotalsRankings", masseyTotals);
+        model.addAttribute("bradleyTerryRankings", bradleyTerry);
+        model.addAttribute("bradleyTerryWeightedRankings", bradleyTerryWeighted);
+        model.addAttribute("hasData", !massey.isEmpty() || !bradleyTerry.isEmpty()
+                || !masseyTotals.isEmpty() || !bradleyTerryWeighted.isEmpty());
+        return "fragments/rankings-table :: rankings-table";
+    }
+
+    @GetMapping("/rankings/{year}/scatter-matrix")
     public String scatterMatrix(@PathVariable Integer year,
                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                 Model model) {
