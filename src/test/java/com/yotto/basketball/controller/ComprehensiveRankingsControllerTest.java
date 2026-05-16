@@ -120,19 +120,19 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         ratingRepo.save(r);
     }
 
-    // ── GET /rankings/comprehensive ───────────────────────────────────────────
+    // ── GET /rankings ─────────────────────────────────────────────────────────
 
     @Test
     void noSeasons_returns200WithEmptyState() throws Exception {
         seasonRepo.deleteAll();
-        mockMvc.perform(get("/rankings/comprehensive"))
+        mockMvc.perform(get("/rankings"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("pages/comprehensive-rankings"));
     }
 
     @Test
     void withSeason_noData_hasDataFalse() throws Exception {
-        mockMvc.perform(get("/rankings/comprehensive"))
+        mockMvc.perform(get("/rankings"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("hasData", false))
                 .andExpect(model().attributeExists("rows"));
@@ -148,7 +148,7 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         addRating(teamB, MasseyRatingService.MODEL_TYPE,  4.0);
 
         // Verify both teams appear and Alabama (higher Massey) is first
-        var result = mockMvc.perform(get("/rankings/comprehensive"))
+        var result = mockMvc.perform(get("/rankings"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("hasData", true))
                 .andExpect(model().attributeExists("rows"))
@@ -166,7 +166,7 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         addStatSnapshot(teamA, 20, 5, 0.800, 80.0, 65.0, 15.0, 0.620);
         // no addRating call — teamA has no Massey snapshot
 
-        var result = mockMvc.perform(get("/rankings/comprehensive"))
+        var result = mockMvc.perform(get("/rankings"))
                 .andReturn();
         @SuppressWarnings("unchecked")
         List<ComprehensiveRankingRow> rows = (List<ComprehensiveRankingRow>)
@@ -180,7 +180,7 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         addSeasonStats(teamA);
         addStatSnapshot(teamA, 20, 5, 0.800, 80.0, 65.0, 15.0, 0.620);
 
-        var result = mockMvc.perform(get("/rankings/comprehensive"))
+        var result = mockMvc.perform(get("/rankings"))
                 .andReturn();
         @SuppressWarnings("unchecked")
         List<ComprehensiveRankingRow> rows = (List<ComprehensiveRankingRow>)
@@ -188,11 +188,11 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(rows.get(0).conferenceAbbr()).isEqualTo("SEC");
     }
 
-    // ── GET /rankings/comprehensive/{year}/table ──────────────────────────────
+    // ── GET /rankings/{year}/table ──────────────────────────────
 
     @Test
     void tableFragment_unknownYear_returns200() throws Exception {
-        mockMvc.perform(get("/rankings/comprehensive/9999/table")
+        mockMvc.perform(get("/rankings/9999/table")
                         .param("date", SNAP_DATE.toString()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("hasData", false))
@@ -205,17 +205,17 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         addStatSnapshot(teamA, 20, 5, 0.800, 80.0, 65.0, 15.0, 0.620);
         addRating(teamA, MasseyRatingService.MODEL_TYPE, 12.5);
 
-        mockMvc.perform(get("/rankings/comprehensive/2025/table")
+        mockMvc.perform(get("/rankings/2025/table")
                         .param("date", SNAP_DATE.toString()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("hasData", true));
     }
 
-    // -- GET /rankings/comprehensive/{year}/scatter-matrix ---------------------
+    // -- GET /rankings/{year}/scatter-matrix ---------------------
 
     @Test
     void scatterMatrix_unknownYear_hasDataFalse() throws Exception {
-        mockMvc.perform(get("/rankings/comprehensive/9999/scatter-matrix")
+        mockMvc.perform(get("/rankings/9999/scatter-matrix")
                         .param("date", SNAP_DATE.toString()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("hasData", false))
@@ -228,7 +228,7 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
         addStatSnapshot(teamA, 20, 5, 0.800, 80.0, 65.0, 15.0, 0.620);
         addRating(teamA, MasseyRatingService.MODEL_TYPE, 12.5);
 
-        var result = mockMvc.perform(get("/rankings/comprehensive/2025/scatter-matrix")
+        var result = mockMvc.perform(get("/rankings/2025/scatter-matrix")
                         .param("date", SNAP_DATE.toString()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("hasData", true))
