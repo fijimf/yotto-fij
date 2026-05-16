@@ -1,5 +1,6 @@
 package com.yotto.basketball.scraping;
 
+import com.yotto.basketball.entity.ScrapeBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -11,16 +12,37 @@ public class AsyncScrapeService {
     private static final Logger log = LoggerFactory.getLogger(AsyncScrapeService.class);
 
     private final ScrapeOrchestrator orchestrator;
+    private final ScrapeScheduler scheduler;
 
-    public AsyncScrapeService(ScrapeOrchestrator orchestrator) {
+    public AsyncScrapeService(ScrapeOrchestrator orchestrator, ScrapeScheduler scheduler) {
         this.orchestrator = orchestrator;
+        this.scheduler = scheduler;
+    }
+
+    /**
+     * Fires the scheduled re-scrape cycle on demand from the admin UI.
+     * Shares the scheduler's lock, so it's a no-op if the cron is already
+     * running.
+     */
+    @Async("scrapeExecutor")
+    public void runScheduledCycleAsync() {
+        log.info("Async scheduled cycle kicked off manually from admin UI");
+        boolean ran = scheduler.tryRunNow(ScrapeBatch.Source.SCHEDULED);
+        if (!ran) {
+            log.info("Manual scheduled-cycle invocation skipped — already running");
+        }
     }
 
     @Async("scrapeExecutor")
     public void scrapeFullSeasonAsync(int seasonYear) {
-        log.info("Async full season scrape started for {}", seasonYear);
+        scrapeFullSeasonAsync(seasonYear, ScrapeBatch.Source.MANUAL);
+    }
+
+    @Async("scrapeExecutor")
+    public void scrapeFullSeasonAsync(int seasonYear, ScrapeBatch.Source source) {
+        log.info("Async full season scrape started for {} (source={})", seasonYear, source);
         try {
-            orchestrator.scrapeFullSeason(seasonYear);
+            orchestrator.scrapeFullSeason(seasonYear, source);
         } catch (Exception e) {
             log.error("Async full season scrape failed for {}", seasonYear, e);
         }

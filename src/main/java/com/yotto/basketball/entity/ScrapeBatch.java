@@ -2,9 +2,12 @@ package com.yotto.basketball.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.UUID;
 
 @Entity
 @Table(name = "scrape_batches")
@@ -45,6 +48,24 @@ public class ScrapeBatch {
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
 
+    @JdbcTypeCode(SqlTypes.UUID)
+    @Column(name = "pipeline_run_id")
+    private UUID pipelineRunId;
+
+    @Column(name = "pipeline_step_order")
+    private Integer pipelineStepOrder;
+
+    @Column(name = "current_step", columnDefinition = "TEXT")
+    private String currentStep;
+
+    @Column(name = "progress_total")
+    private Integer progressTotal;
+
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", columnDefinition = "VARCHAR(32) DEFAULT 'MANUAL'")
+    private Source source = Source.MANUAL;
+
     public enum ScrapeType {
         TEAMS,
         CONFERENCES,
@@ -61,10 +82,21 @@ public class ScrapeBatch {
         PARTIAL
     }
 
+    public enum Source {
+        MANUAL,
+        SCHEDULED,
+        AUTO_INITIALIZE
+    }
+
     public ScrapeBatch() {
     }
 
     public static ScrapeBatch start(Integer seasonYear, ScrapeType scrapeType) {
+        return start(seasonYear, scrapeType, Source.MANUAL, null, null);
+    }
+
+    public static ScrapeBatch start(Integer seasonYear, ScrapeType scrapeType,
+                                    Source source, UUID pipelineRunId, Integer pipelineStepOrder) {
         ScrapeBatch batch = new ScrapeBatch();
         batch.setSeasonYear(seasonYear);
         batch.setScrapeType(scrapeType);
@@ -74,6 +106,9 @@ public class ScrapeBatch {
         batch.setRecordsUpdated(0);
         batch.setDatesSucceeded(0);
         batch.setDatesFailed(0);
+        batch.setSource(source != null ? source : Source.MANUAL);
+        batch.setPipelineRunId(pipelineRunId);
+        batch.setPipelineStepOrder(pipelineStepOrder);
         return batch;
     }
 
@@ -196,6 +231,46 @@ public class ScrapeBatch {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public UUID getPipelineRunId() {
+        return pipelineRunId;
+    }
+
+    public void setPipelineRunId(UUID pipelineRunId) {
+        this.pipelineRunId = pipelineRunId;
+    }
+
+    public Integer getPipelineStepOrder() {
+        return pipelineStepOrder;
+    }
+
+    public void setPipelineStepOrder(Integer pipelineStepOrder) {
+        this.pipelineStepOrder = pipelineStepOrder;
+    }
+
+    public String getCurrentStep() {
+        return currentStep;
+    }
+
+    public void setCurrentStep(String currentStep) {
+        this.currentStep = currentStep;
+    }
+
+    public Integer getProgressTotal() {
+        return progressTotal;
+    }
+
+    public void setProgressTotal(Integer progressTotal) {
+        this.progressTotal = progressTotal;
+    }
+
+    public Source getSource() {
+        return source;
+    }
+
+    public void setSource(Source source) {
+        this.source = source;
     }
 
     @Override

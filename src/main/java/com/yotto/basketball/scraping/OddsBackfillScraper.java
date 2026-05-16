@@ -38,7 +38,14 @@ public class OddsBackfillScraper {
 
     @Transactional
     public ScrapeBatch backfill(int seasonYear) {
-        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.ODDS_BACKFILL);
+        return backfill(seasonYear, PipelineContext.manual());
+    }
+
+    @Transactional
+    public ScrapeBatch backfill(int seasonYear, PipelineContext ctx) {
+        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.ODDS_BACKFILL,
+                ctx.source(), ctx.pipelineRunId(), ctx.stepOrder());
+        batch.setCurrentStep("ODDS_BACKFILL");
         batch = scrapeBatchRepository.save(batch);
 
         try {
@@ -49,9 +56,14 @@ public class OddsBackfillScraper {
             }
 
             List<Game> gamesWithoutOdds = gameRepository.findFinalGamesWithoutOdds(season.getId());
-            log.info("Odds backfill for season {}: {} games to process", seasonYear, gamesWithoutOdds.size());
+            int total = gamesWithoutOdds.size();
+            batch.setProgressTotal(total);
+            log.info("Odds backfill for season {}: {} games to process", seasonYear, total);
 
+            int idx = 0;
             for (Game game : gamesWithoutOdds) {
+                idx++;
+                batch.setCurrentStep("ODDS " + idx + "/" + total);
                 try {
                     boolean success = backfillGameOdds(game);
                     if (success) {

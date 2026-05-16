@@ -14,4 +14,8 @@ public interface ScrapeBatchRepository extends JpaRepository<ScrapeBatch, Long> 
     List<ScrapeBatch> findByStatus(ScrapeBatch.ScrapeStatus status);
 
     List<ScrapeBatch> findTop20ByOrderByStartedAtDesc();
+
+    java.util.Optional<ScrapeBatch> findFirstBySeasonYearOrderByStartedAtDesc(Integer seasonYear);
+
+    java.util.Optional<ScrapeBatch> findFirstBySourceOrderByStartedAtDesc(ScrapeBatch.Source source);
 }

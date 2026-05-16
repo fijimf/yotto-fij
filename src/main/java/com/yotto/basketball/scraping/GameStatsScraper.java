@@ -45,7 +45,14 @@ public class GameStatsScraper {
 
     @Transactional
     public ScrapeBatch backfill(int seasonYear) {
-        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.GAME_STATS);
+        return backfill(seasonYear, PipelineContext.manual());
+    }
+
+    @Transactional
+    public ScrapeBatch backfill(int seasonYear, PipelineContext ctx) {
+        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.GAME_STATS,
+                ctx.source(), ctx.pipelineRunId(), ctx.stepOrder());
+        batch.setCurrentStep("GAME_STATS");
         batch = scrapeBatchRepository.save(batch);
 
         try {
@@ -56,9 +63,14 @@ public class GameStatsScraper {
             }
 
             List<Game> games = gameRepository.findFinalGamesWithoutStats(season.getId());
-            log.info("Game stats backfill for season {}: {} games to process", seasonYear, games.size());
+            int total = games.size();
+            batch.setProgressTotal(total);
+            log.info("Game stats backfill for season {}: {} games to process", seasonYear, total);
 
+            int idx = 0;
             for (Game game : games) {
+                idx++;
+                batch.setCurrentStep("GAME_STATS " + idx + "/" + total);
                 try {
                     int rowsWritten = scrapeForGame(game);
                     if (rowsWritten > 0) {

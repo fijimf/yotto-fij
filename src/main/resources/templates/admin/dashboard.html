@@ -19,71 +19,269 @@
     <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
     <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
 
+    <!-- Automation -->
+    <section class="admin-section" th:if="${automation != null}">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Automation</h2>
+            <form th:action="@{/admin/automation/run-now}" method="post" class="inline-form">
+                <button type="submit" class="btn btn--outline btn--sm"
+                        th:disabled="${!automation.hasSeasonsInScope()}"
+                        title="Trigger the scheduled re-scrape cycle right now (same code path as the cron)">
+                    Run scheduled cycle now
+                </button>
+            </form>
+        </div>
+
+        <div class="card"
+             style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem 1.5rem; font-size: 0.9rem;">
+
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Cron</div>
+                <div style="font-family: var(--font-mono, monospace);" th:text="${automation.cron}">0 0 */12 * * *</div>
+            </div>
+
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Next fire</div>
+                <div th:if="${automation.nextFireAt != null}"
+                     th:text="${#temporals.format(automation.nextFireAt, 'MMM d HH:mm')}">May 16 16:00</div>
+                <div th:if="${automation.nextFireAt == null}" style="color: var(--color-text-muted);">—</div>
+            </div>
+
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Last fired</div>
+                <div th:if="${automation.hasLastFired()}">
+                    <span th:text="${#temporals.format(automation.lastFired.startedAt, 'MMM d HH:mm')}">May 16 04:00</span>
+                    <span style="color: var(--color-text-muted); font-size: 0.85rem;"
+                          th:with="d=${automation.lastFiredDuration()}"
+                          th:text="'· ' + ${automation.lastFired.status} + (${d != null} ? ' · ' + ${d.toMinutes()} + 'm ' + ${d.toSecondsPart()} + 's' : '')">· COMPLETED · 38m 12s</span>
+                </div>
+                <div th:if="${!automation.hasLastFired()}" style="color: var(--color-text-muted);">Never</div>
+            </div>
+
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Seasons in scope</div>
+                <div th:if="${automation.hasSeasonsInScope()}"
+                     th:text="${#strings.listJoin(automation.seasonsInScope, ', ')}">2026, 2027</div>
+                <div th:if="${!automation.hasSeasonsInScope()}" style="color: var(--color-text-muted);">
+                    None — flip Auto-refresh ON for a season below.
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Season Management -->
     <section class="admin-section">
         <div class="admin-section__header">
             <h2 class="admin-section__title">Seasons</h2>
-            <form th:action="@{/admin/seasons}" method="post" class="inline-form">
+            <form th:action="@{/admin/seasons}" method="post" class="inline-form"
+                  style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                 <input type="number" name="year" placeholder="Year" class="form-input form-input--sm"
                        style="width: 6rem;" required min="2000" max="2099" />
+                <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--color-text-muted);">
+                    <input type="checkbox" name="initialize" value="true" checked />
+                    Initialize on save
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--color-text-muted);">
+                    <input type="checkbox" name="autoRefresh" value="true" checked />
+                    Auto-refresh
+                </label>
                 <button type="submit" class="btn btn--primary btn--sm">Add Season</button>
             </form>
         </div>
 
-        <div class="card">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Year</th>
-                        <th>Start</th>
-                        <th>End</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr th:each="season : ${seasons}">
-                        <td th:text="${season.year}">2025</td>
-                        <td th:text="${season.startDate}">2024-11-01</td>
-                        <td th:text="${season.endDate}">2025-04-30</td>
-                        <td class="admin-actions">
-                            <form th:action="@{/admin/scrape/full/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--primary btn--sm">Full Scrape</button>
-                            </form>
-                            <form th:action="@{/admin/scrape/current/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--outline btn--sm">Re-scrape</button>
-                            </form>
-                            <form th:action="@{/admin/scrape/teams/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--outline btn--sm">Teams</button>
-                            </form>
-                            <form th:action="@{/admin/scrape/odds/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--outline btn--sm">Odds Backfill</button>
-                            </form>
-                            <form th:action="@{/admin/scrape/game-stats/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--outline btn--sm">Game Stats</button>
-                            </form>
-                            <form th:action="@{/admin/scrape/stats/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--outline btn--sm">Calc Stats</button>
-                            </form>
-                            <form th:action="@{/admin/scrape/timeseries/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--outline btn--sm">Time Series</button>
-                            </form>
-                            <form th:action="@{/admin/power-ratings/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <button type="submit" class="btn btn--outline btn--sm">Power Ratings</button>
-                            </form>
-                            <form th:action="@{/admin/seasons/{year}(year=${season.year})}" method="post" class="inline-form">
-                                <input type="hidden" name="_method" value="DELETE" />
-                                <button type="submit" class="btn btn--danger btn--sm"
-                                        onclick="return confirm('Remove season?')">Remove</button>
-                            </form>
-                        </td>
-                    </tr>
-                    <tr th:if="${#lists.isEmpty(seasons)}">
-                        <td colspan="4" style="text-align: center; color: var(--color-text-muted);">
-                            No seasons configured. Add one to get started.
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <div th:if="${#lists.isEmpty(seasons)}" class="card"
+             style="text-align: center; color: var(--color-text-muted); padding: 1rem;">
+            No seasons configured. Add one to get started.
+        </div>
+
+        <div th:each="season : ${seasons}" class="card season-card" style="margin-bottom: 1rem;">
+            <div th:with="h=${healthByYear.get(season.year)}">
+
+                <!-- Header row: year + dates + actions -->
+                <div class="season-card__header"
+                     style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.1rem;"
+                                th:text="${season.year} + ' Season'">2026 Season</h3>
+                            <div style="color: var(--color-text-muted); font-size: 0.85rem;">
+                                <span th:text="${season.startDate}">2025-11-01</span>
+                                – <span th:text="${season.endDate}">2026-04-30</span>
+                            </div>
+                        </div>
+                        <!-- Auto-refresh toggle -->
+                        <form th:action="@{/admin/seasons/{year}/auto-refresh(year=${season.year})}" method="post" class="inline-form">
+                            <input type="hidden" name="enabled"
+                                   th:value="${season.autoRefresh ? 'false' : 'true'}" />
+                            <button type="submit" class="btn btn--sm"
+                                    th:classappend="${season.autoRefresh ? 'btn--primary' : 'btn--outline'}"
+                                    th:title="${season.autoRefresh ? 'Click to pause scheduled re-scrapes' : 'Click to include this season in scheduled re-scrapes'}"
+                                    th:text="${season.autoRefresh ? '⟳ Auto-refresh: ON' : '⏸ Auto-refresh: OFF'}">⟳ Auto-refresh: ON</button>
+                        </form>
+                    </div>
+                    <div class="admin-actions" style="display: flex; gap: 0.25rem; flex-wrap: wrap; align-items: center;">
+
+                        <!-- Empty-state: just the Initialize primary -->
+                        <form th:if="${h == null or !h.hasAnyData()}"
+                              th:action="@{/admin/scrape/full/{year}(year=${season.year})}" method="post" class="inline-form">
+                            <button type="submit" class="btn btn--primary btn--sm">▶ Initialize</button>
+                        </form>
+
+                        <!-- Seasoned-state: "Re-scrape now" dropdown -->
+                        <details th:if="${h != null and h.hasAnyData()}"
+                                 style="display: inline-block; position: relative;">
+                            <summary class="btn btn--primary btn--sm" style="cursor: pointer; list-style: none;">
+                                ⟳ Re-scrape now ▾
+                            </summary>
+                            <div style="position: absolute; right: 0; top: 100%; margin-top: 0.3rem; z-index: 10;
+                                        background: var(--color-bg-elevated, #1a1a1a);
+                                        border: 1px solid var(--color-border, #333);
+                                        border-radius: 0.35rem; padding: 0.4rem; min-width: 14rem;
+                                        display: flex; flex-direction: column; gap: 0.25rem;
+                                        box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                                <form th:action="@{/admin/scrape/current/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">
+                                        Incremental (current dates)
+                                    </button>
+                                </form>
+                                <form th:action="@{/admin/scrape/full/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">
+                                        Full pipeline (from scratch)
+                                    </button>
+                                </form>
+                            </div>
+                        </details>
+
+                        <details style="display: inline-block; position: relative;">
+                            <summary class="btn btn--outline btn--sm" style="cursor: pointer; list-style: none;">Advanced ▾</summary>
+                            <div style="position: absolute; right: 0; top: 100%; margin-top: 0.3rem; z-index: 10;
+                                        background: var(--color-bg-elevated, #1a1a1a);
+                                        border: 1px solid var(--color-border, #333);
+                                        border-radius: 0.35rem; padding: 0.4rem; min-width: 11rem;
+                                        display: flex; flex-direction: column; gap: 0.25rem;
+                                        box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                                <form th:action="@{/admin/scrape/teams/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Teams</button>
+                                </form>
+                                <form th:action="@{/admin/scrape/odds/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Odds Backfill</button>
+                                </form>
+                                <form th:action="@{/admin/scrape/game-stats/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Game Stats</button>
+                                </form>
+                                <form th:action="@{/admin/scrape/stats/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Calc Stats</button>
+                                </form>
+                                <form th:action="@{/admin/scrape/timeseries/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Time Series</button>
+                                </form>
+                                <form th:action="@{/admin/power-ratings/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Power Ratings</button>
+                                </form>
+                                <form th:action="@{/admin/seasons/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <input type="hidden" name="_method" value="DELETE" />
+                                    <button type="submit" class="btn btn--danger btn--sm" style="width: 100%; text-align: left;"
+                                            onclick="return confirm('Remove season?')">Remove Season</button>
+                                </form>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <!-- Empty-state hint -->
+                <div th:if="${h != null and !h.hasAnyData()}"
+                     style="margin-top: 0.75rem; color: var(--color-text-muted); font-size: 0.9rem;">
+                    No data yet — click <strong>Initialize</strong> to run the full pipeline.
+                </div>
+
+                <!-- Diagnostics grid -->
+                <div th:if="${h != null and h.hasAnyData()}"
+                     class="season-card__diagnostics"
+                     style="margin-top: 0.85rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem 1.25rem; font-size: 0.9rem;">
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Conferences / Teams</div>
+                        <div>
+                            <span th:text="${h.conferenceCount}">33</span> conferences,
+                            <span th:text="${h.activeTeamCount}">362</span> teams
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Scraped dates</div>
+                        <div>
+                            <span th:text="${h.scrapedDates}">147</span> /
+                            <span th:text="${h.totalDates}">181</span>
+                            <span th:if="${h.totalDates > 0}"
+                                  style="color: var(--color-text-muted); font-size: 0.85rem;"
+                                  th:text="'(' + ${T(java.lang.Math).round(h.scrapedDates * 100.0 / h.totalDates)} + '%)'">(81%)</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Games</div>
+                        <div>
+                            <span th:text="${h.totalGames}">2104</span> total,
+                            <span th:text="${h.finalGames}">1932</span> final
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">In progress</div>
+                        <div>
+                            <span th:text="${h.inProgressGames}">12</span>
+                            <span th:if="${h.staleInProgressGames > 0}"
+                                  class="qa-badge qa-badge--warn"
+                                  th:text="${h.staleInProgressGames} + ' stale'">3 stale</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Game stats</div>
+                        <div>
+                            <span th:text="${h.gamesWithStats}">1932</span> /
+                            <span th:text="${h.finalGames}">1932</span> final
+                            <span th:if="${h.finalGamesMissingStats > 0}"
+                                  class="qa-badge qa-badge--warn"
+                                  th:text="${h.finalGamesMissingStats} + ' missing'">172 missing</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Odds</div>
+                        <div>
+                            <span th:text="${h.gamesWithOdds}">1840</span> with odds
+                            <span th:if="${h.finalGamesMissingOdds > 0}"
+                                  class="qa-badge qa-badge--warn"
+                                  th:text="${h.finalGamesMissingOdds} + ' final missing'">92 final missing</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Standings rows</div>
+                        <div>
+                            <span th:text="${h.teamsWithStandings}">362</span> /
+                            <span th:text="${h.activeTeamCount}">362</span> teams
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Non-D1 opponents</div>
+                        <div>
+                            <span th:text="${h.nonD1OpponentGames}">47</span> games excluded
+                        </div>
+                    </div>
+
+                    <div th:if="${h.lastScrapeAt != null}">
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Last scrape</div>
+                        <div>
+                            <span th:text="${#temporals.format(h.lastScrapeAt, 'MMM d HH:mm')}">May 16 04:00</span>
+                            <span style="color: var(--color-text-muted); font-size: 0.85rem;"
+                                  th:text="'· ' + ${h.lastScrapeType} + ' · ' + ${h.lastScrapeStatus}">· GAMES · COMPLETED</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 

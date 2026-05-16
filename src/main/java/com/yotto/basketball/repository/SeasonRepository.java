@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -17,6 +18,8 @@ public interface SeasonRepository extends JpaRepository<Season, Long> {
     boolean existsByYear(Integer year);
 
     Optional<Season> findTopByOrderByYearDesc();
+
+    List<Season> findByAutoRefreshTrueOrderByYearDesc();
 
     @Query("SELECT s FROM Season s WHERE s.startDate <= :date AND s.endDate >= :date")
     Optional<Season> findByDate(@Param("date") LocalDate date);

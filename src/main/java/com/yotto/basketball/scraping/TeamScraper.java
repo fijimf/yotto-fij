@@ -28,7 +28,14 @@ public class TeamScraper {
 
     @Transactional
     public ScrapeBatch scrape(int seasonYear) {
-        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.TEAMS);
+        return scrape(seasonYear, PipelineContext.manual());
+    }
+
+    @Transactional
+    public ScrapeBatch scrape(int seasonYear, PipelineContext ctx) {
+        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.TEAMS,
+                ctx.source(), ctx.pipelineRunId(), ctx.stepOrder());
+        batch.setCurrentStep("TEAMS");
         batch = scrapeBatchRepository.save(batch);
 
         try {

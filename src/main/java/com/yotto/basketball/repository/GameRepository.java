@@ -16,6 +16,29 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     long countByStatus(Game.GameStatus status);
 
+    long countBySeasonId(Long seasonId);
+
+    long countBySeasonIdAndStatus(Long seasonId, Game.GameStatus status);
+
+    @Query("SELECT COUNT(DISTINCT g.scrapeDate) FROM Game g WHERE g.season.id = :seasonId AND g.scrapeDate IS NOT NULL")
+    long countDistinctScrapeDateBySeasonId(@Param("seasonId") Long seasonId);
+
+    @Query("SELECT COUNT(g) FROM Game g WHERE g.season.id = :seasonId AND g.status = 'IN_PROGRESS' AND g.gameDate < :cutoff")
+    long countStaleInProgress(@Param("seasonId") Long seasonId, @Param("cutoff") LocalDateTime cutoff);
+
+    @Query("SELECT COUNT(DISTINCT g.id) FROM Game g WHERE g.season.id = :seasonId AND EXISTS (SELECT 1 FROM TeamGameStats t WHERE t.game = g)")
+    long countGamesWithStats(@Param("seasonId") Long seasonId);
+
+    @Query("SELECT COUNT(g) FROM Game g WHERE g.season.id = :seasonId AND g.bettingOdds IS NOT NULL")
+    long countGamesWithOdds(@Param("seasonId") Long seasonId);
+
+    @Query("SELECT COUNT(g) FROM Game g WHERE g.season.id = :seasonId AND g.status = 'FINAL' AND g.bettingOdds IS NULL")
+    long countFinalGamesMissingOdds(@Param("seasonId") Long seasonId);
+
+    @Query("SELECT COUNT(g) FROM Game g WHERE g.season.id = :seasonId AND g.status = 'FINAL' " +
+           "AND NOT EXISTS (SELECT 1 FROM TeamGameStats t WHERE t.game = g)")
+    long countFinalGamesMissingStats(@Param("seasonId") Long seasonId);
+
     Optional<Game> findByEspnId(String espnId);
 
     List<Game> findBySeasonId(Long seasonId);

@@ -28,7 +28,14 @@ public class ConferenceScraper {
 
     @Transactional
     public ScrapeBatch scrape(int seasonYear) {
-        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.CONFERENCES);
+        return scrape(seasonYear, PipelineContext.manual());
+    }
+
+    @Transactional
+    public ScrapeBatch scrape(int seasonYear, PipelineContext ctx) {
+        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.CONFERENCES,
+                ctx.source(), ctx.pipelineRunId(), ctx.stepOrder());
+        batch.setCurrentStep("CONFERENCES");
         batch = scrapeBatchRepository.save(batch);
 
         try {

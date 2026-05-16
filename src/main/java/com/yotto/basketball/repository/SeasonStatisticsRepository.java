@@ -16,6 +16,8 @@ public interface SeasonStatisticsRepository extends JpaRepository<SeasonStatisti
 
     List<SeasonStatistics> findBySeasonId(Long seasonId);
 
+    long countBySeasonId(Long seasonId);
+
     @Query("SELECT ss FROM SeasonStatistics ss JOIN FETCH ss.team JOIN FETCH ss.conference WHERE ss.season.id = :seasonId")
     List<SeasonStatistics> findBySeasonIdWithTeamAndConference(@Param("seasonId") Long seasonId);
 

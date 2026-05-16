@@ -13,6 +13,7 @@ public class ScrapingProperties {
     private int seasonStartDay = 1;
     private int seasonEndMonth = 4;
     private int seasonEndDay = 30;
+    private String schedule = "0 0 */12 * * *";
 
     public int getBaseDelayMs() {
         return baseDelayMs;
@@ -60,5 +61,13 @@ public class ScrapingProperties {
 
     public void setSeasonEndDay(int seasonEndDay) {
         this.seasonEndDay = seasonEndDay;
+    }
+
+    public String getSchedule() {
+        return schedule;
+    }
+
+    public void setSchedule(String schedule) {
+        this.schedule = schedule;
     }
 }

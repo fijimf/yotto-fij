@@ -30,11 +30,13 @@ public class GameScraper {
     private final GameRepository gameRepository;
     private final BettingOddsRepository bettingOddsRepository;
     private final ScrapeBatchRepository scrapeBatchRepository;
+    private final NonD1GameObservationRepository nonD1GameObservationRepository;
 
     public GameScraper(EspnApiClient espnApiClient, ScrapingProperties scrapingProperties,
                        TeamRepository teamRepository, SeasonRepository seasonRepository,
                        GameRepository gameRepository, BettingOddsRepository bettingOddsRepository,
-                       ScrapeBatchRepository scrapeBatchRepository) {
+                       ScrapeBatchRepository scrapeBatchRepository,
+                       NonD1GameObservationRepository nonD1GameObservationRepository) {
         this.espnApiClient = espnApiClient;
         this.scrapingProperties = scrapingProperties;
         this.teamRepository = teamRepository;
@@ -42,20 +44,31 @@ public class GameScraper {
         this.gameRepository = gameRepository;
         this.bettingOddsRepository = bettingOddsRepository;
         this.scrapeBatchRepository = scrapeBatchRepository;
+        this.nonD1GameObservationRepository = nonD1GameObservationRepository;
     }
 
     @Transactional
     public ScrapeBatch scrapeFullSeason(int seasonYear) {
+        return scrapeFullSeason(seasonYear, PipelineContext.manual());
+    }
+
+    @Transactional
+    public ScrapeBatch scrapeFullSeason(int seasonYear, PipelineContext ctx) {
         LocalDate start = LocalDate.of(seasonYear - 1, scrapingProperties.getSeasonStartMonth(),
                 scrapingProperties.getSeasonStartDay());
         LocalDate end = LocalDate.of(seasonYear, scrapingProperties.getSeasonEndMonth(),
                 scrapingProperties.getSeasonEndDay());
 
-        return scrapeDateRange(seasonYear, start, end);
+        return scrapeDateRange(seasonYear, start, end, ctx);
     }
 
     @Transactional
     public ScrapeBatch scrapeCurrentSeason(int seasonYear) {
+        return scrapeCurrentSeason(seasonYear, PipelineContext.manual());
+    }
+
+    @Transactional
+    public ScrapeBatch scrapeCurrentSeason(int seasonYear, PipelineContext ctx) {
         Season season = seasonRepository.findByYear(seasonYear).orElse(null);
         if (season == null) {
             log.warn("Season {} not found, cannot re-scrape current season", seasonYear);
@@ -76,10 +89,14 @@ public class GameScraper {
             }
         }
 
-        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.GAMES);
+        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.GAMES,
+                ctx.source(), ctx.pipelineRunId(), ctx.stepOrder());
+        batch.setProgressTotal(datesToFetch.size());
+        batch.setCurrentStep("GAMES (current)");
         batch = scrapeBatchRepository.save(batch);
 
         for (LocalDate date : datesToFetch) {
+            batch.setCurrentStep("GAMES " + date);
             try {
                 scrapeDate(date, seasonYear, batch);
                 batch.incrementDatesSucceeded();
@@ -87,6 +104,7 @@ public class GameScraper {
                 log.error("Failed to scrape date {}", date, e);
                 batch.incrementDatesFailed();
             }
+            batch = scrapeBatchRepository.save(batch);
         }
 
         batch.complete();
@@ -97,12 +115,17 @@ public class GameScraper {
         return scrapeBatchRepository.save(batch);
     }
 
-    private ScrapeBatch scrapeDateRange(int seasonYear, LocalDate start, LocalDate end) {
-        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.GAMES);
+    private ScrapeBatch scrapeDateRange(int seasonYear, LocalDate start, LocalDate end, PipelineContext ctx) {
+        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.GAMES,
+                ctx.source(), ctx.pipelineRunId(), ctx.stepOrder());
+        int total = (int) java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1;
+        batch.setProgressTotal(total);
+        batch.setCurrentStep("GAMES " + start);
         batch = scrapeBatchRepository.save(batch);
 
         LocalDate current = start;
         while (!current.isAfter(end)) {
+            batch.setCurrentStep("GAMES " + current);
             try {
                 scrapeDate(current, seasonYear, batch);
                 batch.incrementDatesSucceeded();
@@ -112,10 +135,8 @@ public class GameScraper {
             }
             current = current.plusDays(1);
 
-            // Periodic save to track progress
-            if (batch.getDatesSucceeded() % 10 == 0) {
-                batch = scrapeBatchRepository.save(batch);
-            }
+            // Save every iteration so the dashboard can show live progress.
+            batch = scrapeBatchRepository.save(batch);
         }
 
         batch.complete();
@@ -170,6 +191,11 @@ public class GameScraper {
         Team awayTeam = teamRepository.findByEspnId(awayTeamEspnId).orElse(null);
         if (homeTeam == null || awayTeam == null) {
             log.warn("Unknown team(s) for event {}: home={}, away={}", espnId, homeTeamEspnId, awayTeamEspnId);
+            recordNonD1Observation(espnId, seasonYear, scrapeDate,
+                    parseGameDate(event.path("date").asText()),
+                    homeTeamEspnId, awayTeamEspnId,
+                    homeTeam == null ? homeTeamEspnId : null,
+                    awayTeam == null ? awayTeamEspnId : null);
             return;
         }
 
@@ -227,6 +253,34 @@ public class GameScraper {
         if (odds != null && !odds.isMissingNode() && odds.isObject()) {
             upsertScoreboardOdds(game, odds);
         }
+    }
+
+    private void recordNonD1Observation(String espnGameId, int seasonYear, LocalDate scrapeDate,
+                                        LocalDateTime gameDateUtc,
+                                        String homeEspnId, String awayEspnId,
+                                        String unknownHomeId, String unknownAwayId) {
+        StringBuilder unknown = new StringBuilder();
+        if (unknownHomeId != null) unknown.append(unknownHomeId);
+        if (unknownAwayId != null) {
+            if (unknown.length() > 0) unknown.append(',');
+            unknown.append(unknownAwayId);
+        }
+
+        NonD1GameObservation obs = nonD1GameObservationRepository.findByEspnGameId(espnGameId).orElse(null);
+        LocalDateTime now = LocalDateTime.now();
+        if (obs == null) {
+            obs = new NonD1GameObservation();
+            obs.setEspnGameId(espnGameId);
+            obs.setFirstSeenAt(now);
+        }
+        obs.setSeasonYear(seasonYear);
+        obs.setScrapeDate(scrapeDate);
+        obs.setGameDateUtc(gameDateUtc);
+        obs.setHomeEspnId(homeEspnId);
+        obs.setAwayEspnId(awayEspnId);
+        obs.setUnknownTeamEspnIds(unknown.toString());
+        obs.setLastSeenAt(now);
+        nonD1GameObservationRepository.save(obs);
     }
 
     private void upsertScoreboardOdds(Game game, JsonNode odds) {

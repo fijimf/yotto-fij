@@ -8,36 +8,79 @@
                 <tr>
                     <th>Season</th>
                     <th>Type</th>
+                    <th>Source</th>
                     <th>Started</th>
                     <th>Duration</th>
                     <th>Created</th>
                     <th>Updated</th>
-                    <th>Dates OK</th>
-                    <th>Dates Failed</th>
+                    <th>Progress</th>
                     <th>Status</th>
                 </tr>
             </thead>
             <tbody>
-                <tr th:each="batch : ${batches}">
-                    <td th:text="${batch.seasonYear}">2025</td>
-                    <td th:text="${batch.scrapeType}">GAMES</td>
-                    <td th:text="${#temporals.format(batch.startedAt, 'MMM d HH:mm')}">Feb 15 14:30</td>
-                    <td>
-                        <span th:if="${batch.completedAt != null}"
-                              th:text="${T(java.time.Duration).between(batch.startedAt, batch.completedAt).toMinutes() + 'm ' + T(java.time.Duration).between(batch.startedAt, batch.completedAt).toSecondsPart() + 's'}">5m 30s</span>
-                        <span th:if="${batch.completedAt == null}">-</span>
-                    </td>
-                    <td th:text="${batch.recordsCreated}">0</td>
-                    <td th:text="${batch.recordsUpdated}">0</td>
-                    <td th:text="${batch.datesSucceeded}">0</td>
-                    <td th:text="${batch.datesFailed}">0</td>
-                    <td>
-                        <span class="status-badge"
-                              th:classappend="${'status-badge--' + batch.status.name().toLowerCase()}"
-                              th:text="${batch.status}">COMPLETED</span>
-                    </td>
-                </tr>
-                <tr th:if="${#lists.isEmpty(batches)}">
+                <th:block th:each="entry : ${entries}">
+                    <tr th:with="children=${entry.children()}">
+                        <td th:text="${entry.seasonYear()}">2025</td>
+                        <td>
+                            <span th:if="${entry.isPipeline()}"
+                                  th:text="'Pipeline (' + ${children.size()} + ' steps)'">Pipeline (6 steps)</span>
+                            <span th:unless="${entry.isPipeline()}"
+                                  th:text="${children[0].scrapeType}">GAMES</span>
+                        </td>
+                        <td>
+                            <span style="font-size: 0.8rem; color: var(--color-text-muted);"
+                                  th:text="${entry.source()}">MANUAL</span>
+                        </td>
+                        <td th:text="${#temporals.format(entry.startedAt(), 'MMM d HH:mm')}">Feb 15 14:30</td>
+                        <td>
+                            <span th:if="${entry.completedAt() != null}"
+                                  th:text="${T(java.time.Duration).between(entry.startedAt(), entry.completedAt()).toMinutes() + 'm ' + T(java.time.Duration).between(entry.startedAt(), entry.completedAt()).toSecondsPart() + 's'}">5m 30s</span>
+                            <span th:if="${entry.completedAt() == null}">—</span>
+                        </td>
+                        <td th:text="${entry.recordsCreated()}">0</td>
+                        <td th:text="${entry.recordsUpdated()}">0</td>
+                        <td>
+                            <div th:if="${entry.currentStep() != null}"
+                                 style="font-size: 0.8rem; color: var(--color-text-muted);"
+                                 th:text="${entry.currentStep()}">GAMES 2026-02-14</div>
+                            <div th:if="${entry.progressTotal() != null and entry.progressTotal() > 0}"
+                                 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem;">
+                                <div style="flex: 1; max-width: 8rem; background: rgba(255,255,255,0.06); height: 0.5rem; border-radius: 0.25rem; overflow: hidden;">
+                                    <div th:style="'width: ' + ${entry.progressPercent()} + '%; background: var(--color-accent, #6cb6ff); height: 100%;'"></div>
+                                </div>
+                                <span th:text="${entry.progressDone()} + ' / ' + ${entry.progressTotal()}">147 / 181</span>
+                            </div>
+                            <div th:unless="${entry.currentStep() != null or (entry.progressTotal() != null and entry.progressTotal() > 0)}"
+                                 style="font-size: 0.8rem; color: var(--color-text-muted);"
+                                 th:text="${entry.datesSucceeded()} + ' ok / ' + ${entry.datesFailed()} + ' fail'">0 ok / 0 fail</div>
+                        </td>
+                        <td>
+                            <span class="status-badge"
+                                  th:classappend="${'status-badge--' + entry.status().name().toLowerCase()}"
+                                  th:text="${entry.status()}">COMPLETED</span>
+                            <details th:if="${entry.isPipeline()}" style="margin-top: 0.3rem;">
+                                <summary style="cursor: pointer; font-size: 0.75rem; color: var(--color-text-muted);">steps</summary>
+                                <table style="margin-top: 0.4rem; font-size: 0.78rem;">
+                                    <tbody>
+                                        <tr th:each="child : ${children}">
+                                            <td th:text="${child.pipelineStepOrder != null ? child.pipelineStepOrder + '.' : ''} + ' ' + ${child.scrapeType}">1. CONFERENCES</td>
+                                            <td>
+                                                <span class="status-badge"
+                                                      th:classappend="${'status-badge--' + child.status.name().toLowerCase()}"
+                                                      th:text="${child.status}">COMPLETED</span>
+                                            </td>
+                                            <td th:if="${child.currentStep != null}"
+                                                style="color: var(--color-text-muted);"
+                                                th:text="${child.currentStep}">GAMES 2026-02-14</td>
+                                            <td th:unless="${child.currentStep != null}"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </details>
+                        </td>
+                    </tr>
+                </th:block>
+                <tr th:if="${#lists.isEmpty(entries)}">
                     <td colspan="9" style="text-align: center; color: var(--color-text-muted);">
                         No scrape history yet.
                     </td>

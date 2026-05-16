@@ -40,7 +40,14 @@ public class StandingsScraper {
 
     @Transactional
     public ScrapeBatch scrape(int seasonYear) {
-        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.STANDINGS);
+        return scrape(seasonYear, PipelineContext.manual());
+    }
+
+    @Transactional
+    public ScrapeBatch scrape(int seasonYear, PipelineContext ctx) {
+        ScrapeBatch batch = ScrapeBatch.start(seasonYear, ScrapeBatch.ScrapeType.STANDINGS,
+                ctx.source(), ctx.pipelineRunId(), ctx.stepOrder());
+        batch.setCurrentStep("STANDINGS");
         batch = scrapeBatchRepository.save(batch);
 
         try {

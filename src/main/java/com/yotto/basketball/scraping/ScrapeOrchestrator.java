@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class ScrapeOrchestrator {
 
@@ -42,49 +44,59 @@ public class ScrapeOrchestrator {
     }
 
     public void scrapeFullSeason(int seasonYear) {
-        log.info("Starting full season scrape for {}", seasonYear);
+        scrapeFullSeason(seasonYear, ScrapeBatch.Source.MANUAL);
+    }
 
-        ScrapeBatch confBatch = conferenceScraper.scrape(seasonYear);
+    public void scrapeFullSeason(int seasonYear, ScrapeBatch.Source source) {
+        PipelineContext run = new PipelineContext(UUID.randomUUID(), null, source);
+        log.info("Starting full season scrape for {} (pipeline {})", seasonYear, run.pipelineRunId());
+
+        ScrapeBatch confBatch = conferenceScraper.scrape(seasonYear, run.step(1));
         if (confBatch.getStatus() == ScrapeBatch.ScrapeStatus.FAILED) {
             log.error("Conference scrape failed, aborting full season scrape");
             return;
         }
 
-        ScrapeBatch teamBatch = teamScraper.scrape(seasonYear);
+        ScrapeBatch teamBatch = teamScraper.scrape(seasonYear, run.step(2));
         if (teamBatch.getStatus() == ScrapeBatch.ScrapeStatus.FAILED) {
             log.error("Team scrape failed, aborting full season scrape");
             return;
         }
 
-        ScrapeBatch standingsBatch = standingsScraper.scrape(seasonYear);
+        ScrapeBatch standingsBatch = standingsScraper.scrape(seasonYear, run.step(3));
         if (standingsBatch.getStatus() == ScrapeBatch.ScrapeStatus.FAILED) {
             log.warn("Standings scrape failed, continuing with game scrape");
         }
 
-        gameScraper.scrapeFullSeason(seasonYear);
+        gameScraper.scrapeFullSeason(seasonYear, run.step(4));
 
         statsCalculationService.calculateAndUpdateForSeason(seasonYear);
         timeSeriesService.calculateAndStoreForSeason(seasonYear);
         powerRatingService.calculateAndStoreForSeason(seasonYear);
 
-        oddsBackfillScraper.backfill(seasonYear);
-        gameStatsScraper.backfill(seasonYear);
+        oddsBackfillScraper.backfill(seasonYear, run.step(5));
+        gameStatsScraper.backfill(seasonYear, run.step(6));
 
-        log.info("Full season scrape completed for {}", seasonYear);
+        log.info("Full season scrape completed for {} (pipeline {})", seasonYear, run.pipelineRunId());
     }
 
     public void scrapeCurrentSeason(int seasonYear) {
-        log.info("Starting current season re-scrape for {}", seasonYear);
+        scrapeCurrentSeason(seasonYear, ScrapeBatch.Source.MANUAL);
+    }
 
-        standingsScraper.scrape(seasonYear);
-        gameScraper.scrapeCurrentSeason(seasonYear);
+    public void scrapeCurrentSeason(int seasonYear, ScrapeBatch.Source source) {
+        PipelineContext run = new PipelineContext(UUID.randomUUID(), null, source);
+        log.info("Starting current season re-scrape for {} (pipeline {})", seasonYear, run.pipelineRunId());
+
+        standingsScraper.scrape(seasonYear, run.step(1));
+        gameScraper.scrapeCurrentSeason(seasonYear, run.step(2));
         statsCalculationService.calculateAndUpdateForSeason(seasonYear);
         timeSeriesService.calculateAndStoreForSeason(seasonYear);
         powerRatingService.calculateAndStoreForSeason(seasonYear);
-        oddsBackfillScraper.backfill(seasonYear);
-        gameStatsScraper.backfill(seasonYear);
+        oddsBackfillScraper.backfill(seasonYear, run.step(3));
+        gameStatsScraper.backfill(seasonYear, run.step(4));
 
-        log.info("Current season re-scrape completed for {}", seasonYear);
+        log.info("Current season re-scrape completed for {} (pipeline {})", seasonYear, run.pipelineRunId());
     }
 
     public void scrapeTeams(int seasonYear) {

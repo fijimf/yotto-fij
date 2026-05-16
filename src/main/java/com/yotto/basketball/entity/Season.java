@@ -27,6 +27,10 @@ public class Season {
 
     private String description;
 
+    @NotNull
+    @Column(name = "auto_refresh", nullable = false)
+    private Boolean autoRefresh = Boolean.FALSE;
+
     @JsonIgnore
     @OneToMany(mappedBy = "season", cascade = CascadeType.ALL)
     private List<Game> games = new ArrayList<>();
@@ -84,6 +88,14 @@ public class Season {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Boolean getAutoRefresh() {
+        return autoRefresh;
+    }
+
+    public void setAutoRefresh(Boolean autoRefresh) {
+        this.autoRefresh = autoRefresh != null ? autoRefresh : Boolean.FALSE;
     }
 
     public List<Game> getGames() {
