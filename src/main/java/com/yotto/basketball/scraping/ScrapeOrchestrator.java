@@ -18,6 +18,7 @@ public class ScrapeOrchestrator {
     private final StandingsScraper standingsScraper;
     private final GameScraper gameScraper;
     private final OddsBackfillScraper oddsBackfillScraper;
+    private final GameStatsScraper gameStatsScraper;
     private final StatsCalculationService statsCalculationService;
     private final StatisticsTimeSeriesService timeSeriesService;
     private final PowerRatingService powerRatingService;
@@ -25,6 +26,7 @@ public class ScrapeOrchestrator {
     public ScrapeOrchestrator(ConferenceScraper conferenceScraper, TeamScraper teamScraper,
                               StandingsScraper standingsScraper, GameScraper gameScraper,
                               OddsBackfillScraper oddsBackfillScraper,
+                              GameStatsScraper gameStatsScraper,
                               StatsCalculationService statsCalculationService,
                               StatisticsTimeSeriesService timeSeriesService,
                               PowerRatingService powerRatingService) {
@@ -33,6 +35,7 @@ public class ScrapeOrchestrator {
         this.standingsScraper = standingsScraper;
         this.gameScraper = gameScraper;
         this.oddsBackfillScraper = oddsBackfillScraper;
+        this.gameStatsScraper = gameStatsScraper;
         this.statsCalculationService = statsCalculationService;
         this.timeSeriesService = timeSeriesService;
         this.powerRatingService = powerRatingService;
@@ -65,6 +68,7 @@ public class ScrapeOrchestrator {
         powerRatingService.calculateAndStoreForSeason(seasonYear);
 
         oddsBackfillScraper.backfill(seasonYear);
+        gameStatsScraper.backfill(seasonYear);
 
         log.info("Full season scrape completed for {}", seasonYear);
     }
@@ -78,6 +82,7 @@ public class ScrapeOrchestrator {
         timeSeriesService.calculateAndStoreForSeason(seasonYear);
         powerRatingService.calculateAndStoreForSeason(seasonYear);
         oddsBackfillScraper.backfill(seasonYear);
+        gameStatsScraper.backfill(seasonYear);
 
         log.info("Current season re-scrape completed for {}", seasonYear);
     }
@@ -101,6 +106,10 @@ public class ScrapeOrchestrator {
 
     public void backfillOdds(int seasonYear) {
         oddsBackfillScraper.backfill(seasonYear);
+    }
+
+    public void backfillGameStats(int seasonYear) {
+        gameStatsScraper.backfill(seasonYear);
     }
 
     public void calculateStats(int seasonYear) {

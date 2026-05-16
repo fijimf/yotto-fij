@@ -108,6 +108,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/scrape/game-stats/{year}")
+    public String backfillGameStats(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
+        asyncScrapeService.backfillGameStatsAsync(year);
+        redirectAttributes.addFlashAttribute("success", "Game stats backfill started for " + year);
+        return "redirect:/admin";
+    }
+
     @PostMapping("/scrape/stats/{year}")
     public String calculateStats(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
         asyncScrapeService.calculateStatsAsync(year);

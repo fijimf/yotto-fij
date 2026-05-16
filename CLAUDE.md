@@ -43,13 +43,14 @@ Additional layers:
 - Admin panel at `/admin` (requires authentication)
 See [UI.md](UI.md) for more details and guidelines.
 
-### Entities (8)
+### Entities (9)
 - **Conference** - name (unique), abbreviation, division, espnId (unique), logoUrl
 - **Season** - year (unique), startDate, endDate
 - **Team** - name, mascot, abbreviation, slug, espnId (unique), color, alternateColor, active, logoUrl
 - **ConferenceMembership** - links Team+Conference+Season (unique per team+season)
 - **Game** - homeTeam, awayTeam, gameDate, scores, status (enum: SCHEDULED, IN_PROGRESS, FINAL, POSTPONED, CANCELLED), espnId (unique), venue, neutralSite, scrapeDate
 - **BettingOdds** - spread, overUnder, moneylines, opening spread/OU (OneToOne with Game)
+- **TeamGameStats** - per-game per-team box score: FG/3PT/FT made-attempted, rebounds (off/def/total), assists, steals, blocks, turnovers, fouls, plus optional pointsInPaint/fastBreak/turnoverPts (unique per game+team)
 - **ScrapeBatch** - tracks scraping operations: type, status (RUNNING/COMPLETED/FAILED/PARTIAL), record counts, date tracking
 - **SeasonStatistics** - aggregate stats per team per season: wins, losses, conference/home/road splits, points, streak, conferenceStanding
 - **AdminUser** - username, passwordHash, passwordMustChange
@@ -88,7 +89,8 @@ Data is sourced from ESPN's public JSON APIs. See [SCRAPING.md](SCRAPING.md) for
 - **StandingsScraper** - standings entries -> ConferenceMembership + SeasonStatistics
 - **GameScraper** - `scrapeFullSeason` (Nov 1 - Apr 30, per-date) + `scrapeCurrentSeason` (re-scrape non-final dates). Extracts pre-game odds from scoreboard.
 - **OddsBackfillScraper** - backfills odds for final games missing them using ESPN core API
-- **ScrapeOrchestrator** - coordinates scrapers in dependency order (conferences -> teams -> standings -> games -> odds)
+- **GameStatsScraper** - per-game team-level box score backfill via ESPN summary endpoint; one API call per FINAL game; idempotent upsert keyed on (game_id, team_id)
+- **ScrapeOrchestrator** - coordinates scrapers in dependency order (conferences -> teams -> standings -> games -> odds -> game stats)
 - **AsyncScrapeService** - @Async wrappers for long-running scrapes
 - **ScrapeScheduler** - @Scheduled cron (default every 12h) for automatic current-season re-scraping
 

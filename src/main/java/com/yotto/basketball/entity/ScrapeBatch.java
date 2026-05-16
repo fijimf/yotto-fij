@@ -50,7 +50,8 @@ public class ScrapeBatch {
         CONFERENCES,
         STANDINGS,
         GAMES,
-        ODDS_BACKFILL
+        ODDS_BACKFILL,
+        GAME_STATS
     }
 
     public enum ScrapeStatus {

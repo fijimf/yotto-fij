@@ -45,6 +45,10 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT g FROM Game g WHERE g.season.id = :seasonId AND g.status = 'FINAL' AND g.bettingOdds IS NULL")
     List<Game> findFinalGamesWithoutOdds(@Param("seasonId") Long seasonId);
 
+    @Query("SELECT g FROM Game g WHERE g.season.id = :seasonId AND g.status = 'FINAL' " +
+           "AND NOT EXISTS (SELECT 1 FROM TeamGameStats t WHERE t.game = g)")
+    List<Game> findFinalGamesWithoutStats(@Param("seasonId") Long seasonId);
+
     @Query("SELECT DISTINCT s FROM Game g JOIN g.season s WHERE g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId ORDER BY s.year DESC")
     List<Season> findSeasonsByTeamId(@Param("teamId") Long teamId);
 

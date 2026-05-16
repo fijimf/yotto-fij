@@ -18,6 +18,7 @@ All data comes from ESPN's public JSON APIs for men's college basketball (Divisi
 | **Standings** | `https://site.api.espn.com/apis/v2/sports/basketball/mens-college-basketball/standings?season={year}` | Conference memberships and season statistics for a given season |
 | **Scoreboard** | `https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=basketball&league=mens-college-basketball&limit=200&groups=50&dates={yyyyMMdd}` | All games on a given date (includes odds for pre-game events) |
 | **Game Odds** | `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/events/{espnGameId}/competitions/{espnGameId}/odds` | Betting odds for a specific game (persists after game completion; used to backfill completed games) |
+| **Game Summary** | `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event={espnGameId}` | Per-game box score (team-level stats only — player stats are ignored) |
 
 ---
 
@@ -247,6 +248,57 @@ This endpoint **preserves betting data on completed games**, including both open
 - Opening lines are nested under `pointSpread.home.open.line` and `total.over.open.line`.
 - Moneyline values can be the string `"OFF"` when unavailable — treat as null.
 - The `lastUpdated` column on `betting_odds` should be set to the scrape timestamp.
+
+---
+
+## Team Game Stats (Box Score)
+
+### API Structure
+
+**URL:** `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event={espnGameId}`
+
+**Navigation path:** `root.boxscore.teams[i]`
+
+Returns two entries — one per team. Each contains:
+
+- `team.id` — ESPN team id (join key)
+- `homeAway` — `"home"` / `"away"`
+- `statistics[]` — `{name, displayValue, abbreviation, label}` objects
+
+Player stats live under a sibling `players[]` array and are intentionally **not** scraped.
+
+### Field Mapping
+
+| ESPN stat `name`                                          | Maps To                                          | Notes                          |
+|-----------------------------------------------------------|--------------------------------------------------|--------------------------------|
+| `fieldGoalsMade-fieldGoalsAttempted`                      | `team_game_stats.fg_made` / `fg_attempted`       | Hyphen-split string, e.g. `"28-61"` |
+| `threePointFieldGoalsMade-threePointFieldGoalsAttempted`  | `team_game_stats.fg3_made` / `fg3_attempted`     | Hyphen-split                   |
+| `freeThrowsMade-freeThrowsAttempted`                      | `team_game_stats.ft_made` / `ft_attempted`       | Hyphen-split                   |
+| `totalRebounds`                                           | `team_game_stats.total_reb`                      |                                |
+| `offensiveRebounds`                                       | `team_game_stats.offensive_reb`                  |                                |
+| `defensiveRebounds`                                       | `team_game_stats.defensive_reb`                  |                                |
+| `assists`                                                 | `team_game_stats.assists`                        |                                |
+| `steals`                                                  | `team_game_stats.steals`                         |                                |
+| `blocks`                                                  | `team_game_stats.blocks`                         |                                |
+| `turnovers`                                               | `team_game_stats.turnovers`                      |                                |
+| `fouls`                                                   | `team_game_stats.fouls`                          |                                |
+| `technicalFouls`                                          | `team_game_stats.technical_fouls`                |                                |
+| `flagrantFouls`                                           | `team_game_stats.flagrant_fouls`                 |                                |
+| `largestLead`                                             | `team_game_stats.largest_lead`                   |                                |
+| `pointsInPaint`                                           | `team_game_stats.points_in_paint`                | Often absent on older games    |
+| `fastBreakPoints`                                         | `team_game_stats.fast_break_pts`                 | Often absent on older games    |
+| `turnoverPoints`                                          | `team_game_stats.turnover_pts`                   | Often absent on older games    |
+| `fieldGoalPct`, `threePointFieldGoalPct`, `freeThrowPct`  | —                                                | Skip — recompute on read       |
+
+### Backfill Strategy
+
+Scraped per-game by `GameStatsScraper.backfill(year)`, which selects all FINAL
+games for the season that do not yet have any `team_game_stats` rows. One
+`ScrapeBatch.ScrapeType.GAME_STATS` row is created per backfill run. Idempotent:
+re-running upserts on the `(game_id, team_id)` unique constraint.
+
+Cost: one API call per FINAL game (~5,500 per full D-I season). At the default
+200 ms rate limit, a full-season backfill takes 20–25 minutes.
 
 ---
 

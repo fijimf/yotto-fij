@@ -47,6 +47,16 @@ public class AsyncScrapeService {
     }
 
     @Async("scrapeExecutor")
+    public void backfillGameStatsAsync(int seasonYear) {
+        log.info("Async game stats backfill started for {}", seasonYear);
+        try {
+            orchestrator.backfillGameStats(seasonYear);
+        } catch (Exception e) {
+            log.error("Async game stats backfill failed for {}", seasonYear, e);
+        }
+    }
+
+    @Async("scrapeExecutor")
     public void scrapeTeamsAsync(int seasonYear) {
         log.info("Async team scrape started for {}", seasonYear);
         try {

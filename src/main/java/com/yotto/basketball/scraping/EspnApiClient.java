@@ -23,6 +23,7 @@ public class EspnApiClient {
     private static final String STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/basketball/mens-college-basketball/standings?season={year}";
     private static final String SCOREBOARD_URL = "https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=basketball&league=mens-college-basketball&limit=200&groups=50&dates={date}";
     private static final String ODDS_URL = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/events/{gameId}/competitions/{gameId}/odds";
+    private static final String SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event={gameId}";
 
     private final RestClient restClient;
     private final ScrapingProperties properties;
@@ -59,6 +60,11 @@ public class EspnApiClient {
 
     public JsonNode fetchGameOdds(String espnGameId) {
         String url = ODDS_URL.replace("{gameId}", espnGameId);
+        return fetchWithRateLimit(url);
+    }
+
+    public JsonNode fetchGameSummary(String espnGameId) {
+        String url = SUMMARY_URL.replace("{gameId}", espnGameId);
         return fetchWithRateLimit(url);
     }
 
