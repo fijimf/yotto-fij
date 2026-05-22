@@ -1,11 +1,10 @@
 package com.yotto.basketball.repository;
 
-import com.yotto.basketball.BaseIntegrationTest;
+import com.yotto.basketball.BaseDataJpaTest;
 import com.yotto.basketball.entity.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,8 +12,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@AutoConfigureMockMvc
-class GameRepositoryH2HTest extends BaseIntegrationTest {
+class GameRepositoryH2HTest extends BaseDataJpaTest {
 
     @Autowired GameRepository gameRepo;
     @Autowired TeamRepository teamRepo;
@@ -26,9 +24,6 @@ class GameRepositoryH2HTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        gameRepo.deleteAll();
-        teamRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         home = mkTeam("Duke", "DUKE");
         away = mkTeam("UNC", "UNC");

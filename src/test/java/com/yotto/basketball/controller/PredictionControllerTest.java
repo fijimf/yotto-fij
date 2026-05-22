@@ -41,17 +41,6 @@ class PredictionControllerTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         season = new Season();
         season.setYear(2025);

@@ -37,11 +37,6 @@ class ConferenceScraperTest extends BaseIntegrationTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    @BeforeEach
-    void setUp() {
-        conferenceRepository.deleteAll();
-    }
-
     @Test
     void scrapeConferences_createsNewConferences() throws Exception {
         String json = """

@@ -39,17 +39,6 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         home = mkTeam("Alabama", "TA");
         away = mkTeam("Auburn", "TB");
@@ -87,6 +76,11 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
         o.setGame(g);
         o.setSpread(spread);
         o.setOverUnder(ou);
+        o.setHomeMoneyline(-180);
+        o.setAwayMoneyline(150);
+        o.setOpeningSpread(new BigDecimal("-4.0"));
+        o.setOpeningOverUnder(new BigDecimal("146.5"));
+        o.setSource("Bet Provider");
         return oddsRepo.save(o);
     }
 
@@ -129,12 +123,19 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
     // ── GET /api/betting-odds/{id} ────────────────────────────────────────────
 
     @Test
-    void getById_returnsOdds() throws Exception {
+    void getById_returnsFullOddsShape() throws Exception {
         BettingOdds o = mkOdds(game, new BigDecimal("-3.5"), new BigDecimal("145.5"));
 
         mockMvc.perform(get("/api/betting-odds/{id}", o.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(o.getId()));
+                .andExpect(jsonPath("$.id").value(o.getId()))
+                .andExpect(jsonPath("$.spread").value(-3.5))
+                .andExpect(jsonPath("$.overUnder").value(145.5))
+                .andExpect(jsonPath("$.homeMoneyline").value(-180))
+                .andExpect(jsonPath("$.awayMoneyline").value(150))
+                .andExpect(jsonPath("$.openingSpread").value(-4.0))
+                .andExpect(jsonPath("$.openingOverUnder").value(146.5))
+                .andExpect(jsonPath("$.source").value("Bet Provider"));
     }
 
     @Test
@@ -175,18 +176,25 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
     // ── PUT /api/betting-odds/{id} ────────────────────────────────────────────
 
     @Test
-    void update_returnsUpdatedOdds() throws Exception {
+    void update_persistsNewSpreadAndOverUnderToDatabase() throws Exception {
         BettingOdds o = mkOdds(game, new BigDecimal("-3.5"), new BigDecimal("145.5"));
 
         String body = """
-                {"spread": -6.5, "overUnder": 150.0}
+                {"spread": -6.5, "overUnder": 150.0, "homeMoneyline": -250, "awayMoneyline": 200}
                 """;
 
         mockMvc.perform(put("/api/betting-odds/{id}", o.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.spread").value(-6.5));
+                .andExpect(jsonPath("$.spread").value(-6.5))
+                .andExpect(jsonPath("$.overUnder").value(150.0));
+
+        BettingOdds reloaded = oddsRepo.findById(o.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(reloaded.getSpread())
+                .isEqualByComparingTo(new BigDecimal("-6.5"));
+        org.assertj.core.api.Assertions.assertThat(reloaded.getOverUnder())
+                .isEqualByComparingTo(new BigDecimal("150.0"));
     }
 
     @Test

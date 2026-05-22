@@ -16,11 +16,6 @@ class QuoteServiceTest extends BaseIntegrationTest {
     @Autowired QuoteService quoteService;
     @Autowired QuoteRepository quoteRepository;
 
-    @BeforeEach
-    void setUp() {
-        quoteRepository.deleteAll();
-    }
-
     @Test
     void getRandomQuote_returnsEmptyWhenNoActiveQuotes() {
         assertThat(quoteService.getRandomQuote()).isEmpty();

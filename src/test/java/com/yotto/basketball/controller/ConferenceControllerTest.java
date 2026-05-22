@@ -29,25 +29,13 @@ class ConferenceControllerTest extends BaseIntegrationTest {
     @Autowired TeamRepository teamRepo;
     @Autowired SeasonRepository seasonRepo;
 
-    @BeforeEach
-    void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
-    }
-
     private Conference mkConference(String name, String espnId) {
         Conference c = new Conference();
         c.setName(name);
         c.setEspnId(espnId);
+        c.setAbbreviation(name);
+        c.setDivision("Division I");
+        c.setLogoUrl("https://example.com/" + espnId + ".png");
         return conferenceRepo.save(c);
     }
 
@@ -74,9 +62,9 @@ class ConferenceControllerTest extends BaseIntegrationTest {
     // ── POST /api/conferences ─────────────────────────────────────────────────
 
     @Test
-    void create_returns201WithConference() throws Exception {
+    void create_returns201WithFullConferenceRoundTrip() throws Exception {
         String body = """
-                {"name": "Big Ten", "espnId": "bt1"}
+                {"name": "Big Ten", "espnId": "bt1", "abbreviation": "B1G", "division": "Division I", "logoUrl": "https://example.com/b1g.png"}
                 """;
 
         mockMvc.perform(post("/api/conferences")
@@ -84,7 +72,17 @@ class ConferenceControllerTest extends BaseIntegrationTest {
                         .content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.name").value("Big Ten"));
+                .andExpect(jsonPath("$.name").value("Big Ten"))
+                .andExpect(jsonPath("$.espnId").value("bt1"))
+                .andExpect(jsonPath("$.abbreviation").value("B1G"))
+                .andExpect(jsonPath("$.division").value("Division I"))
+                .andExpect(jsonPath("$.logoUrl").value("https://example.com/b1g.png"));
+
+        Conference saved = conferenceRepo.findByEspnId("bt1").orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(saved.getName()).isEqualTo("Big Ten");
+        org.assertj.core.api.Assertions.assertThat(saved.getAbbreviation()).isEqualTo("B1G");
+        org.assertj.core.api.Assertions.assertThat(saved.getDivision()).isEqualTo("Division I");
+        org.assertj.core.api.Assertions.assertThat(saved.getLogoUrl()).isEqualTo("https://example.com/b1g.png");
     }
 
     @Test
@@ -104,13 +102,17 @@ class ConferenceControllerTest extends BaseIntegrationTest {
     // ── GET /api/conferences/{id} ─────────────────────────────────────────────
 
     @Test
-    void getById_returnsConference() throws Exception {
+    void getById_returnsFullConferenceShape() throws Exception {
         Conference c = mkConference("SEC", "sec1");
 
         mockMvc.perform(get("/api/conferences/{id}", c.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(c.getId()))
-                .andExpect(jsonPath("$.name").value("SEC"));
+                .andExpect(jsonPath("$.name").value("SEC"))
+                .andExpect(jsonPath("$.espnId").value("sec1"))
+                .andExpect(jsonPath("$.abbreviation").value("SEC"))
+                .andExpect(jsonPath("$.division").value("Division I"))
+                .andExpect(jsonPath("$.logoUrl").value("https://example.com/sec1.png"));
     }
 
     @Test
@@ -140,18 +142,34 @@ class ConferenceControllerTest extends BaseIntegrationTest {
     // ── PUT /api/conferences/{id} ─────────────────────────────────────────────
 
     @Test
-    void update_returnsUpdatedConference() throws Exception {
+    void update_persistsEditableFieldsButLeavesLogoUrlAndEspnIdUnchanged() throws Exception {
+        // ConferenceService.update only mutates name/abbreviation/division. logoUrl
+        // and espnId are deliberately preserved (espn-IDs are scrape-managed and
+        // logo URLs are populated by the conference scraper).
         Conference c = mkConference("OldName", "espn1");
+        String originalLogo = c.getLogoUrl();
 
         String body = """
-                {"name": "NewName"}
+                {"name": "NewName", "abbreviation": "NN", "division": "Division II", "logoUrl": "https://example.com/new.png"}
                 """;
 
         mockMvc.perform(put("/api/conferences/{id}", c.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("NewName"));
+                .andExpect(jsonPath("$.name").value("NewName"))
+                .andExpect(jsonPath("$.abbreviation").value("NN"))
+                .andExpect(jsonPath("$.division").value("Division II"))
+                // espnId and logoUrl preserved
+                .andExpect(jsonPath("$.espnId").value("espn1"))
+                .andExpect(jsonPath("$.logoUrl").value(originalLogo));
+
+        Conference reloaded = conferenceRepo.findById(c.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(reloaded.getName()).isEqualTo("NewName");
+        org.assertj.core.api.Assertions.assertThat(reloaded.getAbbreviation()).isEqualTo("NN");
+        org.assertj.core.api.Assertions.assertThat(reloaded.getDivision()).isEqualTo("Division II");
+        org.assertj.core.api.Assertions.assertThat(reloaded.getLogoUrl()).isEqualTo(originalLogo);
+        org.assertj.core.api.Assertions.assertThat(reloaded.getEspnId()).isEqualTo("espn1");
     }
 
     @Test

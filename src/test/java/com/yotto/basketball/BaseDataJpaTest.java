@@ -2,23 +2,30 @@ package com.yotto.basketball;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Base class for full-stack integration tests.
+ * Base class for repository-only tests.
  *
- * <p>Provides a shared PostgreSQL Testcontainer (see {@link SharedPostgresContainer})
- * and a {@link #wipeDatabase()} hook that truncates all application tables before
- * every test method, replacing the per-test {@code deleteAll()} chains that each
- * integration test previously carried in its own {@code @BeforeEach}.
+ * <p>Uses {@code @DataJpaTest} — a much lighter Spring slice than {@code @SpringBootTest}.
+ * Only JPA, the EntityManager, and Spring Data repositories are loaded. No web,
+ * security, or MVC stack.
+ *
+ * <p>{@code Replace.NONE} disables Spring Boot's embedded-database substitution so
+ * the test runs against the shared Testcontainers PostgreSQL — important because the
+ * application uses Postgres-specific SQL in some queries.
+ *
+ * <p>The same database-wipe hook as {@link BaseIntegrationTest} runs before each
+ * test, so the two bases play well together when their tests share the singleton
+ * Postgres container.
  */
-@SpringBootTest
-@ActiveProfiles("test")
-public abstract class BaseIntegrationTest {
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+public abstract class BaseDataJpaTest {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {

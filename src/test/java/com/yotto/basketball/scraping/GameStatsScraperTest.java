@@ -7,10 +7,18 @@ import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamGameStats;
+import com.yotto.basketball.repository.BettingOddsRepository;
+import com.yotto.basketball.repository.ConferenceMembershipRepository;
+import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.GameRepository;
+import com.yotto.basketball.repository.PowerModelParamSnapshotRepository;
+import com.yotto.basketball.repository.SeasonPopulationStatRepository;
 import com.yotto.basketball.repository.SeasonRepository;
+import com.yotto.basketball.repository.SeasonStatisticsRepository;
 import com.yotto.basketball.repository.TeamGameStatsRepository;
+import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamRepository;
+import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +28,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -33,6 +40,14 @@ class GameStatsScraperTest extends BaseIntegrationTest {
     @Autowired private TeamRepository teamRepository;
     @Autowired private SeasonRepository seasonRepository;
     @Autowired private TeamGameStatsRepository teamGameStatsRepository;
+    @Autowired private SeasonPopulationStatRepository popStatRepo;
+    @Autowired private TeamSeasonStatSnapshotRepository snapshotRepo;
+    @Autowired private BettingOddsRepository oddsRepo;
+    @Autowired private PowerModelParamSnapshotRepository paramRepo;
+    @Autowired private TeamPowerRatingSnapshotRepository ratingRepo;
+    @Autowired private SeasonStatisticsRepository statsRepo;
+    @Autowired private ConferenceMembershipRepository membershipRepo;
+    @Autowired private ConferenceRepository conferenceRepo;
 
     @MockBean private EspnApiClient espnApiClient;
 
@@ -45,10 +60,7 @@ class GameStatsScraperTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        teamGameStatsRepository.deleteAll();
-        gameRepository.deleteAll();
-        teamRepository.deleteAll();
-        seasonRepository.deleteAll();
+        // FK-safe delete order — see project_test_cleanup_order memory.
 
         home = new Team();
         home.setEspnId("333");
@@ -210,10 +222,6 @@ class GameStatsScraperTest extends BaseIntegrationTest {
 
     @Test
     void parseMadeAttempted_handlesEdgeCases() {
-        // sanity check on the static parser
-        Optional<TeamGameStats> none = Optional.empty();
-        assertThat(none).isEmpty(); // placeholder so test isn't empty if reorganized
-
         Integer[] holder = new Integer[2];
         GameStatsScraper.parseMadeAttempted("28-61", v -> holder[0] = v, v -> holder[1] = v);
         assertThat(holder[0]).isEqualTo(28);

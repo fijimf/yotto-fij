@@ -32,7 +32,17 @@ public interface ConferenceMembershipRepository extends JpaRepository<Conference
     @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.conference JOIN FETCH cm.season WHERE cm.team.id = :teamId ORDER BY cm.season.year DESC")
     List<ConferenceMembership> findByTeamIdOrderBySeasonDesc(@Param("teamId") Long teamId);
 
-    @Query("SELECT cm FROM ConferenceMembership cm WHERE cm.team.id = :teamId AND cm.season.year = " +
+    @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.team JOIN FETCH cm.conference JOIN FETCH cm.season " +
+           "WHERE cm.id = :id")
+    Optional<ConferenceMembership> findByIdWithDetails(@Param("id") Long id);
+
+    @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.team JOIN FETCH cm.conference JOIN FETCH cm.season " +
+           "WHERE cm.team.id = :teamId AND cm.season.id = :seasonId")
+    Optional<ConferenceMembership> findByTeamIdAndSeasonIdWithDetails(@Param("teamId") Long teamId,
+                                                                      @Param("seasonId") Long seasonId);
+
+    @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.team JOIN FETCH cm.conference JOIN FETCH cm.season " +
+           "WHERE cm.team.id = :teamId AND cm.season.year = " +
            "(SELECT MAX(s.year) FROM Season s JOIN ConferenceMembership cm2 ON cm2.season = s WHERE cm2.team.id = :teamId)")
     Optional<ConferenceMembership> findCurrentMembershipByTeamId(@Param("teamId") Long teamId);
 }

@@ -31,25 +31,16 @@ class TeamControllerTest extends BaseIntegrationTest {
     @Autowired SeasonRepository seasonRepo;
     @Autowired ConferenceRepository conferenceRepo;
 
-    @BeforeEach
-    void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
-    }
-
     private Team mkTeam(String name) {
         Team t = new Team();
         t.setName(name);
         t.setEspnId("espn-" + name);
+        t.setMascot("Mascots");
+        t.setAbbreviation(name.substring(0, Math.min(3, name.length())).toUpperCase());
+        t.setSlug(name.toLowerCase());
+        t.setColor("c41230");
+        t.setAlternateColor("ffffff");
+        t.setLogoUrl("https://example.com/" + name + ".png");
         t.setActive(true);
         return teamRepo.save(t);
     }
@@ -77,9 +68,19 @@ class TeamControllerTest extends BaseIntegrationTest {
     // ── POST /api/teams ───────────────────────────────────────────────────────
 
     @Test
-    void create_returns201WithTeam() throws Exception {
+    void create_returns201WithFullTeamRoundTrip() throws Exception {
         String body = """
-                {"name": "Kentucky", "active": true}
+                {
+                  "name": "Kentucky",
+                  "espnId": "espn-Kentucky",
+                  "mascot": "Wildcats",
+                  "abbreviation": "KEN",
+                  "slug": "kentucky-wildcats",
+                  "color": "0033a0",
+                  "alternateColor": "ffffff",
+                  "logoUrl": "https://example.com/Kentucky.png",
+                  "active": true
+                }
                 """;
 
         mockMvc.perform(post("/api/teams")
@@ -87,7 +88,22 @@ class TeamControllerTest extends BaseIntegrationTest {
                         .content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.name").value("Kentucky"));
+                .andExpect(jsonPath("$.name").value("Kentucky"))
+                .andExpect(jsonPath("$.espnId").value("espn-Kentucky"))
+                .andExpect(jsonPath("$.mascot").value("Wildcats"))
+                .andExpect(jsonPath("$.abbreviation").value("KEN"))
+                .andExpect(jsonPath("$.slug").value("kentucky-wildcats"))
+                .andExpect(jsonPath("$.color").value("0033a0"))
+                .andExpect(jsonPath("$.alternateColor").value("ffffff"))
+                .andExpect(jsonPath("$.logoUrl").value("https://example.com/Kentucky.png"))
+                .andExpect(jsonPath("$.active").value(true));
+
+        Team saved = teamRepo.findByEspnId("espn-Kentucky").orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(saved.getName()).isEqualTo("Kentucky");
+        org.assertj.core.api.Assertions.assertThat(saved.getMascot()).isEqualTo("Wildcats");
+        org.assertj.core.api.Assertions.assertThat(saved.getAbbreviation()).isEqualTo("KEN");
+        org.assertj.core.api.Assertions.assertThat(saved.getSlug()).isEqualTo("kentucky-wildcats");
+        org.assertj.core.api.Assertions.assertThat(saved.getColor()).isEqualTo("0033a0");
     }
 
     @Test
@@ -108,13 +124,21 @@ class TeamControllerTest extends BaseIntegrationTest {
     // ── GET /api/teams/{id} ───────────────────────────────────────────────────
 
     @Test
-    void getById_returnsTeam() throws Exception {
+    void getById_returnsFullTeamShape() throws Exception {
         Team team = mkTeam("Florida");
 
         mockMvc.perform(get("/api/teams/{id}", team.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(team.getId()))
-                .andExpect(jsonPath("$.name").value("Florida"));
+                .andExpect(jsonPath("$.name").value("Florida"))
+                .andExpect(jsonPath("$.espnId").value("espn-Florida"))
+                .andExpect(jsonPath("$.mascot").value("Mascots"))
+                .andExpect(jsonPath("$.abbreviation").value("FLO"))
+                .andExpect(jsonPath("$.slug").value("florida"))
+                .andExpect(jsonPath("$.color").value("c41230"))
+                .andExpect(jsonPath("$.alternateColor").value("ffffff"))
+                .andExpect(jsonPath("$.logoUrl").value("https://example.com/Florida.png"))
+                .andExpect(jsonPath("$.active").value(true));
     }
 
     @Test
@@ -158,18 +182,49 @@ class TeamControllerTest extends BaseIntegrationTest {
     // ── PUT /api/teams/{id} ───────────────────────────────────────────────────
 
     @Test
-    void update_returnsUpdatedTeam() throws Exception {
+    void update_persistsNameNicknameMascotButPreservesScrapeManagedFields() throws Exception {
+        // TeamService.update only mutates name/nickname/mascot. abbreviation,
+        // slug, color, logoUrl, active are deliberately preserved — they come
+        // from the team scraper and are not user-editable via this endpoint.
         Team team = mkTeam("OldName");
+        String originalAbbreviation = team.getAbbreviation();
+        String originalLogo = team.getLogoUrl();
+        String originalColor = team.getColor();
+        String originalSlug = team.getSlug();
 
         String body = """
-                {"name": "NewName"}
+                {
+                  "name": "NewName",
+                  "nickname": "Tigers Nickname",
+                  "mascot": "Tigers",
+                  "abbreviation": "NEW",
+                  "color": "000000",
+                  "logoUrl": "https://example.com/new.png",
+                  "active": false
+                }
                 """;
 
         mockMvc.perform(put("/api/teams/{id}", team.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("NewName"));
+                // Fields the service does update
+                .andExpect(jsonPath("$.name").value("NewName"))
+                .andExpect(jsonPath("$.nickname").value("Tigers Nickname"))
+                .andExpect(jsonPath("$.mascot").value("Tigers"))
+                // Fields the service preserves
+                .andExpect(jsonPath("$.abbreviation").value(originalAbbreviation))
+                .andExpect(jsonPath("$.color").value(originalColor))
+                .andExpect(jsonPath("$.logoUrl").value(originalLogo))
+                .andExpect(jsonPath("$.slug").value(originalSlug))
+                .andExpect(jsonPath("$.active").value(true));
+
+        Team reloaded = teamRepo.findById(team.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(reloaded.getName()).isEqualTo("NewName");
+        org.assertj.core.api.Assertions.assertThat(reloaded.getMascot()).isEqualTo("Tigers");
+        org.assertj.core.api.Assertions.assertThat(reloaded.getAbbreviation()).isEqualTo(originalAbbreviation);
+        org.assertj.core.api.Assertions.assertThat(reloaded.getLogoUrl()).isEqualTo(originalLogo);
+        org.assertj.core.api.Assertions.assertThat(reloaded.getActive()).isTrue();
     }
 
     @Test

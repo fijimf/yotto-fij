@@ -41,17 +41,6 @@ class PredictionServiceTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         season = new Season();
         season.setYear(2025);
@@ -137,6 +126,9 @@ class PredictionServiceTest extends BaseIntegrationTest {
 
     @Test
     void predict_postponedGame_returnsNullPredictions() {
+        // Ratings ARE available — if predictions still return non-null, the status
+        // filter is broken. With ratings absent, the test would pass trivially.
+        addAllRatings(5.0, 2.0, 2.0, 75.0, 70.0, 2.0, 1.0, 0.0, 0.0);
         Game game = mkGame(Game.GameStatus.POSTPONED, GAME_DATE);
 
         PredictionResult result = service.predict(game.getId());
@@ -148,12 +140,14 @@ class PredictionServiceTest extends BaseIntegrationTest {
 
     @Test
     void predict_cancelledGame_returnsNullPredictions() {
+        addAllRatings(5.0, 2.0, 2.0, 75.0, 70.0, 2.0, 1.0, 0.0, 0.0);
         Game game = mkGame(Game.GameStatus.CANCELLED, GAME_DATE);
 
         PredictionResult result = service.predict(game.getId());
 
         assertThat(result.massey()).isNull();
         assertThat(result.bradleyTerry()).isNull();
+        assertThat(result.masseyTotal()).isNull();
     }
 
     @Test
@@ -332,15 +326,41 @@ class PredictionServiceTest extends BaseIntegrationTest {
 
     @Test
     void getUpcoming_clampsAbove30Days() {
-        // No scheduled games exist — just verify it runs without error
+        // Game inside 30-day cap; game outside it. With days=100, an unclamped
+        // implementation would include both — clamping must exclude the +35-day one.
+        Game inWindow  = mkScheduledAt(LocalDateTime.now().plusDays(25));
+        Game outWindow = mkScheduledAt(LocalDateTime.now().plusDays(35));
+
         List<PredictionResult> results = service.getUpcoming(100);
-        assertThat(results).isEmpty();
+
+        assertThat(results).extracting(PredictionResult::gameId)
+                .contains(inWindow.getId())
+                .doesNotContain(outWindow.getId());
     }
 
     @Test
     void getUpcoming_clampsBelow1Day() {
+        // Game inside 1-day clamp; game well outside. With days=0, clamp must
+        // pull the window up to 1 day so the near game is returned.
+        Game inWindow  = mkScheduledAt(LocalDateTime.now().plusHours(12));
+        Game outWindow = mkScheduledAt(LocalDateTime.now().plusDays(5));
+
         List<PredictionResult> results = service.getUpcoming(0);
-        assertThat(results).isEmpty();
+
+        assertThat(results).extracting(PredictionResult::gameId)
+                .contains(inWindow.getId())
+                .doesNotContain(outWindow.getId());
+    }
+
+    private Game mkScheduledAt(LocalDateTime when) {
+        Game g = new Game();
+        g.setHomeTeam(homeTeam);
+        g.setAwayTeam(awayTeam);
+        g.setStatus(Game.GameStatus.SCHEDULED);
+        g.setNeutralSite(false);
+        g.setSeason(season);
+        g.setGameDate(when);
+        return gameRepo.save(g);
     }
 
     @Test

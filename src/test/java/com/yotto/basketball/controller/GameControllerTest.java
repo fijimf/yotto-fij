@@ -38,17 +38,6 @@ class GameControllerTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         home = mkTeam("Alabama", "TA");
         away = mkTeam("Auburn", "TB");
@@ -74,8 +63,11 @@ class GameControllerTest extends BaseIntegrationTest {
         g.setAwayTeam(away);
         g.setStatus(status);
         g.setNeutralSite(false);
+        g.setConferenceGame(true);
         g.setSeason(season);
         g.setGameDate(LocalDateTime.of(2025, 1, 15, 20, 0));
+        g.setVenue("Coleman Coliseum");
+        g.setEspnId("401-test");
         return gameRepo.save(g);
     }
 
@@ -126,13 +118,31 @@ class GameControllerTest extends BaseIntegrationTest {
     // ── GET /api/games/{id} ───────────────────────────────────────────────────
 
     @Test
-    void getById_returnsGame() throws Exception {
+    void getById_returnsFullGameShapeIncludingTeamsAndSeason() throws Exception {
         Game game = mkGame(Game.GameStatus.FINAL);
+        game.setHomeScore(85);
+        game.setAwayScore(78);
+        gameRepo.save(game);
 
         mockMvc.perform(get("/api/games/{id}", game.getId()))
                 .andExpect(status().isOk())
+                // Scalar fields
                 .andExpect(jsonPath("$.id").value(game.getId()))
-                .andExpect(jsonPath("$.status").value("FINAL"));
+                .andExpect(jsonPath("$.status").value("FINAL"))
+                .andExpect(jsonPath("$.homeScore").value(85))
+                .andExpect(jsonPath("$.awayScore").value(78))
+                .andExpect(jsonPath("$.venue").value("Coleman Coliseum"))
+                .andExpect(jsonPath("$.espnId").value("401-test"))
+                .andExpect(jsonPath("$.neutralSite").value(false))
+                .andExpect(jsonPath("$.conferenceGame").value(true))
+                .andExpect(jsonPath("$.gameDate").value("2025-01-15T20:00:00"))
+                // Nested associations populated via JOIN FETCH in GameRepository.findByIdWithDetails
+                .andExpect(jsonPath("$.homeTeam.id").value(home.getId()))
+                .andExpect(jsonPath("$.homeTeam.name").value("Alabama"))
+                .andExpect(jsonPath("$.awayTeam.id").value(away.getId()))
+                .andExpect(jsonPath("$.awayTeam.name").value("Auburn"))
+                .andExpect(jsonPath("$.season.id").value(season.getId()))
+                .andExpect(jsonPath("$.season.year").value(2025));
     }
 
     @Test
@@ -205,7 +215,7 @@ class GameControllerTest extends BaseIntegrationTest {
     // ── PUT /api/games/{id}/score ─────────────────────────────────────────────
 
     @Test
-    void updateScore_setsStatusToFinal() throws Exception {
+    void updateScore_persistsScoresAndFlipsStatusToFinal() throws Exception {
         Game game = mkGame(Game.GameStatus.SCHEDULED);
 
         mockMvc.perform(put("/api/games/{id}/score", game.getId())
@@ -215,18 +225,26 @@ class GameControllerTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.homeScore").value(85))
                 .andExpect(jsonPath("$.awayScore").value(78))
                 .andExpect(jsonPath("$.status").value("FINAL"));
+
+        Game reloaded = gameRepo.findById(game.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(reloaded.getHomeScore()).isEqualTo(85);
+        org.assertj.core.api.Assertions.assertThat(reloaded.getAwayScore()).isEqualTo(78);
+        org.assertj.core.api.Assertions.assertThat(reloaded.getStatus()).isEqualTo(Game.GameStatus.FINAL);
     }
 
     // ── PUT /api/games/{id}/status ────────────────────────────────────────────
 
     @Test
-    void updateStatus_updatesStatus() throws Exception {
+    void updateStatus_persistsStatusChange() throws Exception {
         Game game = mkGame(Game.GameStatus.SCHEDULED);
 
         mockMvc.perform(put("/api/games/{id}/status", game.getId())
                         .param("status", "POSTPONED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("POSTPONED"));
+
+        org.assertj.core.api.Assertions.assertThat(gameRepo.findById(game.getId()).orElseThrow().getStatus())
+                .isEqualTo(Game.GameStatus.POSTPONED);
     }
 
     // ── DELETE /api/games/{id} ────────────────────────────────────────────────

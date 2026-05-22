@@ -28,8 +28,8 @@ public class EspnApiClient {
     private final RestClient restClient;
     private final ScrapingProperties properties;
 
-    public EspnApiClient(ScrapingProperties properties) {
-        this.restClient = RestClient.builder()
+    public EspnApiClient(ScrapingProperties properties, RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder
                 .defaultHeader("Accept", "application/json")
                 .build();
         this.properties = properties;

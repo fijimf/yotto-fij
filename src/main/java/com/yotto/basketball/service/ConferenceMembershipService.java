@@ -50,18 +50,18 @@ public class ConferenceMembershipService {
 
     @Transactional(readOnly = true)
     public ConferenceMembership findById(Long id) {
-        return membershipRepository.findById(id)
+        return membershipRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("Conference membership not found with id: " + id));
     }
 
     @Transactional(readOnly = true)
     public Optional<ConferenceMembership> findByTeamAndSeason(Long teamId, Long seasonId) {
-        return membershipRepository.findByTeamIdAndSeasonId(teamId, seasonId);
+        return membershipRepository.findByTeamIdAndSeasonIdWithDetails(teamId, seasonId);
     }
 
     @Transactional(readOnly = true)
     public ConferenceMembership getByTeamAndSeason(Long teamId, Long seasonId) {
-        return membershipRepository.findByTeamIdAndSeasonId(teamId, seasonId)
+        return membershipRepository.findByTeamIdAndSeasonIdWithDetails(teamId, seasonId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Conference membership not found for team " + teamId + " in season " + seasonId));
     }

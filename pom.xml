@@ -151,6 +151,32 @@
                             <goal>report</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>check-coverage</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <!-- Bundle-wide floor. Ratchet this up over time as coverage grows. -->
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                            <excludes>
+                                <exclude>**/BasketballApplication.class</exclude>
+                                <exclude>**/dto/**</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>

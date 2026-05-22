@@ -36,17 +36,6 @@ class ConferenceMembershipControllerTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         teamA = mkTeam("Alabama", "TA");
         teamB = mkTeam("Auburn", "TB");
@@ -140,11 +129,18 @@ class ConferenceMembershipControllerTest extends BaseIntegrationTest {
     // ── GET /api/conference-memberships/team/{teamId}/current ─────────────────
 
     @Test
-    void getCurrentMembership_returnsMembership() throws Exception {
-        enroll(teamA, sec);
+    void getCurrentMembership_returnsMembershipWithNestedTeamConferenceAndSeason() throws Exception {
+        ConferenceMembership m = enroll(teamA, sec);
 
         mockMvc.perform(get("/api/conference-memberships/team/{teamId}/current", teamA.getId()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(m.getId()))
+                .andExpect(jsonPath("$.team.id").value(teamA.getId()))
+                .andExpect(jsonPath("$.team.name").value("Alabama"))
+                .andExpect(jsonPath("$.conference.id").value(sec.getId()))
+                .andExpect(jsonPath("$.conference.name").value("SEC"))
+                .andExpect(jsonPath("$.season.id").value(season.getId()))
+                .andExpect(jsonPath("$.season.year").value(2025));
     }
 
     @Test
@@ -192,12 +188,20 @@ class ConferenceMembershipControllerTest extends BaseIntegrationTest {
     // ── PUT /api/conference-memberships/{id} ──────────────────────────────────
 
     @Test
-    void update_changesConference() throws Exception {
+    void update_persistsNewConferenceToDatabase() throws Exception {
         ConferenceMembership m = enroll(teamA, sec);
 
         mockMvc.perform(put("/api/conference-memberships/{id}", m.getId())
                         .param("conferenceId", acc.getId().toString()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(m.getId()))
+                .andExpect(jsonPath("$.conference.id").value(acc.getId()))
+                .andExpect(jsonPath("$.conference.name").value("ACC"));
+
+        // Also assert in DB — without this the update could be a no-op and still pass.
+        ConferenceMembership reloaded = membershipRepo.findById(m.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(reloaded.getConference().getId())
+                .isEqualTo(acc.getId());
     }
 
     @Test

@@ -38,17 +38,6 @@ class StatisticsControllerTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         season = new Season();
         season.setYear(2025);
@@ -85,6 +74,10 @@ class StatisticsControllerTest extends BaseIntegrationTest {
     }
 
     private void addGame() {
+        addGameOn(LocalDateTime.of(2025, 1, 15, 20, 0));
+    }
+
+    private void addGameOn(LocalDateTime when) {
         Game g = new Game();
         g.setHomeTeam(teamA);
         g.setAwayTeam(teamB);
@@ -93,7 +86,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
         g.setStatus(Game.GameStatus.FINAL);
         g.setNeutralSite(false);
         g.setSeason(season);
-        g.setGameDate(LocalDateTime.of(2025, 1, 15, 20, 0));
+        g.setGameDate(when);
         gameRepo.save(g);
     }
 
@@ -152,27 +145,45 @@ class StatisticsControllerTest extends BaseIntegrationTest {
 
     @Test
     void seasonSnapshots_withDate_returnsSnapshotsForThatDate() throws Exception {
-        addGame();
+        // Two games on different dates so date filtering is observable.
+        addGameOn(LocalDateTime.of(2025, 1, 10, 20, 0));
+        addGameOn(LocalDateTime.of(2025, 1, 17, 20, 0));
 
         mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
                 .andExpect(status().isOk());
 
+        // After date=2025-01-10 each team has played exactly 1 game.
         mockMvc.perform(get("/api/statistics/season/{year}/snapshots", 2025)
-                        .param("date", "2025-01-15"))
+                        .param("date", "2025-01-10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2)); // one per team
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].gamesPlayed").value(1))
+                .andExpect(jsonPath("$[1].gamesPlayed").value(1));
+
+        // After date=2025-01-17 each team has played 2 games — confirms the
+        // earlier query did not just return all snapshots.
+        mockMvc.perform(get("/api/statistics/season/{year}/snapshots", 2025)
+                        .param("date", "2025-01-17"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].gamesPlayed").value(2))
+                .andExpect(jsonPath("$[1].gamesPlayed").value(2));
     }
 
     @Test
     void seasonSnapshots_withNoDateParam_usesLatestDate() throws Exception {
-        addGame();
+        // Two distinct snapshot dates; no-date call must pick the later one.
+        addGameOn(LocalDateTime.of(2025, 1, 10, 20, 0));
+        addGameOn(LocalDateTime.of(2025, 1, 17, 20, 0));
 
         mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/statistics/season/{year}/snapshots", 2025))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].snapshotDate").value("2025-01-17"))
+                .andExpect(jsonPath("$[0].gamesPlayed").value(2));
     }
 
     // ── GET /api/statistics/season/{year}/population ──────────────────────────

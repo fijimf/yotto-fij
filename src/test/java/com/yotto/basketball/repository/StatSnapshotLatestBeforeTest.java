@@ -1,48 +1,27 @@
 package com.yotto.basketball.repository;
 
-import com.yotto.basketball.BaseIntegrationTest;
+import com.yotto.basketball.BaseDataJpaTest;
 import com.yotto.basketball.entity.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 
 import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@AutoConfigureMockMvc
-class StatSnapshotLatestBeforeTest extends BaseIntegrationTest {
+class StatSnapshotLatestBeforeTest extends BaseDataJpaTest {
 
     @Autowired TeamSeasonStatSnapshotRepository snapshotRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired SeasonRepository seasonRepo;
-    @Autowired GameRepository gameRepo;
-    @Autowired BettingOddsRepository oddsRepo;
-    @Autowired SeasonStatisticsRepository statsRepo;
-    @Autowired TeamPowerRatingSnapshotRepository ratingRepo;
-    @Autowired PowerModelParamSnapshotRepository paramRepo;
-    @Autowired SeasonPopulationStatRepository popStatRepo;
-    @Autowired ConferenceMembershipRepository membershipRepo;
-    @Autowired ConferenceRepository conferenceRepo;
 
     Team team;
     Season season;
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         team = new Team();
         team.setName("Duke");

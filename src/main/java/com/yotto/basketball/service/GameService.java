@@ -40,7 +40,7 @@ public class GameService {
 
     @Transactional(readOnly = true)
     public Game findById(Long id) {
-        return gameRepository.findById(id)
+        return gameRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("Game not found with id: " + id));
     }
 

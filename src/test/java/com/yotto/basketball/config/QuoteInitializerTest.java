@@ -5,6 +5,12 @@ import com.yotto.basketball.repository.QuoteRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,17 +19,22 @@ class QuoteInitializerTest extends BaseIntegrationTest {
     @Autowired QuoteInitializer quoteInitializer;
     @Autowired QuoteRepository quoteRepository;
 
-    @BeforeEach
-    void setUp() {
-        quoteRepository.deleteAll();
-    }
-
     @Test
     void run_seedsAllQuotesFromFileWhenTableIsEmpty() throws Exception {
+        long expected = countNonBlankLinesIn("init-quotes.txt");
+        assertThat(expected).isGreaterThan(0);
+
         quoteInitializer.run(null);
 
-        // Update this count if init-quotes.txt is edited (lines added or removed)
-        assertThat(quoteRepository.count()).isEqualTo(114);
+        assertThat(quoteRepository.count()).isEqualTo(expected);
+    }
+
+    private static long countNonBlankLinesIn(String classpathResource) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new ClassPathResource(classpathResource).getInputStream(), StandardCharsets.UTF_8));
+             Stream<String> lines = reader.lines()) {
+            return lines.map(String::trim).filter(s -> !s.isEmpty()).count();
+        }
     }
 
     @Test

@@ -31,21 +31,6 @@ class SeasonControllerTest extends BaseIntegrationTest {
     @Autowired TeamRepository teamRepo;
     @Autowired ConferenceRepository conferenceRepo;
 
-    @BeforeEach
-    void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
-    }
-
     private Season mkSeason(int year) {
         Season s = new Season();
         s.setYear(year);
@@ -153,7 +138,16 @@ class SeasonControllerTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.year").value(2025));
+                .andExpect(jsonPath("$.id").value(s.getId()))
+                .andExpect(jsonPath("$.year").value(2025))
+                .andExpect(jsonPath("$.startDate").value("2024-10-01"))
+                .andExpect(jsonPath("$.endDate").value("2025-05-31"));
+
+        Season reloaded = seasonRepo.findById(s.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(reloaded.getStartDate())
+                .isEqualTo(LocalDate.of(2024, 10, 1));
+        org.assertj.core.api.Assertions.assertThat(reloaded.getEndDate())
+                .isEqualTo(LocalDate.of(2025, 5, 31));
     }
 
     @Test

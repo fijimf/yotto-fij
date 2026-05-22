@@ -39,17 +39,6 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         season = new Season();
         season.setYear(2025);
@@ -70,12 +59,17 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     }
 
     private void addRating(Team team, String modelType, double rating, LocalDate date) {
+        addRating(team, modelType, rating, date, null);
+    }
+
+    private void addRating(Team team, String modelType, double rating, LocalDate date, Integer rank) {
         TeamPowerRatingSnapshot s = new TeamPowerRatingSnapshot();
         s.setTeam(team);
         s.setSeason(season);
         s.setModelType(modelType);
         s.setSnapshotDate(date);
         s.setRating(rating);
+        s.setRank(rank);
         s.setGamesPlayed(10);
         s.setCalculatedAt(LocalDateTime.now());
         ratingRepo.save(s);
@@ -109,25 +103,57 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void masseyLeaderboard_withData_returnsRatings() throws Exception {
-        addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE);
-        addRating(teamB, MasseyRatingService.MODEL_TYPE, 2.0, SNAP_DATE);
+    void masseyLeaderboard_withData_orderedByRankAscendingWithFullRowShape() throws Exception {
+        // teamA is rank 1 with rating 5.0; teamB is rank 2 with rating 2.0
+        addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE, 1);
+        addRating(teamB, MasseyRatingService.MODEL_TYPE, 2.0, SNAP_DATE, 2);
 
         mockMvc.perform(get("/api/power-ratings/2025/massey"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(2))
+                // Rank-1 row first
+                .andExpect(jsonPath("$[0].rank").value(1))
+                .andExpect(jsonPath("$[0].rating").value(5.0))
+                .andExpect(jsonPath("$[0].teamId").value(teamA.getId()))
+                .andExpect(jsonPath("$[0].teamName").value("Alabama"))
+                .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE))
+                .andExpect(jsonPath("$[0].gamesPlayed").value(10))
+                .andExpect(jsonPath("$[0].snapshotDate").value(SNAP_DATE.toString()))
+                // Rank-2 row second
+                .andExpect(jsonPath("$[1].rank").value(2))
+                .andExpect(jsonPath("$[1].rating").value(2.0))
+                .andExpect(jsonPath("$[1].teamId").value(teamB.getId()));
     }
 
     @Test
-    void masseyLeaderboard_withDateParam_filtersToDate() throws Exception {
-        addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE);
-        addRating(teamB, MasseyRatingService.MODEL_TYPE, 2.0, SNAP_DATE);
+    void masseyLeaderboard_noDateParam_defaultsToLatestSnapshotDate() throws Exception {
+        // Older date — should NOT be returned when no date param specified
+        addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE.minusDays(7), 1);
+        // Newer date — must be returned
+        addRating(teamA, MasseyRatingService.MODEL_TYPE, 6.5, SNAP_DATE, 1);
+        addRating(teamB, MasseyRatingService.MODEL_TYPE, 2.0, SNAP_DATE, 2);
+
+        mockMvc.perform(get("/api/power-ratings/2025/massey"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].snapshotDate").value(SNAP_DATE.toString()))
+                .andExpect(jsonPath("$[0].rating").value(6.5));
+    }
+
+    @Test
+    void masseyLeaderboard_withDateParam_filtersToThatDate() throws Exception {
+        addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE, 1);
+        addRating(teamB, MasseyRatingService.MODEL_TYPE, 2.0, SNAP_DATE, 2);
+        // Different-date rows that should NOT match
+        addRating(teamA, MasseyRatingService.MODEL_TYPE, 7.0, SNAP_DATE.plusDays(7), 1);
 
         mockMvc.perform(get("/api/power-ratings/2025/massey")
                         .param("date", SNAP_DATE.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE));
+                .andExpect(jsonPath("$[0].snapshotDate").value(SNAP_DATE.toString()))
+                .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE))
+                .andExpect(jsonPath("$[0].rating").value(5.0));
     }
 
     // ── GET /api/power-ratings/{year}/massey-totals ───────────────────────────
@@ -147,14 +173,20 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void masseyTotalsLeaderboard_withData_returnsRatings() throws Exception {
-        addRating(teamA, MasseyRatingService.MODEL_TYPE_TOTALS, 8.0, SNAP_DATE);
-        addRating(teamB, MasseyRatingService.MODEL_TYPE_TOTALS, 3.0, SNAP_DATE);
+    void masseyTotalsLeaderboard_withData_orderedByRankAscending() throws Exception {
+        addRating(teamA, MasseyRatingService.MODEL_TYPE_TOTALS, 8.0, SNAP_DATE, 1);
+        addRating(teamB, MasseyRatingService.MODEL_TYPE_TOTALS, 3.0, SNAP_DATE, 2);
 
         mockMvc.perform(get("/api/power-ratings/2025/massey-totals"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE_TOTALS));
+                .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE_TOTALS))
+                .andExpect(jsonPath("$[0].teamId").value(teamA.getId()))
+                .andExpect(jsonPath("$[0].rating").value(8.0))
+                .andExpect(jsonPath("$[0].rank").value(1))
+                .andExpect(jsonPath("$[1].teamId").value(teamB.getId()))
+                .andExpect(jsonPath("$[1].rating").value(3.0))
+                .andExpect(jsonPath("$[1].rank").value(2));
     }
 
     // ── GET /api/power-ratings/{year}/bradley-terry ───────────────────────────
@@ -166,13 +198,18 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void bradleyTerryLeaderboard_withData_returnsRatings() throws Exception {
-        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE, 1.0, SNAP_DATE);
-        addRating(teamB, BradleyTerryRatingService.MODEL_TYPE, 0.5, SNAP_DATE);
+    void bradleyTerryLeaderboard_withData_orderedByRankAscending() throws Exception {
+        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE, 1.0, SNAP_DATE, 1);
+        addRating(teamB, BradleyTerryRatingService.MODEL_TYPE, 0.5, SNAP_DATE, 2);
 
         mockMvc.perform(get("/api/power-ratings/2025/bradley-terry"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].modelType").value(BradleyTerryRatingService.MODEL_TYPE))
+                .andExpect(jsonPath("$[0].teamId").value(teamA.getId()))
+                .andExpect(jsonPath("$[0].rating").value(1.0))
+                .andExpect(jsonPath("$[1].teamId").value(teamB.getId()))
+                .andExpect(jsonPath("$[1].rating").value(0.5));
     }
 
     // ── GET /api/power-ratings/{year}/bradley-terry-weighted ─────────────────
@@ -192,26 +229,40 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void bradleyTerryWeightedLeaderboard_withData_returnsRatings() throws Exception {
-        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 1.2, SNAP_DATE);
-        addRating(teamB, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 0.4, SNAP_DATE);
+    void bradleyTerryWeightedLeaderboard_withData_orderedByRankAscending() throws Exception {
+        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 1.2, SNAP_DATE, 1);
+        addRating(teamB, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, 0.4, SNAP_DATE, 2);
 
         mockMvc.perform(get("/api/power-ratings/2025/bradley-terry-weighted"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].modelType").value(BradleyTerryRatingService.MODEL_TYPE_WEIGHTED));
+                .andExpect(jsonPath("$[0].modelType").value(BradleyTerryRatingService.MODEL_TYPE_WEIGHTED))
+                .andExpect(jsonPath("$[0].teamId").value(teamA.getId()))
+                .andExpect(jsonPath("$[0].rating").value(1.2))
+                .andExpect(jsonPath("$[1].teamId").value(teamB.getId()))
+                .andExpect(jsonPath("$[1].rating").value(0.4));
     }
 
     // ── GET /api/power-ratings/{year}/massey/team/{teamId} ────────────────────
 
     @Test
-    void masseyTeamTimeSeries_returnsTimeSeries() throws Exception {
-        addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE);
+    void masseyTeamTimeSeries_returnedInAscendingDateOrderWithFullRowShape() throws Exception {
+        // Insert in non-chronological order to verify the controller sorts.
         addRating(teamA, MasseyRatingService.MODEL_TYPE, 6.0, SNAP_DATE.plusDays(7));
+        addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE);
+        // Other team / other model: must not appear in this team's time series
+        addRating(teamB, MasseyRatingService.MODEL_TYPE, 9.9, SNAP_DATE);
+        addRating(teamA, BradleyTerryRatingService.MODEL_TYPE, 1.0, SNAP_DATE);
 
         mockMvc.perform(get("/api/power-ratings/2025/massey/team/{teamId}", teamA.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].snapshotDate").value(SNAP_DATE.toString()))
+                .andExpect(jsonPath("$[0].rating").value(5.0))
+                .andExpect(jsonPath("$[0].teamId").value(teamA.getId()))
+                .andExpect(jsonPath("$[0].modelType").value(MasseyRatingService.MODEL_TYPE))
+                .andExpect(jsonPath("$[1].snapshotDate").value(SNAP_DATE.plusDays(7).toString()))
+                .andExpect(jsonPath("$[1].rating").value(6.0));
     }
 
     @Test
@@ -264,13 +315,17 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void snapshotDates_returnsDistinctDates() throws Exception {
+    void snapshotDates_returnsDistinctDatesAscending() throws Exception {
+        // Two teams on SNAP_DATE plus a later date → endpoint should distinct + sort.
         addRating(teamA, MasseyRatingService.MODEL_TYPE, 5.0, SNAP_DATE);
         addRating(teamB, MasseyRatingService.MODEL_TYPE, 2.0, SNAP_DATE);
+        addRating(teamA, MasseyRatingService.MODEL_TYPE, 6.0, SNAP_DATE.plusDays(7));
 
         mockMvc.perform(get("/api/power-ratings/2025/dates"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0]").value(SNAP_DATE.toString()))
+                .andExpect(jsonPath("$[1]").value(SNAP_DATE.plusDays(7).toString()));
     }
 
     // ── GET /api/power-ratings/{year}/params ──────────────────────────────────
@@ -282,7 +337,7 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void params_returnsParamsByModel() throws Exception {
+    void params_returnsParamsByModel_withFullValueShape() throws Exception {
         addParam(MasseyRatingService.MODEL_TYPE, "hca", 2.5, SNAP_DATE);
         addParam(MasseyRatingService.MODEL_TYPE_TOTALS, "intercept", 140.0, SNAP_DATE);
         addParam(MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", 1.5, SNAP_DATE);
@@ -291,13 +346,20 @@ class PowerRatingControllerTest extends BaseIntegrationTest {
 
         mockMvc.perform(get("/api/power-ratings/2025/params"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.massey").isArray())
+                // Massey: one HCA param with value 2.5 on SNAP_DATE
                 .andExpect(jsonPath("$.massey.length()").value(1))
-                .andExpect(jsonPath("$.masseyTotals").isArray())
+                .andExpect(jsonPath("$.massey[0].paramName").value("hca"))
+                .andExpect(jsonPath("$.massey[0].value").value(2.5))
+                .andExpect(jsonPath("$.massey[0].date").value(SNAP_DATE.toString()))
+                // Massey Totals: both intercept and hca_total persisted with correct values
                 .andExpect(jsonPath("$.masseyTotals.length()").value(2))
-                .andExpect(jsonPath("$.bradleyTerry").isArray())
-                .andExpect(jsonPath("$.bradleyTerry.length()").value(1))
-                .andExpect(jsonPath("$.bradleyTerryWeighted").isArray())
-                .andExpect(jsonPath("$.bradleyTerryWeighted.length()").value(1));
+                .andExpect(jsonPath("$.masseyTotals[?(@.paramName == 'intercept')].value")
+                        .value(org.hamcrest.Matchers.contains(140.0)))
+                .andExpect(jsonPath("$.masseyTotals[?(@.paramName == 'hca_total')].value")
+                        .value(org.hamcrest.Matchers.contains(1.5)))
+                // BT and BT-Weighted
+                .andExpect(jsonPath("$.bradleyTerry[0].paramName").value("hca"))
+                .andExpect(jsonPath("$.bradleyTerry[0].value").value(0.1))
+                .andExpect(jsonPath("$.bradleyTerryWeighted[0].value").value(0.12));
     }
 }

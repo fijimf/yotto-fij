@@ -37,17 +37,6 @@ class GameDetailPageTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        popStatRepo.deleteAll();
-        snapshotRepo.deleteAll();
-        oddsRepo.deleteAll();
-        paramRepo.deleteAll();
-        ratingRepo.deleteAll();
-        statsRepo.deleteAll();
-        gameRepo.deleteAll();
-        membershipRepo.deleteAll();
-        teamRepo.deleteAll();
-        conferenceRepo.deleteAll();
-        seasonRepo.deleteAll();
 
         Conference conf = new Conference();
         conf.setName("ACC");
@@ -177,21 +166,29 @@ class GameDetailPageTest extends BaseIntegrationTest {
     }
 
     /**
-     * When no book moneyline is recorded the vs-Line cell for BT rows must show "—".
+     * When odds exist (so the vs-Line column renders) but no book home moneyline
+     * is recorded, the vs-Line cell for the BT row must show the em-dash "—".
      */
     @Test
     void btPrediction_vsBookColumn_showsDashWhenNoBookMoneyline() throws Exception {
         addBtSnapshots(1.5, 0.5);
-        // No BettingOdds added
+        addOddsWithSpreadOnly(new BigDecimal("-3.5"));
 
         String html = mockMvc.perform(get("/games/" + gameId))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        // BT section should contain "—" (em-dash used in the table)
-        // and must NOT contain "-72" or any diff value
-        org.assertj.core.api.Assertions.assertThat(html).contains("DeepFij Win Probability");
-        org.assertj.core.api.Assertions.assertThat(html).doesNotContain("-72");
+        // Extract just the BT row so the em-dash assertion is scoped (em-dashes appear elsewhere on the page).
+        int btRowStart = html.indexOf("DeepFij Win Probability");
+        org.assertj.core.api.Assertions.assertThat(btRowStart)
+                .as("BT row should be present").isGreaterThan(0);
+        int btRowEnd = html.indexOf("</tr>", btRowStart);
+        String btRow = html.substring(btRowStart, btRowEnd);
+
+        org.assertj.core.api.Assertions.assertThat(btRow).contains("—");
+        // Sanity: no diff number should appear in the BT row when no book moneyline exists
+        org.assertj.core.api.Assertions.assertThat(btRow)
+                .doesNotContain("game-detail-model-table__delta--alert");
     }
 
     // ── Task 3: Mobile accordion markup present ──────────────────────────────
@@ -242,6 +239,14 @@ class GameDetailPageTest extends BaseIntegrationTest {
         odds.setGame(game);
         odds.setHomeMoneyline(homeML);
         odds.setAwayMoneyline(awayML);
+        oddsRepo.save(odds);
+    }
+
+    private void addOddsWithSpreadOnly(BigDecimal spread) {
+        Game game = gameRepo.findById(gameId).orElseThrow();
+        BettingOdds odds = new BettingOdds();
+        odds.setGame(game);
+        odds.setSpread(spread);
         oddsRepo.save(odds);
     }
 
