@@ -176,15 +176,19 @@ public class GameScraper {
         String awayTeamEspnId = null;
         String homeScore = null;
         String awayScore = null;
+        Integer homeSeed = null;
+        Integer awaySeed = null;
 
         for (JsonNode comp : competitors) {
             String homeAway = comp.path("homeAway").asText();
             if ("home".equals(homeAway)) {
                 homeTeamEspnId = comp.path("id").asText();
                 homeScore = comp.path("score").asText("");
+                homeSeed = parseSeed(comp.path("tournamentMatchup").path("seed"));
             } else if ("away".equals(homeAway)) {
                 awayTeamEspnId = comp.path("id").asText();
                 awayScore = comp.path("score").asText("");
+                awaySeed = parseSeed(comp.path("tournamentMatchup").path("seed"));
             }
         }
 
@@ -237,6 +241,8 @@ public class GameScraper {
         game.setTournamentName(tc.name());
         game.setTournamentRound(tc.round());
         game.setTournamentRegion(tc.region());
+        game.setHomeSeed(homeSeed);
+        game.setAwaySeed(awaySeed);
 
         int periods = event.path("period").asInt(0);
         game.setPeriods(periods > 0 ? periods : null);
@@ -410,6 +416,17 @@ public class GameScraper {
             String text = node.asText("");
             if (text.isEmpty()) return null;
             return new BigDecimal(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private Integer parseSeed(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return null;
+        String text = node.asText("");
+        if (text.isEmpty()) return null;
+        try {
+            return Integer.parseInt(text.trim());
         } catch (NumberFormatException e) {
             return null;
         }

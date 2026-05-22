@@ -74,6 +74,12 @@ public class Game {
     @Column(name = "espn_note_raw")
     private String espnNoteRaw;
 
+    @Column(name = "home_seed")
+    private Integer homeSeed;
+
+    @Column(name = "away_seed")
+    private Integer awaySeed;
+
     public enum GameStatus {
         SCHEDULED,
         IN_PROGRESS,
@@ -261,6 +267,22 @@ public class Game {
 
     public void setEspnNoteRaw(String espnNoteRaw) {
         this.espnNoteRaw = espnNoteRaw;
+    }
+
+    public Integer getHomeSeed() {
+        return homeSeed;
+    }
+
+    public void setHomeSeed(Integer homeSeed) {
+        this.homeSeed = homeSeed;
+    }
+
+    public Integer getAwaySeed() {
+        return awaySeed;
+    }
+
+    public void setAwaySeed(Integer awaySeed) {
+        this.awaySeed = awaySeed;
     }
 
     @Override

@@ -221,8 +221,10 @@ class GameScraperTest extends BaseIntegrationTest {
                           "seasonType": "3",
                           "note": "Men's Basketball Championship - Midwest Region - 1st Round",
                           "competitors": [
-                            { "id": "333", "homeAway": "home", "score": "80" },
-                            { "id": "2",   "homeAway": "away", "score": "70" }
+                            { "id": "333", "homeAway": "home", "score": "80",
+                              "tournamentMatchup": { "position": 1, "seed": "1" } },
+                            { "id": "2",   "homeAway": "away", "score": "70",
+                              "tournamentMatchup": { "position": 2, "seed": "16" } }
                           ],
                           "fullStatus": {
                             "type": { "name": "STATUS_FINAL", "state": "post" }
@@ -251,6 +253,8 @@ class GameScraperTest extends BaseIntegrationTest {
         assertThat(g.getEspnSeasonType()).isEqualTo(3);
         assertThat(g.getEspnNoteRaw())
                 .isEqualTo("Men's Basketball Championship - Midwest Region - 1st Round");
+        assertThat(g.getHomeSeed()).isEqualTo(1);
+        assertThat(g.getAwaySeed()).isEqualTo(16);
     }
 
     @Test
@@ -295,6 +299,8 @@ class GameScraperTest extends BaseIntegrationTest {
         assertThat(g.getTournamentName()).isNull();
         assertThat(g.getEspnSeasonType()).isEqualTo(2);
         assertThat(g.getEspnNoteRaw()).isNull();
+        assertThat(g.getHomeSeed()).isNull();
+        assertThat(g.getAwaySeed()).isNull();
     }
 
     @Test
