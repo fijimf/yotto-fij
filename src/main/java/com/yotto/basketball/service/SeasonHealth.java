@@ -26,6 +26,7 @@ public record SeasonHealth(
         long finalGamesMissingOdds,
         long teamsWithStandings,
         long nonD1OpponentGames,
+        long teamsWithTieOutMismatch,
         LocalDateTime lastScrapeAt,
         String lastScrapeType,
         String lastScrapeStatus

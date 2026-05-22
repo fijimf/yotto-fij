@@ -3,6 +3,8 @@ package com.yotto.basketball.service;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.entity.Season;
+import com.yotto.basketball.entity.SeasonStatistics;
+import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -54,6 +58,8 @@ public class SeasonHealthService {
         Optional<ScrapeBatch> latestBatch =
                 scrapeBatchRepository.findFirstBySeasonYearOrderByStartedAtDesc(year);
 
+        long mismatches = getTieOuts(season).stream().filter(TeamSeasonTieOut::hasMismatch).count();
+
         return new SeasonHealth(
                 year,
                 start,
@@ -72,6 +78,7 @@ public class SeasonHealthService {
                 gameRepository.countFinalGamesMissingOdds(seasonId),
                 seasonStatisticsRepository.countBySeasonId(seasonId),
                 nonD1GameObservationRepository.countBySeasonYear(year),
+                mismatches,
                 latestBatch.map(ScrapeBatch::getStartedAt).orElse(null),
                 latestBatch.map(b -> b.getScrapeType().name()).orElse(null),
                 latestBatch.map(b -> b.getStatus().name()).orElse(null)
@@ -82,6 +89,43 @@ public class SeasonHealthService {
     public SeasonHealth getHealth(int seasonYear) {
         return seasonRepository.findByYear(seasonYear)
                 .map(this::getHealth)
+                .orElseThrow(() -> new IllegalArgumentException("Season " + seasonYear + " not found"));
+    }
+
+    /**
+     * Per-team tie-out: ESPN-reported wins/losses vs. (our counted D-I games + our
+     * counted non-DI games). A team where these don't match flags either a stale
+     * scrape, a misclassified game, or a non-DI opponent we haven't tracked.
+     */
+    @Transactional(readOnly = true)
+    public List<TeamSeasonTieOut> getTieOuts(Season season) {
+        List<SeasonStatistics> stats =
+                seasonStatisticsRepository.findBySeasonIdWithTeamAndConferenceOrdered(season.getId());
+        List<TeamSeasonTieOut> results = new ArrayList<>(stats.size());
+        for (SeasonStatistics ss : stats) {
+            Team team = ss.getTeam();
+            long nonD1Wins = nonD1GameObservationRepository
+                    .countByD1TeamIdAndSeasonYearAndResult(team.getId(), season.getYear(), "W");
+            long nonD1Losses = nonD1GameObservationRepository
+                    .countByD1TeamIdAndSeasonYearAndResult(team.getId(), season.getYear(), "L");
+            results.add(new TeamSeasonTieOut(
+                    team.getId(),
+                    team.getName(),
+                    ss.getWins(),
+                    ss.getLosses(),
+                    ss.getCalcWins(),
+                    ss.getCalcLosses(),
+                    nonD1Wins,
+                    nonD1Losses
+            ));
+        }
+        return results;
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamSeasonTieOut> getTieOuts(int seasonYear) {
+        return seasonRepository.findByYear(seasonYear)
+                .map(this::getTieOuts)
                 .orElseThrow(() -> new IllegalArgumentException("Season " + seasonYear + " not found"));
     }
 }

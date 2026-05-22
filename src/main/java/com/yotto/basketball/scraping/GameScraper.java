@@ -191,11 +191,9 @@ public class GameScraper {
         Team awayTeam = teamRepository.findByEspnId(awayTeamEspnId).orElse(null);
         if (homeTeam == null || awayTeam == null) {
             log.warn("Unknown team(s) for event {}: home={}, away={}", espnId, homeTeamEspnId, awayTeamEspnId);
-            recordNonD1Observation(espnId, seasonYear, scrapeDate,
-                    parseGameDate(event.path("date").asText()),
-                    homeTeamEspnId, awayTeamEspnId,
-                    homeTeam == null ? homeTeamEspnId : null,
-                    awayTeam == null ? awayTeamEspnId : null);
+            recordNonD1Observation(event, espnId, seasonYear, scrapeDate,
+                    homeTeamEspnId, awayTeamEspnId, homeTeam, awayTeam,
+                    homeScore, awayScore);
             return;
         }
 
@@ -255,15 +253,44 @@ public class GameScraper {
         }
     }
 
-    private void recordNonD1Observation(String espnGameId, int seasonYear, LocalDate scrapeDate,
-                                        LocalDateTime gameDateUtc,
+    private void recordNonD1Observation(JsonNode event, String espnGameId, int seasonYear,
+                                        LocalDate scrapeDate,
                                         String homeEspnId, String awayEspnId,
-                                        String unknownHomeId, String unknownAwayId) {
+                                        Team homeTeam, Team awayTeam,
+                                        String homeScoreStr, String awayScoreStr) {
+        Team d1Team;
+        String nonD1EspnId;
+        boolean d1WasHome;
+        if (homeTeam != null && awayTeam == null) {
+            d1Team = homeTeam;
+            nonD1EspnId = awayEspnId;
+            d1WasHome = true;
+        } else if (awayTeam != null && homeTeam == null) {
+            d1Team = awayTeam;
+            nonD1EspnId = homeEspnId;
+            d1WasHome = false;
+        } else {
+            // Both sides unknown — shouldn't happen on the men's D-I scoreboard; skip.
+            log.warn("Skipping non-DI observation for event {}: neither side is a known D-I team", espnGameId);
+            return;
+        }
+
         StringBuilder unknown = new StringBuilder();
-        if (unknownHomeId != null) unknown.append(unknownHomeId);
-        if (unknownAwayId != null) {
+        if (homeTeam == null) unknown.append(homeEspnId);
+        if (awayTeam == null) {
             if (unknown.length() > 0) unknown.append(',');
-            unknown.append(unknownAwayId);
+            unknown.append(awayEspnId);
+        }
+
+        Integer homeScore = parseScore(homeScoreStr);
+        Integer awayScore = parseScore(awayScoreStr);
+        Integer d1Score = d1WasHome ? homeScore : awayScore;
+        Integer nonD1Score = d1WasHome ? awayScore : homeScore;
+
+        Game.GameStatus status = mapStatus(event.path("fullStatus").path("type"));
+        String result = null;
+        if (status == Game.GameStatus.FINAL && d1Score != null && nonD1Score != null) {
+            result = d1Score > nonD1Score ? "W" : "L";
         }
 
         NonD1GameObservation obs = nonD1GameObservationRepository.findByEspnGameId(espnGameId).orElse(null);
@@ -275,12 +302,29 @@ public class GameScraper {
         }
         obs.setSeasonYear(seasonYear);
         obs.setScrapeDate(scrapeDate);
-        obs.setGameDateUtc(gameDateUtc);
+        obs.setGameDateUtc(parseGameDate(event.path("date").asText()));
         obs.setHomeEspnId(homeEspnId);
         obs.setAwayEspnId(awayEspnId);
         obs.setUnknownTeamEspnIds(unknown.toString());
         obs.setLastSeenAt(now);
+        obs.setD1Team(d1Team);
+        obs.setNonD1EspnId(nonD1EspnId);
+        obs.setD1WasHome(d1WasHome);
+        obs.setNeutralSite(event.path("neutralSite").asBoolean(false));
+        obs.setD1Score(d1Score);
+        obs.setNonD1Score(nonD1Score);
+        obs.setGameStatus(status.name());
+        obs.setResult(result);
         nonD1GameObservationRepository.save(obs);
+    }
+
+    private Integer parseScore(String s) {
+        if (s == null || s.isEmpty()) return null;
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void upsertScoreboardOdds(Game game, JsonNode odds) {

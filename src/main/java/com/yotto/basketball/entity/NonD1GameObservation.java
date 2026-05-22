@@ -51,6 +51,31 @@ public class NonD1GameObservation {
     @Column(name = "last_seen_at")
     private LocalDateTime lastSeenAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "d1_team_id")
+    private Team d1Team;
+
+    @Column(name = "non_d1_espn_id")
+    private String nonD1EspnId;
+
+    @Column(name = "d1_was_home")
+    private Boolean d1WasHome;
+
+    @Column(name = "neutral_site")
+    private Boolean neutralSite;
+
+    @Column(name = "d1_score")
+    private Integer d1Score;
+
+    @Column(name = "non_d1_score")
+    private Integer nonD1Score;
+
+    @Column(name = "game_status")
+    private String gameStatus;
+
+    @Column(name = "result", length = 1)
+    private String result;
+
     public NonD1GameObservation() {
     }
 
@@ -132,6 +157,70 @@ public class NonD1GameObservation {
 
     public void setLastSeenAt(LocalDateTime lastSeenAt) {
         this.lastSeenAt = lastSeenAt;
+    }
+
+    public Team getD1Team() {
+        return d1Team;
+    }
+
+    public void setD1Team(Team d1Team) {
+        this.d1Team = d1Team;
+    }
+
+    public String getNonD1EspnId() {
+        return nonD1EspnId;
+    }
+
+    public void setNonD1EspnId(String nonD1EspnId) {
+        this.nonD1EspnId = nonD1EspnId;
+    }
+
+    public Boolean getD1WasHome() {
+        return d1WasHome;
+    }
+
+    public void setD1WasHome(Boolean d1WasHome) {
+        this.d1WasHome = d1WasHome;
+    }
+
+    public Boolean getNeutralSite() {
+        return neutralSite;
+    }
+
+    public void setNeutralSite(Boolean neutralSite) {
+        this.neutralSite = neutralSite;
+    }
+
+    public Integer getD1Score() {
+        return d1Score;
+    }
+
+    public void setD1Score(Integer d1Score) {
+        this.d1Score = d1Score;
+    }
+
+    public Integer getNonD1Score() {
+        return nonD1Score;
+    }
+
+    public void setNonD1Score(Integer nonD1Score) {
+        this.nonD1Score = nonD1Score;
+    }
+
+    public String getGameStatus() {
+        return gameStatus;
+    }
+
+    public void setGameStatus(String gameStatus) {
+        this.gameStatus = gameStatus;
+    }
+
+    public String getResult() {
+        return result;
+    }
+
+    public void setResult(String result) {
+        this.result = result;
     }
 
     @Override
