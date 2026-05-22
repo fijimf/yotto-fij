@@ -268,7 +268,20 @@
                     <div>
                         <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Non-D1 opponents</div>
                         <div>
-                            <span th:text="${h.nonD1OpponentGames}">47</span> games excluded
+                            <span th:text="${h.nonD1OpponentGames}">47</span> games tracked
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">W/L tie-out</div>
+                        <div>
+                            <span th:if="${h.teamsWithTieOutMismatch == 0}"
+                                  class="qa-badge qa-badge--ok">all tied out</span>
+                            <a th:if="${h.teamsWithTieOutMismatch > 0}"
+                               th:href="@{/admin/qa(season=${h.seasonYear})}"
+                               class="qa-badge qa-badge--warn"
+                               th:text="${h.teamsWithTieOutMismatch} + ' team' + (${h.teamsWithTieOutMismatch} == 1 ? '' : 's') + ' off'"
+                               style="text-decoration: none;">3 teams off</a>
                         </div>
                     </div>
 

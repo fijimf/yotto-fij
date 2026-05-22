@@ -81,6 +81,8 @@
                         <th>Stat</th>
                         <th>Scraped</th>
                         <th>Calculated</th>
+                        <th>Non-D1</th>
+                        <th>Expected</th>
                         <th>Δ</th>
                     </tr>
                 </thead>
@@ -89,6 +91,9 @@
                         <td th:text="${diff.field()}"></td>
                         <td th:text="${diff.scraped()}"></td>
                         <td th:text="${diff.calc()}"></td>
+                        <td th:text="${diff.nonD1() != null ? diff.nonD1() : '—'}"
+                            style="color: var(--color-text-muted);"></td>
+                        <td th:text="${diff.expected()}"></td>
                         <td class="qa-delta--mismatch"
                             th:text="${diff.delta() > 0 ? '+' + diff.delta() : diff.delta()}"></td>
                     </tr>
