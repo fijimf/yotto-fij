@@ -55,12 +55,41 @@ public class Game {
 
     private LocalDate scrapeDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tournament_type")
+    private TournamentType tournamentType;
+
+    @Column(name = "tournament_name")
+    private String tournamentName;
+
+    @Column(name = "tournament_round")
+    private String tournamentRound;
+
+    @Column(name = "tournament_region")
+    private String tournamentRegion;
+
+    @Column(name = "espn_season_type")
+    private Integer espnSeasonType;
+
+    @Column(name = "espn_note_raw")
+    private String espnNoteRaw;
+
     public enum GameStatus {
         SCHEDULED,
         IN_PROGRESS,
         FINAL,
         POSTPONED,
         CANCELLED
+    }
+
+    public enum TournamentType {
+        NCAA_TOURNAMENT,
+        NIT,
+        CBI,
+        CROWN,
+        CONFERENCE_TOURNAMENT,
+        IN_SEASON_TOURNAMENT,
+        OTHER_POSTSEASON
     }
 
     public Game() {
@@ -184,6 +213,54 @@ public class Game {
 
     public void setScrapeDate(LocalDate scrapeDate) {
         this.scrapeDate = scrapeDate;
+    }
+
+    public TournamentType getTournamentType() {
+        return tournamentType;
+    }
+
+    public void setTournamentType(TournamentType tournamentType) {
+        this.tournamentType = tournamentType;
+    }
+
+    public String getTournamentName() {
+        return tournamentName;
+    }
+
+    public void setTournamentName(String tournamentName) {
+        this.tournamentName = tournamentName;
+    }
+
+    public String getTournamentRound() {
+        return tournamentRound;
+    }
+
+    public void setTournamentRound(String tournamentRound) {
+        this.tournamentRound = tournamentRound;
+    }
+
+    public String getTournamentRegion() {
+        return tournamentRegion;
+    }
+
+    public void setTournamentRegion(String tournamentRegion) {
+        this.tournamentRegion = tournamentRegion;
+    }
+
+    public Integer getEspnSeasonType() {
+        return espnSeasonType;
+    }
+
+    public void setEspnSeasonType(Integer espnSeasonType) {
+        this.espnSeasonType = espnSeasonType;
+    }
+
+    public String getEspnNoteRaw() {
+        return espnNoteRaw;
+    }
+
+    public void setEspnNoteRaw(String espnNoteRaw) {
+        this.espnNoteRaw = espnNoteRaw;
     }
 
     @Override

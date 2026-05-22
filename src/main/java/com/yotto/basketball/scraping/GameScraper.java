@@ -31,12 +31,14 @@ public class GameScraper {
     private final BettingOddsRepository bettingOddsRepository;
     private final ScrapeBatchRepository scrapeBatchRepository;
     private final NonD1GameObservationRepository nonD1GameObservationRepository;
+    private final TournamentClassifier tournamentClassifier;
 
     public GameScraper(EspnApiClient espnApiClient, ScrapingProperties scrapingProperties,
                        TeamRepository teamRepository, SeasonRepository seasonRepository,
                        GameRepository gameRepository, BettingOddsRepository bettingOddsRepository,
                        ScrapeBatchRepository scrapeBatchRepository,
-                       NonD1GameObservationRepository nonD1GameObservationRepository) {
+                       NonD1GameObservationRepository nonD1GameObservationRepository,
+                       TournamentClassifier tournamentClassifier) {
         this.espnApiClient = espnApiClient;
         this.scrapingProperties = scrapingProperties;
         this.teamRepository = teamRepository;
@@ -45,6 +47,7 @@ public class GameScraper {
         this.bettingOddsRepository = bettingOddsRepository;
         this.scrapeBatchRepository = scrapeBatchRepository;
         this.nonD1GameObservationRepository = nonD1GameObservationRepository;
+        this.tournamentClassifier = tournamentClassifier;
     }
 
     @Transactional
@@ -224,6 +227,17 @@ public class GameScraper {
         game.setStatus(status);
         game.setScrapeDate(scrapeDate);
 
+        String espnNote = event.path("note").asText(null);
+        String seasonTypeStr = event.path("seasonType").asText(null);
+        game.setEspnNoteRaw(espnNote);
+        game.setEspnSeasonType(parseSeasonType(seasonTypeStr));
+        TournamentClassifier.Result tc = tournamentClassifier.classify(
+                espnNote, seasonTypeStr, gameDate.toLocalDate(), homeTeam, awayTeam, season);
+        game.setTournamentType(tc.type());
+        game.setTournamentName(tc.name());
+        game.setTournamentRound(tc.round());
+        game.setTournamentRegion(tc.region());
+
         int periods = event.path("period").asInt(0);
         game.setPeriods(periods > 0 ? periods : null);
 
@@ -396,6 +410,15 @@ public class GameScraper {
             String text = node.asText("");
             if (text.isEmpty()) return null;
             return new BigDecimal(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private Integer parseSeasonType(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            return Integer.parseInt(s.trim());
         } catch (NumberFormatException e) {
             return null;
         }

@@ -206,6 +206,98 @@ class GameScraperTest extends BaseIntegrationTest {
     }
 
     @Test
+    void scrapeGame_classifiesNcaaTournament() throws Exception {
+        String json = """
+                {
+                  "sports": [{
+                    "leagues": [{
+                      "events": [
+                        {
+                          "id": "401746000",
+                          "date": "2025-03-20T19:00:00Z",
+                          "location": "Some Arena",
+                          "neutralSite": true,
+                          "season": 2025,
+                          "seasonType": "3",
+                          "note": "Men's Basketball Championship - Midwest Region - 1st Round",
+                          "competitors": [
+                            { "id": "333", "homeAway": "home", "score": "80" },
+                            { "id": "2",   "homeAway": "away", "score": "70" }
+                          ],
+                          "fullStatus": {
+                            "type": { "name": "STATUS_FINAL", "state": "post" }
+                          }
+                        }
+                      ]
+                    }]
+                  }]
+                }
+                """;
+        String emptyJson = """
+                { "sports": [{ "leagues": [{ "events": [] }] }] }
+                """;
+        when(espnApiClient.fetchScoreboard(any(LocalDate.class)))
+                .thenReturn(mapper.readTree(emptyJson));
+        when(espnApiClient.fetchScoreboard(LocalDate.of(2025, 3, 20)))
+                .thenReturn(mapper.readTree(json));
+
+        gameScraper.scrapeFullSeason(2025);
+
+        Game g = gameRepository.findByEspnId("401746000").orElseThrow();
+        assertThat(g.getTournamentType()).isEqualTo(Game.TournamentType.NCAA_TOURNAMENT);
+        assertThat(g.getTournamentName()).isEqualTo("NCAA Tournament");
+        assertThat(g.getTournamentRegion()).isEqualTo("Midwest");
+        assertThat(g.getTournamentRound()).isEqualTo("1st Round");
+        assertThat(g.getEspnSeasonType()).isEqualTo(3);
+        assertThat(g.getEspnNoteRaw())
+                .isEqualTo("Men's Basketball Championship - Midwest Region - 1st Round");
+    }
+
+    @Test
+    void scrapeGame_regularSeasonHasNoTournamentFields() throws Exception {
+        String json = """
+                {
+                  "sports": [{
+                    "leagues": [{
+                      "events": [
+                        {
+                          "id": "401708777",
+                          "date": "2025-01-04T19:00:00Z",
+                          "location": "Coleman Coliseum",
+                          "neutralSite": false,
+                          "season": 2025,
+                          "seasonType": "2",
+                          "competitors": [
+                            { "id": "333", "homeAway": "home", "score": "70" },
+                            { "id": "2",   "homeAway": "away", "score": "65" }
+                          ],
+                          "fullStatus": {
+                            "type": { "name": "STATUS_FINAL", "state": "post" }
+                          }
+                        }
+                      ]
+                    }]
+                  }]
+                }
+                """;
+        String emptyJson = """
+                { "sports": [{ "leagues": [{ "events": [] }] }] }
+                """;
+        when(espnApiClient.fetchScoreboard(any(LocalDate.class)))
+                .thenReturn(mapper.readTree(emptyJson));
+        when(espnApiClient.fetchScoreboard(LocalDate.of(2025, 1, 4)))
+                .thenReturn(mapper.readTree(json));
+
+        gameScraper.scrapeFullSeason(2025);
+
+        Game g = gameRepository.findByEspnId("401708777").orElseThrow();
+        assertThat(g.getTournamentType()).isNull();
+        assertThat(g.getTournamentName()).isNull();
+        assertThat(g.getEspnSeasonType()).isEqualTo(2);
+        assertThat(g.getEspnNoteRaw()).isNull();
+    }
+
+    @Test
     void nonD1Game_homeIsD1_awayUnknown_recordsWinForHome() throws Exception {
         String json = """
                 {

@@ -178,6 +178,9 @@
                                 <form th:action="@{/admin/power-ratings/{year}(year=${season.year})}" method="post" class="inline-form">
                                     <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Power Ratings</button>
                                 </form>
+                                <form th:action="@{/admin/reclassify-tournaments/{year}(year=${season.year})}" method="post" class="inline-form">
+                                    <button type="submit" class="btn btn--outline btn--sm" style="width: 100%; text-align: left;">Reclassify Tournaments</button>
+                                </form>
                                 <form th:action="@{/admin/seasons/{year}(year=${season.year})}" method="post" class="inline-form">
                                     <input type="hidden" name="_method" value="DELETE" />
                                     <button type="submit" class="btn btn--danger btn--sm" style="width: 100%; text-align: left;"

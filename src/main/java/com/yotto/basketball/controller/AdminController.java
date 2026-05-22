@@ -4,6 +4,7 @@ import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.scraping.AsyncScrapeService;
+import com.yotto.basketball.scraping.TournamentReclassifier;
 import com.yotto.basketball.service.AutomationService;
 import com.yotto.basketball.service.AutomationStatus;
 import com.yotto.basketball.service.MlModelStatus;
@@ -32,18 +33,21 @@ public class AdminController {
     private final SeasonHealthService seasonHealthService;
     private final ScrapeHistoryService scrapeHistoryService;
     private final AutomationService automationService;
+    private final TournamentReclassifier tournamentReclassifier;
 
     public AdminController(SeasonRepository seasonRepository,
                            AsyncScrapeService asyncScrapeService, MlPredictionService mlPredictionService,
                            SeasonHealthService seasonHealthService,
                            ScrapeHistoryService scrapeHistoryService,
-                           AutomationService automationService) {
+                           AutomationService automationService,
+                           TournamentReclassifier tournamentReclassifier) {
         this.seasonRepository    = seasonRepository;
         this.asyncScrapeService  = asyncScrapeService;
         this.mlPredictionService = mlPredictionService;
         this.seasonHealthService = seasonHealthService;
         this.scrapeHistoryService = scrapeHistoryService;
         this.automationService = automationService;
+        this.tournamentReclassifier = tournamentReclassifier;
     }
 
     @GetMapping
@@ -181,6 +185,14 @@ public class AdminController {
     public String calculatePowerRatings(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
         asyncScrapeService.calculatePowerRatingsAsync(year);
         redirectAttributes.addFlashAttribute("success", "Power ratings calculation started for " + year);
+        return "redirect:/admin";
+    }
+
+    @PostMapping("/reclassify-tournaments/{year}")
+    public String reclassifyTournaments(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
+        TournamentReclassifier.Result result = tournamentReclassifier.reclassifySeason(year);
+        redirectAttributes.addFlashAttribute("success",
+                "Tournament re-classify " + year + ": " + result.updated() + "/" + result.total() + " games updated");
         return "redirect:/admin";
     }
 
