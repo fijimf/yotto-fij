@@ -275,6 +275,28 @@
                         </div>
                     </div>
 
+                    <div th:if="${h.postseason != null and h.postseason.hasAny()}">
+                        <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Postseason</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline;">
+                            <span th:if="${h.postseason.confTournament > 0}"
+                                  th:text="${h.postseason.confTournament} + ' conf'">68 conf</span>
+                            <span th:if="${h.postseason.ncaaTournament > 0}">
+                                <span th:text="${h.postseason.ncaaTournament} + ' NCAA'">67 NCAA</span>
+                                <span th:if="${h.postseason.ncaaAnomaly()}"
+                                      class="qa-badge qa-badge--warn"
+                                      th:text="'≠ ' + ${T(com.yotto.basketball.service.SeasonHealth.PostseasonCounts).NCAA_EXPECTED}">≠ 67</span>
+                            </span>
+                            <span th:if="${h.postseason.nit > 0}"
+                                  th:text="${h.postseason.nit} + ' NIT'">31 NIT</span>
+                            <span th:if="${h.postseason.cbi > 0}"
+                                  th:text="${h.postseason.cbi} + ' CBI'">15 CBI</span>
+                            <span th:if="${h.postseason.crown > 0}"
+                                  th:text="${h.postseason.crown} + ' Crown'">15 Crown</span>
+                            <span th:if="${h.postseason.otherPostseason > 0}"
+                                  th:text="${h.postseason.otherPostseason} + ' other'">2 other</span>
+                        </div>
+                    </div>
+
                     <div>
                         <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">W/L tie-out</div>
                         <div>

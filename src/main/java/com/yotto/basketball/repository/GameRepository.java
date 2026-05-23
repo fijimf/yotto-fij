@@ -20,6 +20,8 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     long countBySeasonIdAndStatus(Long seasonId, Game.GameStatus status);
 
+    long countBySeasonIdAndTournamentType(Long seasonId, Game.TournamentType tournamentType);
+
     @Query("SELECT COUNT(DISTINCT g.scrapeDate) FROM Game g WHERE g.season.id = :seasonId AND g.scrapeDate IS NOT NULL")
     long countDistinctScrapeDateBySeasonId(@Param("seasonId") Long seasonId);
 

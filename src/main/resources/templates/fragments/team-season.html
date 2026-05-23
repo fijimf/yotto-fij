@@ -8,9 +8,20 @@
         <span class="season-summary__record">
             <strong th:text="${schedule.record()}">22-5</strong> Overall
         </span>
+        <span class="season-summary__record"
+              th:if="${schedule.regularSeason != null and !schedule.regularSeason.isEmpty()}">
+            <strong th:text="${schedule.regularSeason.record()}">20-4</strong> Reg Season
+        </span>
         <span class="season-summary__record" th:if="${schedule.conferenceName}">
             <strong th:text="${schedule.conferenceRecord()}">10-3</strong>
             <span th:text="${schedule.conferenceName}">SEC</span>
+        </span>
+        <span class="season-summary__record"
+              th:each="t : ${schedule.tournamentRecords}">
+            <strong th:text="${t.record()}">2-1</strong>
+            <span th:text="${t.name}">ACC Tournament</span>
+            <span th:if="${t.furthestRound != null}" class="season-summary__round"
+                  th:text="'(' + ${t.furthestRound} + ')'">(Quarterfinal)</span>
         </span>
     </div>
 
@@ -45,9 +56,16 @@
                                  th:src="${game.opponentLogoUrl}"
                                  class="schedule-table__opp-logo"
                                  loading="lazy" width="20" height="20" />
+                            <span th:if="${game.opponentSeed != null}" class="schedule-table__seed"
+                                  th:text="'(' + ${game.opponentSeed} + ')'">(16)</span>
                             <span th:text="${game.opponentName}">Auburn</span>
                         </a>
                         <span th:if="${game.conferenceGame}" class="schedule-table__conf-marker" title="Conference game">*</span>
+                        <span th:if="${game.tournamentBadge != null}"
+                              class="tournament-badge"
+                              th:classappend="'tournament-badge--' + ${game.tournamentBadge.variant}"
+                              th:title="${game.tournamentBadge.tooltip}"
+                              th:text="${game.tournamentBadge.label}">NCAA 1R · Midwest</span>
                     </td>
                     <td class="schedule-table__result">
                         <span th:if="${game.result != null and game.result == 'W'}" class="schedule-table__result-badge schedule-table__result-badge--win"

@@ -25,15 +25,18 @@ public class TeamWebController {
     private final SeasonRepository seasonRepository;
     private final GameRepository gameRepository;
     private final SeasonStatisticsRepository seasonStatisticsRepository;
+    private final TournamentBadgeFormatter tournamentBadgeFormatter;
 
     public TeamWebController(TeamRepository teamRepository,
                              SeasonRepository seasonRepository,
                              GameRepository gameRepository,
-                             SeasonStatisticsRepository seasonStatisticsRepository) {
+                             SeasonStatisticsRepository seasonStatisticsRepository,
+                             TournamentBadgeFormatter tournamentBadgeFormatter) {
         this.teamRepository = teamRepository;
         this.seasonRepository = seasonRepository;
         this.gameRepository = gameRepository;
         this.seasonStatisticsRepository = seasonStatisticsRepository;
+        this.tournamentBadgeFormatter = tournamentBadgeFormatter;
     }
 
     // ── Teams listing ──
@@ -140,7 +143,9 @@ public class TeamWebController {
                     currentSeason.getYear(),
                     seasonConf != null ? seasonConf.getName() : null,
                     wins, losses, confWins, confLosses,
-                    games.stream().map(g -> toGameRow(g, id)).toList()
+                    games.stream().map(g -> toGameRow(g, id)).toList(),
+                    computeRegularSeasonRecord(games, id),
+                    computeTournamentRecords(games, id)
             );
         }
 
@@ -175,10 +180,93 @@ public class TeamWebController {
                 year,
                 seasonConf != null ? seasonConf.getName() : null,
                 wins, losses, confWins, confLosses,
-                games.stream().map(g -> toGameRow(g, id)).toList()
+                games.stream().map(g -> toGameRow(g, id)).toList(),
+                computeRegularSeasonRecord(games, id),
+                computeTournamentRecords(games, id)
         ));
 
         return "fragments/team-season :: season-panel";
+    }
+
+    // Round-order for "furthest reached" — higher index = deeper. Same scale works for NCAA
+    // and conference tournaments; unknown rounds get -1 so they never beat a known round.
+    private static final List<String> ROUND_ORDER = List.of(
+            "First Four",
+            "1st Round",
+            "2nd Round",
+            "Quarterfinal",
+            "Sweet 16",
+            "Semifinal",
+            "Elite 8",
+            "Final",
+            "Final Four",
+            "Championship",
+            "National Championship"
+    );
+
+    private static int roundIndex(String round) {
+        if (round == null) return -1;
+        int idx = ROUND_ORDER.indexOf(round);
+        return idx >= 0 ? idx : -1;
+    }
+
+    private RegularSeasonRecord computeRegularSeasonRecord(List<Game> games, Long teamId) {
+        int w = 0, l = 0;
+        for (Game g : games) {
+            if (g.getStatus() != Game.GameStatus.FINAL) continue;
+            Game.TournamentType t = g.getTournamentType();
+            if (t != null && t != Game.TournamentType.IN_SEASON_TOURNAMENT) continue;
+            Integer result = winLossInc(g, teamId);
+            if (result == null) continue;
+            if (result == 1) w++; else l++;
+        }
+        return new RegularSeasonRecord(w, l);
+    }
+
+    private List<TournamentRecord> computeTournamentRecords(List<Game> games, Long teamId) {
+        // Preserve a stable display order: Conf Tournament, NCAA, NIT, CBI, Crown, Other.
+        List<Game.TournamentType> order = List.of(
+                Game.TournamentType.CONFERENCE_TOURNAMENT,
+                Game.TournamentType.NCAA_TOURNAMENT,
+                Game.TournamentType.NIT,
+                Game.TournamentType.CBI,
+                Game.TournamentType.CROWN,
+                Game.TournamentType.OTHER_POSTSEASON);
+
+        List<TournamentRecord> out = new ArrayList<>();
+        for (Game.TournamentType type : order) {
+            int w = 0, l = 0, best = -1;
+            String bestRound = null;
+            String name = null;
+            for (Game g : games) {
+                if (g.getTournamentType() != type) continue;
+                if (name == null) name = g.getTournamentName();
+                if (g.getStatus() != Game.GameStatus.FINAL) continue;
+                int idx = roundIndex(g.getTournamentRound());
+                if (idx > best) {
+                    best = idx;
+                    bestRound = g.getTournamentRound();
+                }
+                Integer result = winLossInc(g, teamId);
+                if (result == null) continue;
+                if (result == 1) w++; else l++;
+            }
+            if (name != null) {
+                out.add(new TournamentRecord(type, name, w, l, bestRound));
+            }
+        }
+        return out;
+    }
+
+    /** 1 = team won, 0 = team lost, null = game cannot be scored (tie / missing scores). */
+    private static Integer winLossInc(Game g, Long teamId) {
+        boolean isHome = g.getHomeTeam().getId().equals(teamId);
+        Integer teamScore = isHome ? g.getHomeScore() : g.getAwayScore();
+        Integer oppScore = isHome ? g.getAwayScore() : g.getHomeScore();
+        if (teamScore == null || oppScore == null) return null;
+        if (teamScore > oppScore) return 1;
+        if (teamScore < oppScore) return 0;
+        return null;
     }
 
     private static Integer resolveInt(Integer calc, Integer scraped) {
@@ -198,6 +286,8 @@ public class TeamWebController {
 
         Integer teamScore = isHome ? game.getHomeScore() : game.getAwayScore();
         Integer oppScore = isHome ? game.getAwayScore() : game.getHomeScore();
+        Integer teamSeed = isHome ? game.getHomeSeed() : game.getAwaySeed();
+        Integer oppSeed = isHome ? game.getAwaySeed() : game.getHomeSeed();
 
         String result = null;
         if (game.getStatus() == Game.GameStatus.FINAL && teamScore != null && oppScore != null) {
@@ -228,6 +318,8 @@ public class TeamWebController {
                 .withZoneSameInstant(ZoneId.of("America/New_York"))
                 .toLocalDateTime();
 
+        TournamentBadgeFormatter.Badge badge = tournamentBadgeFormatter.format(game);
+
         return new GameRow(
                 game.getId(),
                 easternTime,
@@ -244,7 +336,10 @@ public class TeamWebController {
                 Boolean.TRUE.equals(game.getConferenceGame()),
                 spread,
                 overUnder,
-                game.getPeriods()
+                game.getPeriods(),
+                teamSeed,
+                oppSeed,
+                badge
         );
     }
 
@@ -272,10 +367,32 @@ public class TeamWebController {
     public record SeasonSchedule(
             int year, String conferenceName,
             int wins, int losses, int conferenceWins, int conferenceLosses,
-            List<GameRow> games
+            List<GameRow> games,
+            RegularSeasonRecord regularSeason,
+            List<TournamentRecord> tournamentRecords
     ) {
         public String record() { return wins + "-" + losses; }
         public String conferenceRecord() { return conferenceWins + "-" + conferenceLosses; }
+    }
+
+    /**
+     * Wins/losses computed strictly from FINAL games where tournament_type is either null
+     * or IN_SEASON_TOURNAMENT (in-season exempts count toward the regular season per UI spec).
+     */
+    public record RegularSeasonRecord(int wins, int losses) {
+        public String record() { return wins + "-" + losses; }
+        public boolean isEmpty() { return wins == 0 && losses == 0; }
+    }
+
+    /**
+     * Wins/losses + furthest round reached for one tournament category.
+     * `name` is the canonical display name (e.g. "ACC Tournament", "NCAA Tournament", "NIT").
+     */
+    public record TournamentRecord(
+            Game.TournamentType type, String name,
+            int wins, int losses, String furthestRound
+    ) {
+        public String record() { return wins + "-" + losses; }
     }
 
     public record GameRow(
@@ -294,7 +411,10 @@ public class TeamWebController {
             boolean conferenceGame,
             BigDecimal spread,
             BigDecimal overUnder,
-            Integer periods
+            Integer periods,
+            Integer teamSeed,
+            Integer opponentSeed,
+            TournamentBadgeFormatter.Badge tournamentBadge
     ) {
         public String scoreDisplay() {
             if (teamScore == null || opponentScore == null) return "";

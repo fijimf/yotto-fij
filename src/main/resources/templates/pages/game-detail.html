@@ -21,7 +21,11 @@
                 <img th:src="${homeTeamLogoUrl}" th:alt="${homeTeamName}" class="game-detail-team__logo"/>
             </div>
             <div class="game-detail-team__info">
-                <span class="game-detail-team__name" th:text="${homeTeamName}">Duke</span>
+                <span class="game-detail-team__name">
+                    <span th:if="${homeSeed != null}" class="game-detail-team__seed"
+                          th:text="'(' + ${homeSeed} + ')'">(1)</span>
+                    <span th:text="${homeTeamName}">Duke</span>
+                </span>
                 <span class="game-detail-team__mascot" th:text="${homeTeamMascot}">Blue Devils</span>
             </div>
         </a>
@@ -46,13 +50,22 @@
                       th:text="${status.name()}">FINAL</span>
                 <span th:if="${neutralSite}" class="game-detail-badge">Neutral</span>
                 <span th:if="${conferenceGame}" class="game-detail-badge">Conference</span>
+                <span th:if="${tournamentBadge != null}"
+                      class="tournament-badge"
+                      th:classappend="'tournament-badge--' + ${tournamentBadge.variant}"
+                      th:title="${tournamentBadge.tooltip}"
+                      th:text="${tournamentBadge.label}">NCAA 1R · Midwest</span>
             </div>
         </div>
 
         <!-- Away team -->
         <a th:href="@{'/teams/' + ${awayTeamSlug}}" class="game-detail-team game-detail-team--away">
             <div class="game-detail-team__info">
-                <span class="game-detail-team__name" th:text="${awayTeamName}">UNC</span>
+                <span class="game-detail-team__name">
+                    <span th:if="${awaySeed != null}" class="game-detail-team__seed"
+                          th:text="'(' + ${awaySeed} + ')'">(16)</span>
+                    <span th:text="${awayTeamName}">UNC</span>
+                </span>
                 <span class="game-detail-team__mascot" th:text="${awayTeamMascot}">Tar Heels</span>
             </div>
             <div class="game-detail-team__logo-wrap"

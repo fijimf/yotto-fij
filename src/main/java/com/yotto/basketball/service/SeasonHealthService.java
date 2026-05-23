@@ -60,6 +60,16 @@ public class SeasonHealthService {
 
         long mismatches = getTieOuts(season).stream().filter(TeamSeasonTieOut::hasMismatch).count();
 
+        SeasonHealth.PostseasonCounts postseason = new SeasonHealth.PostseasonCounts(
+                gameRepository.countBySeasonIdAndTournamentType(seasonId, Game.TournamentType.CONFERENCE_TOURNAMENT),
+                gameRepository.countBySeasonIdAndTournamentType(seasonId, Game.TournamentType.NCAA_TOURNAMENT),
+                gameRepository.countBySeasonIdAndTournamentType(seasonId, Game.TournamentType.NIT),
+                gameRepository.countBySeasonIdAndTournamentType(seasonId, Game.TournamentType.CBI),
+                gameRepository.countBySeasonIdAndTournamentType(seasonId, Game.TournamentType.CROWN),
+                gameRepository.countBySeasonIdAndTournamentType(seasonId, Game.TournamentType.OTHER_POSTSEASON),
+                gameRepository.countBySeasonIdAndTournamentType(seasonId, Game.TournamentType.IN_SEASON_TOURNAMENT)
+        );
+
         return new SeasonHealth(
                 year,
                 start,
@@ -79,6 +89,7 @@ public class SeasonHealthService {
                 seasonStatisticsRepository.countBySeasonId(seasonId),
                 nonD1GameObservationRepository.countBySeasonYear(year),
                 mismatches,
+                postseason,
                 latestBatch.map(ScrapeBatch::getStartedAt).orElse(null),
                 latestBatch.map(b -> b.getScrapeType().name()).orElse(null),
                 latestBatch.map(b -> b.getStatus().name()).orElse(null)

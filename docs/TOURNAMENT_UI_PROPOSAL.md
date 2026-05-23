@@ -1,6 +1,15 @@
 # Tournament Identification — UI Proposal (Phase 6)
 
-Status: **deferred**. The underlying data (six new columns on `Game`) lands in Phases 1–4. This document captures candidate UI work to do once those columns are populated. Each section is independently scopeable.
+Status: **partially implemented**. Items 1, 2 (down-scoped), 3, and 4 landed. Bracket view (item 5) is still deferred to a separate session.
+
+## What landed
+
+- **#1 Tournament badge** on schedule rows + game-detail header, plus team-seed annotation on the opponent (schedule) and home/away (game detail).
+- **#2 Postseason/regular-season filter** — _down-scoped to the team page only_. `/rankings` and `/seasons/{year}/stats` are driven by pre-computed `TeamPowerRatingSnapshot` / `TeamSeasonStatSnapshot` tables that aggregate all games cumulatively; adding a regular-season-only view there would require either a parallel snapshot pipeline or on-the-fly recompute of Massey/Bradley-Terry per request. Neither is justified by current need. The team-page records (where data flows directly from `Game` rows) now show Overall, Reg Season, conference, conference-tournament, NCAA tournament, NIT, CBI, Crown records side by side — which is what the filter was trying to achieve in the first place.
+- **#3 Per-team postseason record** — merged with #2 above; each `TournamentRecord` shows W-L plus furthest round reached.
+- **#4 Admin postseason tile** — counts per category (conf, NCAA, NIT, CBI, Crown, other) with an "≠ 67" warn chip on NCAA anomalies once a season's NCAA bracket should be complete.
+
+The rest of this document is the original proposal kept for historical context.
 
 ## Data available
 
@@ -86,5 +95,8 @@ For each `Season` + `tournament_type = NCAA_TOURNAMENT`, render a static SVG bra
 ## Open questions before starting any of this
 
 - For "regular season" filter: do in-season tournaments (Maui, Champions Classic) count as regular season or as their own bucket? Affects #2.
+**regular season**
 - Should the badge include a sponsor when present (e.g. show `"Phillips 66 Big 12 QF"` vs `"Big 12 QF"`)? Currently we only persist the stripped name; raw is available via `espn_note_raw`.
+**no sponsor**
 - Bracket view: men's only, or do we ever plan to add women's? Schema would need a `division` field if so.
+**No brackets yet, and only men's when we do**

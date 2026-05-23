@@ -30,19 +30,22 @@ public class GameDetailController {
     private final TeamPowerRatingSnapshotRepository powerRatingRepository;
     private final TeamSeasonStatSnapshotRepository statSnapshotRepository;
     private final ObjectMapper objectMapper;
+    private final TournamentBadgeFormatter tournamentBadgeFormatter;
 
     public GameDetailController(GameRepository gameRepository,
                                 PredictionService predictionService,
                                 SeasonStatisticsRepository seasonStatsRepository,
                                 TeamPowerRatingSnapshotRepository powerRatingRepository,
                                 TeamSeasonStatSnapshotRepository statSnapshotRepository,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                TournamentBadgeFormatter tournamentBadgeFormatter) {
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
         this.seasonStatsRepository = seasonStatsRepository;
         this.powerRatingRepository = powerRatingRepository;
         this.statSnapshotRepository = statSnapshotRepository;
         this.objectMapper = objectMapper;
+        this.tournamentBadgeFormatter = tournamentBadgeFormatter;
     }
 
     @GetMapping("/games/{id}")
@@ -83,6 +86,12 @@ public class GameDetailController {
         model.addAttribute("awayScore", game.getAwayScore());
         model.addAttribute("periods", game.getPeriods());
         model.addAttribute("odds", odds);
+        model.addAttribute("homeSeed", game.getHomeSeed());
+        model.addAttribute("awaySeed", game.getAwaySeed());
+        model.addAttribute("tournamentBadge", tournamentBadgeFormatter.format(game));
+        model.addAttribute("tournamentName", game.getTournamentName());
+        model.addAttribute("tournamentRound", game.getTournamentRound());
+        model.addAttribute("tournamentRegion", game.getTournamentRegion());
 
         // ── Predictions ─────────────────────────────────────────────────────────
         PredictionResult prediction = predictionService.predict(id);
