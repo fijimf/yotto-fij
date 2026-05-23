@@ -52,9 +52,12 @@ public class TournamentClassifier {
         }
 
         String note = espnNote.trim();
+        // ESPN sometimes prefixes the NCAA tournament label with "NCAA " — strip it so the
+        // classifier sees the canonical "Men's Basketball Championship - ..." prefix.
+        String noteForNcaa = note.startsWith("NCAA ") ? note.substring("NCAA ".length()) : note;
 
-        if (note.startsWith(NCAA_PREFIX)) {
-            return classifyNcaa(note);
+        if (noteForNcaa.startsWith(NCAA_PREFIX)) {
+            return classifyNcaa(noteForNcaa);
         }
 
         if (NIT_PREFIX.matcher(note).matches()) {

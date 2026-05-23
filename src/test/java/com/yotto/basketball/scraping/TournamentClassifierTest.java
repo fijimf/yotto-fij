@@ -65,6 +65,19 @@ class TournamentClassifierTest {
     }
 
     @Test
+    void ncaaTournamentWithNcaaPrefix() {
+        // ESPN actually returns the "NCAA " prefix on persisted data — classifier must handle both.
+        var r = classifier.classify(
+                "NCAA Men's Basketball Championship - West Region - Sweet 16",
+                "3", LocalDate.of(2025, 3, 27), home, away, season);
+
+        assertThat(r.type()).isEqualTo(TournamentType.NCAA_TOURNAMENT);
+        assertThat(r.name()).isEqualTo("NCAA Tournament");
+        assertThat(r.region()).isEqualTo("West");
+        assertThat(r.round()).isEqualTo("Sweet 16");
+    }
+
+    @Test
     void ncaaTournamentWithRegion() {
         var r = classifier.classify(
                 "Men's Basketball Championship - Midwest Region - 1st Round",

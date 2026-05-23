@@ -971,6 +971,10 @@ tbody tr:hover {
 
 .schedule-table__opponent {
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 .schedule-table__opp-link {
@@ -1818,18 +1822,15 @@ tbody tr:hover {
 .tournament-badge {
     display: inline-block;
     padding: 1px 7px;
-    margin-left: 6px;
     border-radius: 10px;
     font-size: 0.68rem;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.4;
     border: 1px solid var(--color-border);
     color: var(--color-text-muted);
     background: transparent;
     white-space: nowrap;
-    vertical-align: baseline;
-    position: relative;
-    top: -1px;
+    vertical-align: middle;
 }
 .tournament-badge--ncaa       { color: #b45309; border-color: #f59e0b; background: #fef3c7; }
 .tournament-badge--conf       { color: #047857; border-color: #34d399; background: #d1fae5; }
