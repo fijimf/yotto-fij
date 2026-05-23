@@ -17,7 +17,7 @@ class TournamentBadgeFormatterTest {
     }
 
     @Test
-    void ncaaTournamentFirstRoundWithRegion() {
+    void ncaaBadgeIsAlwaysJustNcaaTournament() {
         Game g = new Game();
         g.setTournamentType(TournamentType.NCAA_TOURNAMENT);
         g.setTournamentName("NCAA Tournament");
@@ -25,31 +25,31 @@ class TournamentBadgeFormatterTest {
         g.setTournamentRegion("Midwest");
 
         var badge = formatter.format(g);
-        assertThat(badge.label()).isEqualTo("NCAA 1R · Midwest");
+        assertThat(badge.label()).isEqualTo("NCAA Tournament");
         assertThat(badge.variant()).isEqualTo("ncaa");
-        assertThat(badge.tooltip()).contains("NCAA Tournament").contains("Midwest").contains("1st Round");
+        assertThat(badge.tooltip())
+                .contains("NCAA Tournament").contains("Midwest").contains("1st Round");
     }
 
     @Test
-    void ncaaNationalChampionshipNoRegion() {
+    void ncaaNationalChampionshipBadgeIsStillJustNcaaTournament() {
         Game g = new Game();
         g.setTournamentType(TournamentType.NCAA_TOURNAMENT);
         g.setTournamentName("NCAA Tournament");
         g.setTournamentRound("National Championship");
 
-        var badge = formatter.format(g);
-        assertThat(badge.label()).isEqualTo("NCAA Final");
+        assertThat(formatter.format(g).label()).isEqualTo("NCAA Tournament");
     }
 
     @Test
-    void conferenceTournamentStripsSuffix() {
+    void conferenceTournamentStripsSuffixAndDropsRound() {
         Game g = new Game();
         g.setTournamentType(TournamentType.CONFERENCE_TOURNAMENT);
-        g.setTournamentName("ACC Tournament");
+        g.setTournamentName("Big 12 Championship");
         g.setTournamentRound("Quarterfinal");
 
         var badge = formatter.format(g);
-        assertThat(badge.label()).isEqualTo("ACC QF");
+        assertThat(badge.label()).isEqualTo("Big 12");
         assertThat(badge.variant()).isEqualTo("conf");
     }
 
@@ -61,18 +61,43 @@ class TournamentBadgeFormatterTest {
         g.setTournamentRound("Championship");
 
         var badge = formatter.format(g);
-        assertThat(badge.label()).isEqualTo("Maui Invitational Final");
+        assertThat(badge.label()).isEqualTo("Maui Invitational");
         assertThat(badge.variant()).isEqualTo("in-season");
     }
 
     @Test
-    void nitFirstRound() {
+    void nitUsesPostseasonVariant() {
         Game g = new Game();
         g.setTournamentType(TournamentType.NIT);
         g.setTournamentName("NIT");
         g.setTournamentRound("1st Round");
 
         var badge = formatter.format(g);
-        assertThat(badge.label()).isEqualTo("NIT 1R");
+        assertThat(badge.label()).isEqualTo("NIT");
+        assertThat(badge.variant()).isEqualTo("postseason");
+    }
+
+    @Test
+    void cbiUsesPostseasonVariant() {
+        Game g = new Game();
+        g.setTournamentType(TournamentType.CBI);
+        g.setTournamentName("CBI");
+        g.setTournamentRound("Semifinal");
+
+        var badge = formatter.format(g);
+        assertThat(badge.label()).isEqualTo("CBI");
+        assertThat(badge.variant()).isEqualTo("postseason");
+    }
+
+    @Test
+    void crownUsesPostseasonVariant() {
+        Game g = new Game();
+        g.setTournamentType(TournamentType.CROWN);
+        g.setTournamentName("College Basketball Crown");
+        g.setTournamentRound("Quarterfinal");
+
+        var badge = formatter.format(g);
+        assertThat(badge.label()).isEqualTo("College Basketball Crown");
+        assertThat(badge.variant()).isEqualTo("postseason");
     }
 }

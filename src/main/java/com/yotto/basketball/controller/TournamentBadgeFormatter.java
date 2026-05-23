@@ -4,57 +4,30 @@ import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Game.TournamentType;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-
 /**
- * Compact label + CSS variant for the tournament chip rendered on schedule rows
- * and the game detail header. Returns null when the game is a plain regular-season game.
+ * Tournament chip rendered on schedule rows and the game detail header. The label is
+ * tournament-only (no round, no region — that detail lives in the tooltip). Three color
+ * buckets: NCAA Tournament, conference tournaments, and everything else (NIT / CBI /
+ * Crown / other postseason). In-season exempts stay neutral.
  */
 @Component
 public class TournamentBadgeFormatter {
-
-    private static final Map<String, String> ROUND_ABBREV = Map.ofEntries(
-            Map.entry("1st Round", "1R"),
-            Map.entry("2nd Round", "2R"),
-            Map.entry("Sweet 16", "S16"),
-            Map.entry("Elite 8", "E8"),
-            Map.entry("Final Four", "FF"),
-            Map.entry("National Championship", "Final"),
-            Map.entry("First Four", "First Four"),
-            Map.entry("Quarterfinal", "QF"),
-            Map.entry("Semifinal", "SF"),
-            Map.entry("Championship", "Final"),
-            Map.entry("Final", "Final"),
-            Map.entry("Play-In", "PI")
-    );
 
     public Badge format(Game game) {
         if (game == null || game.getTournamentType() == null) return null;
         TournamentType type = game.getTournamentType();
 
-        String shortName = switch (type) {
-            case NCAA_TOURNAMENT -> "NCAA";
+        String label = switch (type) {
+            case NCAA_TOURNAMENT -> "NCAA Tournament";
             case NIT -> "NIT";
             case CBI -> "CBI";
-            case CROWN -> "Crown";
+            case CROWN -> "College Basketball Crown";
             case CONFERENCE_TOURNAMENT -> stripSuffix(game.getTournamentName());
             case IN_SEASON_TOURNAMENT -> game.getTournamentName();
             case OTHER_POSTSEASON -> game.getTournamentName() == null ? "Postseason" : game.getTournamentName();
         };
 
-        StringBuilder label = new StringBuilder();
-        if (shortName != null && !shortName.isBlank()) label.append(shortName);
-        String round = abbreviateRound(game.getTournamentRound());
-        if (round != null) {
-            if (label.length() > 0) label.append(' ');
-            label.append(round);
-        }
-        if (game.getTournamentRegion() != null && !game.getTournamentRegion().isBlank()) {
-            label.append(" · ").append(game.getTournamentRegion());
-        }
-
-        String tooltip = buildTooltip(game);
-        return new Badge(label.toString(), cssVariant(type), tooltip);
+        return new Badge(label == null ? "" : label, cssVariant(type), buildTooltip(game));
     }
 
     private String stripSuffix(String name) {
@@ -65,21 +38,12 @@ public class TournamentBadgeFormatter {
         return name;
     }
 
-    private String abbreviateRound(String round) {
-        if (round == null || round.isBlank()) return null;
-        String abbr = ROUND_ABBREV.get(round);
-        return abbr != null ? abbr : round;
-    }
-
     private String cssVariant(TournamentType type) {
         return switch (type) {
             case NCAA_TOURNAMENT -> "ncaa";
-            case NIT -> "nit";
-            case CBI -> "cbi";
-            case CROWN -> "crown";
             case CONFERENCE_TOURNAMENT -> "conf";
+            case NIT, CBI, CROWN, OTHER_POSTSEASON -> "postseason";
             case IN_SEASON_TOURNAMENT -> "in-season";
-            case OTHER_POSTSEASON -> "postseason";
         };
     }
 
