@@ -1822,12 +1822,14 @@ tbody tr:hover {
     border-radius: 10px;
     font-size: 0.68rem;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1;
     border: 1px solid var(--color-border);
     color: var(--color-text-muted);
     background: transparent;
     white-space: nowrap;
-    vertical-align: middle;
+    vertical-align: baseline;
+    position: relative;
+    top: -1px;
 }
 .tournament-badge--ncaa       { color: #b45309; border-color: #f59e0b; background: #fef3c7; }
 .tournament-badge--conf       { color: #047857; border-color: #34d399; background: #d1fae5; }
