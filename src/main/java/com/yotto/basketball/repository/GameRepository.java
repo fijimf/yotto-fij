@@ -77,6 +77,15 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT DISTINCT s FROM Game g JOIN g.season s WHERE g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId ORDER BY s.year DESC")
     List<Season> findSeasonsByTeamId(@Param("teamId") Long teamId);
 
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam LEFT JOIN FETCH g.bettingOdds " +
+           "WHERE g.season.id = :seasonId AND g.tournamentType = :type ORDER BY g.gameDate, g.id")
+    List<Game> findBySeasonIdAndTournamentTypeWithDetails(
+            @Param("seasonId") Long seasonId,
+            @Param("type") Game.TournamentType type);
+
+    @Query("SELECT MAX(s.year) FROM Game g JOIN g.season s WHERE g.tournamentType = :type")
+    Integer findMaxSeasonYearByTournamentType(@Param("type") Game.TournamentType type);
+
     @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam JOIN FETCH g.season LEFT JOIN FETCH g.bettingOdds " +
            "WHERE g.status = 'SCHEDULED' AND g.gameDate BETWEEN :start AND :end ORDER BY g.gameDate")
     List<Game> findScheduledBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- One region: name + round labels + 4-column slot grid (8/4/2/1 slots) -->
+<section th:fragment="bracketRegion(region, idx)" class="bracket-region" th:id="'bracket-region-' + ${idx}">
+    <h2 class="bracket-region__name" th:text="${region.name}">East</h2>
+    <div class="bracket-region__round-labels" aria-hidden="true">
+        <span>1st Round</span><span>2nd Round</span><span>Sweet 16</span><span>Elite 8</span>
+    </div>
+    <div class="bracket-region__grid">
+        <th:block th:each="round, roundStat : ${region.rounds}">
+            <div th:each="slot, slotStat : ${round}"
+                 class="bracket-slot"
+                 th:classappend="'bracket-slot--r' + ${roundStat.index} + ' bracket-slot--i' + ${slotStat.index}">
+                <div th:replace="~{fragments/bracket :: bracketGame(${slot}, '')}"></div>
+            </div>
+        </th:block>
+    </div>
+</section>
+
+<!-- One matchup card -->
+<div th:fragment="bracketGame(slot, extra)" class="bracket-game"
+     th:classappend="${(slot.gameId == null ? 'bracket-game--tbd ' : '') + ((slot.top.winner or slot.bottom.winner) ? 'bracket-game--final ' : '') + extra}">
+    <a th:if="${slot.gameId != null}" class="bracket-game__overlay"
+       th:href="@{'/games/' + ${slot.gameId}}" aria-label="Game details"></a>
+    <div th:replace="~{fragments/bracket :: bracketTeam(${slot.top})}"></div>
+    <div th:replace="~{fragments/bracket :: bracketTeam(${slot.bottom})}"></div>
+    <div class="bracket-game__meta" th:if="${slot.live or slot.metaLabel != null}">
+        <span class="bracket-game__live" th:if="${slot.live}">LIVE</span>
+        <span th:if="${slot.metaLabel != null}" th:text="${slot.metaLabel}">Mar 19 · CONN -6.5</span>
+    </div>
+    <div class="bracket-game__ff" th:if="${slot.firstFourNote != null}"
+         th:title="${slot.firstFourTooltip}" th:text="${slot.firstFourNote}">FF: SFU 71, WAG 68</div>
+</div>
+
+<!-- One team line within a matchup card -->
+<div th:fragment="bracketTeam(line)" class="bracket-team"
+     th:classappend="${(line.winner ? 'bracket-team--winner ' : '') + (line.tbd ? 'bracket-team--tbd' : '')}">
+    <span class="bracket-team__seed" th:text="${line.seed}">1</span>
+    <a th:if="${!line.tbd}" class="bracket-team__name"
+       th:href="@{'/teams/' + ${line.teamId}}" th:title="${line.tooltip}">
+        <img th:if="${line.logoUrl != null}" th:src="${line.logoUrl}" class="bracket-team__logo"
+             loading="lazy" width="16" height="16" alt=""/>
+        <span class="bracket-team__label" th:text="${line.label}">UConn</span>
+    </a>
+    <span th:if="${line.tbd}" class="bracket-team__name bracket-team__name--tbd"
+          th:title="${line.tooltip}" th:text="${line.label}">W 8/9</span>
+    <span class="bracket-team__score" th:text="${line.score}">75</span>
+</div>
+
+</body>
+</html>

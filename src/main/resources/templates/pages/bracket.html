@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${season.year} + ' NCAA Tournament Bracket'">NCAA Tournament Bracket</title>
+</head>
+<body>
+<main layout:fragment="content" class="main--wide">
+
+    <div class="page-header">
+        <h1 class="page-title" th:text="${season.year} + ' NCAA Tournament'">2026 NCAA Tournament</h1>
+        <div class="page-header__actions">
+            <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${season.year} + '/stats'}">Season Stats</a>
+            <select class="form-input form-input--sm"
+                    onchange="window.location='/seasons/'+this.value+'/bracket'">
+                <option th:each="s : ${allSeasons}"
+                        th:value="${s.year}"
+                        th:text="${s.year}"
+                        th:selected="${s.year == season.year}">2026</option>
+            </select>
+        </div>
+    </div>
+
+    <div th:if="${bracket == null}" class="bracket-empty">
+        <p class="bracket-empty__title">No bracket yet</p>
+        <p class="bracket-empty__text">No NCAA tournament games have been scraped for this season.</p>
+    </div>
+
+    <div class="bracket" th:if="${bracket != null}">
+
+        <!-- Region tabs: mobile only; pure CSS via :has(:checked) -->
+        <div class="bracket__tabs">
+            <th:block th:each="region, rStat : ${bracket.regions()}">
+                <input class="bracket__tab-radio" type="radio" name="bracket-tab"
+                       th:id="'bracket-tab-' + ${rStat.index}" th:checked="${rStat.index == 0}"/>
+                <label class="bracket__tab" th:for="'bracket-tab-' + ${rStat.index}"
+                       th:text="${region.name}">East</label>
+            </th:block>
+            <input class="bracket__tab-radio" type="radio" name="bracket-tab" id="bracket-tab-ff"/>
+            <label class="bracket__tab" for="bracket-tab-ff">Final Four</label>
+        </div>
+
+        <div class="bracket-board">
+            <div class="bracket-board__side bracket-board__side--left">
+                <th:block th:each="region, st : ${bracket.leftRegions}">
+                    <section th:replace="~{fragments/bracket :: bracketRegion(${region}, ${st.index})}"></section>
+                </th:block>
+            </div>
+
+            <div class="bracket-center" id="bracket-center">
+                <div class="bracket-center__block">
+                    <h3 class="bracket-center__title">Final Four</h3>
+                    <div th:replace="~{fragments/bracket :: bracketGame(${bracket.semifinalLeft}, 'bracket-game--center')}"></div>
+                </div>
+                <div class="bracket-center__block bracket-center__block--champ">
+                    <h3 class="bracket-center__title">Championship</h3>
+                    <div th:replace="~{fragments/bracket :: bracketGame(${bracket.championship}, 'bracket-game--center')}"></div>
+                    <div class="bracket-champion" th:if="${bracket.champion != null}">
+                        <img th:if="${bracket.champion.logoUrl != null}" th:src="${bracket.champion.logoUrl}"
+                             class="bracket-champion__logo" alt="" width="44" height="44"/>
+                        <div class="bracket-champion__text">
+                            <span class="bracket-champion__label">National Champion</span>
+                            <a class="bracket-champion__name"
+                               th:href="@{'/teams/' + ${bracket.champion.teamId}}"
+                               th:text="${bracket.champion.tooltip}">UConn</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="bracket-center__block">
+                    <h3 class="bracket-center__title">Final Four</h3>
+                    <div th:replace="~{fragments/bracket :: bracketGame(${bracket.semifinalRight}, 'bracket-game--center')}"></div>
+                </div>
+            </div>
+
+            <div class="bracket-board__side bracket-board__side--right">
+                <th:block th:each="region, st : ${bracket.rightRegions}">
+                    <section th:replace="~{fragments/bracket :: bracketRegion(${region}, ${st.index + bracket.leftRegions.size()})}"></section>
+                </th:block>
+            </div>
+        </div>
+    </div>
+
+</main>
+</body>
+</html>
