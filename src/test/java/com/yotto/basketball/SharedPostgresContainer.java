@@ -31,9 +31,11 @@ final class SharedPostgresContainer {
             "season_population_stats",
             "season_statistics",
             "seasons",
+            "stat_calc_watermarks",
             "team_game_stats",
             "team_power_rating_snapshots",
             "team_season_stat_snapshots",
+            "team_stat_snapshots",
             "teams");
 
     private SharedPostgresContainer() {}

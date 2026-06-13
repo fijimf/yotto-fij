@@ -32,37 +32,58 @@ public class StatisticsTimeSeriesService {
     private static final List<String> STAT_NAMES =
             List.of("win_pct", "mean_pts_for", "mean_pts_against", "mean_margin", "correlation_pts");
 
-    private final SeasonRepository seasonRepository;
-    private final GameRepository gameRepository;
+    private final SeasonGameDataLoader seasonGameDataLoader;
     private final ConferenceMembershipRepository membershipRepository;
     private final TeamSeasonStatSnapshotRepository snapshotRepository;
     private final SeasonPopulationStatRepository popStatRepository;
+    private final SnapshotJdbcWriter snapshotJdbcWriter;
 
-    public StatisticsTimeSeriesService(SeasonRepository seasonRepository,
-                                       GameRepository gameRepository,
+    public StatisticsTimeSeriesService(SeasonGameDataLoader seasonGameDataLoader,
                                        ConferenceMembershipRepository membershipRepository,
                                        TeamSeasonStatSnapshotRepository snapshotRepository,
-                                       SeasonPopulationStatRepository popStatRepository) {
-        this.seasonRepository = seasonRepository;
-        this.gameRepository = gameRepository;
+                                       SeasonPopulationStatRepository popStatRepository,
+                                       SnapshotJdbcWriter snapshotJdbcWriter) {
+        this.seasonGameDataLoader = seasonGameDataLoader;
         this.membershipRepository = membershipRepository;
         this.snapshotRepository = snapshotRepository;
         this.popStatRepository = popStatRepository;
+        this.snapshotJdbcWriter = snapshotJdbcWriter;
     }
 
     @Transactional
     public void calculateAndStoreForSeason(int seasonYear) {
-        Season season = seasonRepository.findByYear(seasonYear).orElse(null);
-        if (season == null) {
-            log.warn("Season {} not found, skipping time-series stats", seasonYear);
-            return;
+        calculateAndStoreForSeason(seasonYear, null);
+    }
+
+    /**
+     * @param fromDate watermark: replay the whole season in memory (cheap), but only
+     *                 delete and rewrite snapshots dated {@code >= fromDate}.
+     *                 {@code null} = full rewrite.
+     */
+    @Transactional
+    public void calculateAndStoreForSeason(int seasonYear, LocalDate fromDate) {
+        seasonGameDataLoader.load(seasonYear)
+                .ifPresent(data -> calculateAndStoreForSeason(data, fromDate));
+    }
+
+    @Transactional
+    public void calculateAndStoreForSeason(SeasonGameData data, LocalDate fromDate) {
+        Season season = data.season();
+        int seasonYear = season.getYear();
+
+        log.info("Calculating time-series stats for season {}{}", seasonYear,
+                fromDate != null ? " from " + fromDate : "");
+        long startMs = System.currentTimeMillis();
+
+        // Wipe existing data in scope (idempotent). Population deletes are scoped to
+        // this service's stat names — TeamStatTimeSeriesService shares the table.
+        if (fromDate == null) {
+            snapshotRepository.deleteBySeasonId(season.getId());
+            popStatRepository.deleteBySeasonIdAndStatNames(season.getId(), STAT_NAMES);
+        } else {
+            snapshotRepository.deleteBySeasonIdFromDate(season.getId(), fromDate);
+            popStatRepository.deleteBySeasonIdFromDateAndStatNames(season.getId(), fromDate, STAT_NAMES);
         }
-
-        log.info("Calculating time-series stats for season {}", seasonYear);
-
-        // Wipe existing data (idempotent)
-        snapshotRepository.deleteBySeasonId(season.getId());
-        popStatRepository.deleteBySeasonId(season.getId());
 
         // Conference membership maps
         List<ConferenceMembership> memberships = membershipRepository.findBySeasonId(season.getId());
@@ -77,20 +98,8 @@ public class StatisticsTimeSeriesService {
             conferencesById.put(conf.getId(), conf);
         }
 
-        // All final games sorted by date ascending
-        List<Game> finalGames = gameRepository.findBySeasonIdAndStatus(season.getId(), Game.GameStatus.FINAL);
-        finalGames.sort(Comparator.comparing(g -> g.getGameDate().toLocalDate()));
-
-        Map<Long, Team> teamsById = new HashMap<>();
-        for (Game g : finalGames) {
-            teamsById.put(g.getHomeTeam().getId(), g.getHomeTeam());
-            teamsById.put(g.getAwayTeam().getId(), g.getAwayTeam());
-        }
-
-        // Group games by date (preserving sorted order)
-        Map<LocalDate, List<Game>> gamesByDate = finalGames.stream()
-                .collect(Collectors.groupingBy(g -> g.getGameDate().toLocalDate(),
-                        LinkedHashMap::new, Collectors.toList()));
+        Map<Long, Team> teamsById = data.teamsById();
+        Map<LocalDate, List<Game>> gamesByDate = data.gamesByDate();
 
         Map<Long, TeamAcc> accumulators = new HashMap<>();
         Map<Long, List<GameRecord>> gamesList = new HashMap<>();
@@ -101,8 +110,8 @@ public class StatisticsTimeSeriesService {
             LocalDate date = entry.getKey();
 
             // Update accumulators and game records for games on this date
+            // (SeasonGameData already filters out null-score games)
             for (Game game : entry.getValue()) {
-                if (game.getHomeScore() == null || game.getAwayScore() == null) continue;
                 Long homeId = game.getHomeTeam().getId();
                 Long awayId = game.getAwayTeam().getId();
                 int homeScore = game.getHomeScore();
@@ -115,6 +124,12 @@ public class StatisticsTimeSeriesService {
                          .add(new GameRecord(awayId, !neutral, neutral, homeWon));
                 gamesList.computeIfAbsent(awayId, k -> new ArrayList<>())
                          .add(new GameRecord(homeId, false, neutral, !homeWon));
+            }
+
+            // Before the watermark, only the accumulators matter — nothing is persisted
+            // for this date, so skip snapshot building, RPI, and population stats.
+            if (fromDate != null && date.isBefore(fromDate)) {
+                continue;
             }
 
             // Build snapshots (without z-scores yet)
@@ -173,11 +188,13 @@ public class StatisticsTimeSeriesService {
             allSnapshots.addAll(dateSnaps);
         }
 
-        snapshotRepository.saveAll(allSnapshots);
-        popStatRepository.saveAll(allPopStats);
+        long saveStartMs = System.currentTimeMillis();
+        snapshotJdbcWriter.writeTeamSeasonStatSnapshots(allSnapshots);
+        snapshotJdbcWriter.writeSeasonPopulationStats(allPopStats);
 
-        log.info("Time-series stats complete for season {} — {} snapshots, {} population stat rows",
-                seasonYear, allSnapshots.size(), allPopStats.size());
+        long now2 = System.currentTimeMillis();
+        log.info("Time-series stats complete for season {} — {} snapshots, {} population stat rows in {} ms (save {} ms)",
+                seasonYear, allSnapshots.size(), allPopStats.size(), now2 - startMs, now2 - saveStartMs);
     }
 
     // ── Snapshot builder ──────────────────────────────────────────────────────

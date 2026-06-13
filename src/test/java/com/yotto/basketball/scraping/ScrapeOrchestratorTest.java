@@ -1,9 +1,19 @@
 package com.yotto.basketball.scraping;
 
 import com.yotto.basketball.entity.ScrapeBatch;
+import com.yotto.basketball.entity.Season;
+import com.yotto.basketball.service.ConferenceGameFlagService;
 import com.yotto.basketball.service.PowerRatingService;
+import com.yotto.basketball.service.SeasonGameData;
+import com.yotto.basketball.service.SeasonGameDataLoader;
+import com.yotto.basketball.service.StatCalcGateService;
 import com.yotto.basketball.service.StatisticsTimeSeriesService;
 import com.yotto.basketball.service.StatsCalculationService;
+import com.yotto.basketball.service.TeamStatTimeSeriesService;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,18 +43,40 @@ class ScrapeOrchestratorTest {
     @Mock private GameScraper gameScraper;
     @Mock private OddsBackfillScraper oddsBackfillScraper;
     @Mock private GameStatsScraper gameStatsScraper;
+    @Mock private ConferenceGameFlagService conferenceGameFlagService;
+    @Mock private StatCalcGateService statCalcGateService;
+    @Mock private SeasonGameDataLoader seasonGameDataLoader;
     @Mock private StatsCalculationService statsCalculationService;
     @Mock private StatisticsTimeSeriesService timeSeriesService;
     @Mock private PowerRatingService powerRatingService;
+    @Mock private TeamStatTimeSeriesService teamStatTimeSeriesService;
 
     private ScrapeOrchestrator orchestrator;
+    private SeasonGameData gameData;
 
     @BeforeEach
     void setUp() {
         orchestrator = new ScrapeOrchestrator(
                 conferenceScraper, teamScraper, standingsScraper, gameScraper,
                 oddsBackfillScraper, gameStatsScraper,
-                statsCalculationService, timeSeriesService, powerRatingService);
+                conferenceGameFlagService, statCalcGateService, seasonGameDataLoader,
+                statsCalculationService, timeSeriesService, powerRatingService,
+                teamStatTimeSeriesService);
+
+        Season season = new Season();
+        season.setYear(2025);
+        gameData = new SeasonGameData(season, java.util.List.of(), Map.of(), Map.of());
+    }
+
+    private StatCalcGateService.RecalcScope fullScope() {
+        return new StatCalcGateService.RecalcScope(
+                StatCalcGateService.Mode.FULL, null, LocalDateTime.now(), 1);
+    }
+
+    /** Stubs the gate to FULL and the loader to return shared game data. */
+    private void stubCalcBlock() {
+        when(statCalcGateService.check(2025)).thenReturn(fullScope());
+        when(seasonGameDataLoader.load(2025)).thenReturn(Optional.of(gameData));
     }
 
     private ScrapeBatch completed() {
@@ -66,21 +98,65 @@ class ScrapeOrchestratorTest {
         when(conferenceScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(teamScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(standingsScraper.scrape(eq(2025), any())).thenReturn(completed());
+        stubCalcBlock();
 
         orchestrator.scrapeFullSeason(2025);
 
         InOrder order = inOrder(conferenceScraper, teamScraper, standingsScraper,
-                gameScraper, statsCalculationService, timeSeriesService,
-                powerRatingService, oddsBackfillScraper, gameStatsScraper);
+                gameScraper, oddsBackfillScraper, gameStatsScraper,
+                conferenceGameFlagService, statCalcGateService,
+                statsCalculationService, timeSeriesService, powerRatingService,
+                teamStatTimeSeriesService);
         order.verify(conferenceScraper).scrape(eq(2025), any());
         order.verify(teamScraper).scrape(eq(2025), any());
         order.verify(standingsScraper).scrape(eq(2025), any());
         order.verify(gameScraper).scrapeFullSeason(eq(2025), any());
-        order.verify(statsCalculationService).calculateAndUpdateForSeason(2025);
-        order.verify(timeSeriesService).calculateAndStoreForSeason(2025);
-        order.verify(powerRatingService).calculateAndStoreForSeason(2025);
+        // Backfills run BEFORE the calc block so box-score-derived stats see fresh data
         order.verify(oddsBackfillScraper).backfill(eq(2025), any());
         order.verify(gameStatsScraper).backfill(eq(2025), any());
+        order.verify(conferenceGameFlagService).updateForSeason(2025);
+        order.verify(statCalcGateService).check(2025);
+        order.verify(statsCalculationService).calculateAndUpdateForSeason(gameData);
+        order.verify(timeSeriesService).calculateAndStoreForSeason(eq(gameData), any());
+        order.verify(powerRatingService).calculateAndStoreForSeason(eq(gameData), any());
+        order.verify(teamStatTimeSeriesService).calculateAndStoreForSeason(eq(gameData), any());
+        order.verify(statCalcGateService).recordRun(eq(2025), any());
+    }
+
+    @Test
+    void scrapeCurrentSeason_incrementalScope_passesWatermarkToServices() {
+        java.time.LocalDate watermark = java.time.LocalDate.of(2025, 2, 10);
+        when(statCalcGateService.check(2025)).thenReturn(new StatCalcGateService.RecalcScope(
+                StatCalcGateService.Mode.INCREMENTAL, watermark, LocalDateTime.now(), 42));
+        when(seasonGameDataLoader.load(2025)).thenReturn(Optional.of(gameData));
+
+        orchestrator.scrapeCurrentSeason(2025);
+
+        verify(timeSeriesService).calculateAndStoreForSeason(gameData, watermark);
+        verify(powerRatingService).calculateAndStoreForSeason(gameData, watermark);
+        verify(teamStatTimeSeriesService).calculateAndStoreForSeason(gameData, watermark);
+        verify(statCalcGateService).recordRun(eq(2025), any());
+    }
+
+    @Test
+    void scrapeFullSeason_gateSkip_suppressesCalculations() {
+        when(conferenceScraper.scrape(eq(2025), any())).thenReturn(completed());
+        when(teamScraper.scrape(eq(2025), any())).thenReturn(completed());
+        when(standingsScraper.scrape(eq(2025), any())).thenReturn(completed());
+        when(statCalcGateService.check(2025))
+                .thenReturn(StatCalcGateService.RecalcScope.skip());
+
+        orchestrator.scrapeFullSeason(2025);
+
+        // Flag refresh still happens (it feeds the gate's change detection)…
+        verify(conferenceGameFlagService).updateForSeason(2025);
+        // …but games are not even loaded, no calculator runs, no watermark is recorded
+        verify(seasonGameDataLoader, never()).load(2025);
+        verify(statsCalculationService, never()).calculateAndUpdateForSeason(any(SeasonGameData.class));
+        verify(timeSeriesService, never()).calculateAndStoreForSeason(any(SeasonGameData.class), any());
+        verify(powerRatingService, never()).calculateAndStoreForSeason(any(SeasonGameData.class), any());
+        verify(teamStatTimeSeriesService, never()).calculateAndStoreForSeason(any(SeasonGameData.class), any());
+        verify(statCalcGateService, never()).recordRun(eq(2025), any());
     }
 
     @Test
@@ -115,12 +191,13 @@ class ScrapeOrchestratorTest {
         when(conferenceScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(teamScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(standingsScraper.scrape(eq(2025), any())).thenReturn(failed());
+        stubCalcBlock();
 
         orchestrator.scrapeFullSeason(2025);
 
         // Pipeline continues past standings failure
         verify(gameScraper).scrapeFullSeason(eq(2025), any());
-        verify(statsCalculationService).calculateAndUpdateForSeason(2025);
+        verify(statsCalculationService).calculateAndUpdateForSeason(gameData);
         verify(oddsBackfillScraper).backfill(eq(2025), any());
         verify(gameStatsScraper).backfill(eq(2025), any());
     }
@@ -130,6 +207,7 @@ class ScrapeOrchestratorTest {
         when(conferenceScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(teamScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(standingsScraper.scrape(eq(2025), any())).thenReturn(completed());
+        when(statCalcGateService.check(2025)).thenReturn(fullScope());
 
         org.mockito.ArgumentCaptor<PipelineContext> ctxCaptor =
                 org.mockito.ArgumentCaptor.forClass(PipelineContext.class);
@@ -148,6 +226,7 @@ class ScrapeOrchestratorTest {
         when(conferenceScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(teamScraper.scrape(eq(2025), any())).thenReturn(completed());
         when(standingsScraper.scrape(eq(2025), any())).thenReturn(completed());
+        when(statCalcGateService.check(2025)).thenReturn(fullScope());
 
         org.mockito.ArgumentCaptor<PipelineContext> confCtx = org.mockito.ArgumentCaptor.forClass(PipelineContext.class);
         org.mockito.ArgumentCaptor<PipelineContext> teamCtx = org.mockito.ArgumentCaptor.forClass(PipelineContext.class);
@@ -173,15 +252,34 @@ class ScrapeOrchestratorTest {
 
     @Test
     void scrapeCurrentSeason_skipsConferencesAndTeams() {
+        stubCalcBlock();
+
         orchestrator.scrapeCurrentSeason(2025);
 
         verify(conferenceScraper, never()).scrape(eq(2025), any());
         verify(teamScraper, never()).scrape(eq(2025), any());
         verify(standingsScraper).scrape(eq(2025), any());
         verify(gameScraper).scrapeCurrentSeason(eq(2025), any());
-        verify(statsCalculationService).calculateAndUpdateForSeason(2025);
+        verify(statsCalculationService).calculateAndUpdateForSeason(gameData);
         verify(oddsBackfillScraper).backfill(eq(2025), any());
         verify(gameStatsScraper).backfill(eq(2025), any());
+        verify(statCalcGateService).recordRun(eq(2025), any());
+    }
+
+    @Test
+    void scrapeCurrentSeason_backfillsRunBeforeCalculations() {
+        stubCalcBlock();
+
+        orchestrator.scrapeCurrentSeason(2025);
+
+        InOrder order = inOrder(gameScraper, oddsBackfillScraper, gameStatsScraper,
+                conferenceGameFlagService, statCalcGateService, statsCalculationService);
+        order.verify(gameScraper).scrapeCurrentSeason(eq(2025), any());
+        order.verify(oddsBackfillScraper).backfill(eq(2025), any());
+        order.verify(gameStatsScraper).backfill(eq(2025), any());
+        order.verify(conferenceGameFlagService).updateForSeason(2025);
+        order.verify(statCalcGateService).check(2025);
+        order.verify(statsCalculationService).calculateAndUpdateForSeason(gameData);
     }
 
     // ── Standalone helpers ────────────────────────────────────────────────────
@@ -219,10 +317,14 @@ class ScrapeOrchestratorTest {
     }
 
     @Test
-    void calculateStats_delegatesToService() {
+    void calculateStats_refreshesFlagsThenDelegatesToService() {
         orchestrator.calculateStats(2025);
-        verify(statsCalculationService).calculateAndUpdateForSeason(2025);
+
+        InOrder order = inOrder(conferenceGameFlagService, statsCalculationService);
+        order.verify(conferenceGameFlagService).updateForSeason(2025);
+        order.verify(statsCalculationService).calculateAndUpdateForSeason(2025);
         verify(timeSeriesService, never()).calculateAndStoreForSeason(2025);
+        verify(timeSeriesService, never()).calculateAndStoreForSeason(eq(2025), any());
     }
 
     @Test

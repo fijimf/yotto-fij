@@ -15,43 +15,39 @@ public class StatsCalculationService {
 
     private static final Logger log = LoggerFactory.getLogger(StatsCalculationService.class);
 
-    private final SeasonRepository seasonRepository;
-    private final GameRepository gameRepository;
+    private final SeasonGameDataLoader seasonGameDataLoader;
     private final SeasonStatisticsRepository statsRepository;
     private final ConferenceMembershipRepository membershipRepository;
 
-    public StatsCalculationService(SeasonRepository seasonRepository,
-                                   GameRepository gameRepository,
+    public StatsCalculationService(SeasonGameDataLoader seasonGameDataLoader,
                                    SeasonStatisticsRepository statsRepository,
                                    ConferenceMembershipRepository membershipRepository) {
-        this.seasonRepository = seasonRepository;
-        this.gameRepository = gameRepository;
+        this.seasonGameDataLoader = seasonGameDataLoader;
         this.statsRepository = statsRepository;
         this.membershipRepository = membershipRepository;
     }
 
     @Transactional
     public void calculateAndUpdateForSeason(int seasonYear) {
-        Season season = seasonRepository.findByYear(seasonYear).orElse(null);
-        if (season == null) {
-            log.warn("Season {} not found, skipping stats calculation", seasonYear);
-            return;
-        }
+        seasonGameDataLoader.load(seasonYear).ifPresent(this::calculateAndUpdateForSeason);
+    }
+
+    @Transactional
+    public void calculateAndUpdateForSeason(SeasonGameData data) {
+        Season season = data.season();
+        int seasonYear = season.getYear();
 
         log.info("Calculating stats for season {}", seasonYear);
+        long startMs = System.currentTimeMillis();
 
-        // Build conference membership map first — needed to detect conference games
+        // Conference membership map — used to attach a conference to new stats rows
         List<ConferenceMembership> memberships = membershipRepository.findBySeasonId(season.getId());
         Map<Long, Conference> conferenceByTeamId = new HashMap<>();
-        Map<Long, Long> confIdByTeamId = new HashMap<>();
         for (ConferenceMembership cm : memberships) {
-            Long teamId = cm.getTeam().getId();
-            Conference conf = cm.getConference();
-            conferenceByTeamId.put(teamId, conf);
-            confIdByTeamId.put(teamId, conf.getId());
+            conferenceByTeamId.put(cm.getTeam().getId(), cm.getConference());
         }
 
-        List<Game> finalGames = gameRepository.findBySeasonIdAndStatus(season.getId(), Game.GameStatus.FINAL);
+        List<Game> finalGames = data.finalGames();
 
         // Per-team accumulators
         Map<Long, int[]> wins = new HashMap<>();        // [0]=wins, [1]=losses
@@ -64,21 +60,15 @@ public class StatsCalculationService {
         Map<Long, List<Boolean>> resultsByDate = new HashMap<>(); // ordered list of wins (desc by date)
 
         for (Game game : finalGames) {
-            if (game.getHomeScore() == null || game.getAwayScore() == null) continue;
-
             Long homeId = game.getHomeTeam().getId();
             Long awayId = game.getAwayTeam().getId();
             int homeScore = game.getHomeScore();
             int awayScore = game.getAwayScore();
             boolean homeWon = homeScore > awayScore;
 
-            // Conference game: both teams in the same conference for this season
-            Long homeConfId = confIdByTeamId.get(homeId);
-            Long awayConfId = confIdByTeamId.get(awayId);
-            boolean confGame = homeConfId != null && homeConfId.equals(awayConfId);
-
-            // Persist the flag so schedule tables and future reads are correct
-            game.setConferenceGame(confGame);
+            // Conference-game flag is maintained by ConferenceGameFlagService, which
+            // orchestration runs before this calculation.
+            boolean confGame = Boolean.TRUE.equals(game.getConferenceGame());
 
             boolean neutral = Boolean.TRUE.equals(game.getNeutralSite());
 
@@ -132,12 +122,7 @@ public class StatsCalculationService {
             statsByTeamId.put(ss.getTeam().getId(), ss);
         }
 
-        // Load team references from games
-        Map<Long, Team> teamsById = new HashMap<>();
-        for (Game game : finalGames) {
-            teamsById.put(game.getHomeTeam().getId(), game.getHomeTeam());
-            teamsById.put(game.getAwayTeam().getId(), game.getAwayTeam());
-        }
+        Map<Long, Team> teamsById = data.teamsById();
 
         LocalDateTime now = LocalDateTime.now();
         List<SeasonStatistics> toSave = new ArrayList<>();
@@ -188,7 +173,8 @@ public class StatsCalculationService {
         }
 
         statsRepository.saveAll(toSave);
-        log.info("Stats calculation complete for season {} — {} teams updated", seasonYear, toSave.size());
+        log.info("Stats calculation complete for season {} — {} teams updated in {} ms",
+                seasonYear, toSave.size(), System.currentTimeMillis() - startMs);
     }
 
     private int computeStreak(List<Boolean> winsDescByDate) {

@@ -54,6 +54,8 @@ See [UI.md](UI.md) for more details and guidelines.
 - **ScrapeBatch** - tracks scraping operations: type, status (RUNNING/COMPLETED/FAILED/PARTIAL), record counts, date tracking
 - **SeasonStatistics** - aggregate stats per team per season: wins, losses, conference/home/road splits, points, streak, conferenceStanding
 - **AdminUser** - username, passwordHash, passwordMustChange
+- **Snapshot entities** - TeamSeasonStatSnapshot (wide per-team daily stats), TeamPowerRatingSnapshot + PowerModelParamSnapshot (power models), SeasonPopulationStat (long-format population distributions, shared across services via stat-name-scoped deletes), TeamStatSnapshot (long-format derived stats, e.g. four factors — new stats are registry entries in BoxScoreStatCalculator, not migrations)
+- **StatCalcWatermark** - per-season record of the last stats calc run; drives skip/incremental recalculation via Game.updatedAt change detection
 
 ### API Endpoints
 All REST controllers are at `/api/{resource}` with standard CRUD. Notable custom endpoints:
@@ -90,7 +92,7 @@ Data is sourced from ESPN's public JSON APIs. See [SCRAPING.md](SCRAPING.md) for
 - **GameScraper** - `scrapeFullSeason` (Nov 1 - Apr 30, per-date) + `scrapeCurrentSeason` (re-scrape non-final dates). Extracts pre-game odds from scoreboard.
 - **OddsBackfillScraper** - backfills odds for final games missing them using ESPN core API
 - **GameStatsScraper** - per-game team-level box score backfill via ESPN summary endpoint; one API call per FINAL game; idempotent upsert keyed on (game_id, team_id)
-- **ScrapeOrchestrator** - coordinates scrapers in dependency order (conferences -> teams -> standings -> games -> odds -> game stats)
+- **ScrapeOrchestrator** - coordinates scrapers in dependency order (conferences -> teams -> standings -> games -> odds -> game stats), then runs the stats calc block: conference-game flag refresh -> StatCalcGateService change detection (skip when nothing changed, watermark-incremental otherwise) -> SeasonGameDataLoader loads games once -> all calculators. Snapshot writes go through SnapshotJdbcWriter (batched JDBC). See docs/STATS_PIPELINE_ANALYSIS.md and docs/STATS_PIPELINE_IMPLEMENTATION_PLAN.md.
 - **AsyncScrapeService** - @Async wrappers for long-running scrapes
 - **ScrapeScheduler** - @Scheduled cron (default every 12h) for automatic current-season re-scraping
 

@@ -40,47 +40,64 @@ public class MasseyRatingService {
     public static final String MODEL_TYPE_TOTALS = "MASSEY_TOTALS";
     private static final double LAMBDA = 1.0;
 
-    private final SeasonRepository seasonRepository;
-    private final GameRepository gameRepository;
+    private final SeasonGameDataLoader seasonGameDataLoader;
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final PowerModelParamSnapshotRepository paramRepository;
+    private final SnapshotJdbcWriter snapshotJdbcWriter;
 
-    public MasseyRatingService(SeasonRepository seasonRepository,
-                               GameRepository gameRepository,
+    public MasseyRatingService(SeasonGameDataLoader seasonGameDataLoader,
                                TeamPowerRatingSnapshotRepository ratingRepository,
-                               PowerModelParamSnapshotRepository paramRepository) {
-        this.seasonRepository = seasonRepository;
-        this.gameRepository = gameRepository;
+                               PowerModelParamSnapshotRepository paramRepository,
+                               SnapshotJdbcWriter snapshotJdbcWriter) {
+        this.seasonGameDataLoader = seasonGameDataLoader;
         this.ratingRepository = ratingRepository;
         this.paramRepository = paramRepository;
+        this.snapshotJdbcWriter = snapshotJdbcWriter;
     }
 
     @Transactional
     public void calculateAndStoreForSeason(int seasonYear) {
-        Season season = seasonRepository.findByYear(seasonYear).orElse(null);
-        if (season == null) {
-            log.warn("Season {} not found, skipping Massey calculation", seasonYear);
-            return;
+        calculateAndStoreForSeason(seasonYear, null);
+    }
+
+    /**
+     * @param fromDate watermark: accumulate the whole season's games, but only solve
+     *                 and rewrite snapshots for dates {@code >= fromDate}.
+     *                 {@code null} = full rewrite.
+     */
+    @Transactional
+    public void calculateAndStoreForSeason(int seasonYear, LocalDate fromDate) {
+        seasonGameDataLoader.load(seasonYear)
+                .ifPresent(data -> calculateAndStoreForSeason(data, fromDate));
+    }
+
+    @Transactional
+    public void calculateAndStoreForSeason(SeasonGameData data, LocalDate fromDate) {
+        Season season = data.season();
+        int seasonYear = season.getYear();
+
+        log.info("Calculating Massey ratings for season {}{}", seasonYear,
+                fromDate != null ? " from " + fromDate : "");
+        long startMs = System.currentTimeMillis();
+
+        if (fromDate == null) {
+            ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+            ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTALS);
+            paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+            paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTALS);
+        } else {
+            ratingRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE, fromDate);
+            ratingRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE_TOTALS, fromDate);
+            paramRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE, fromDate);
+            paramRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE_TOTALS, fromDate);
         }
 
-        log.info("Calculating Massey ratings for season {}", seasonYear);
-
-        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
-        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTALS);
-        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
-        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_TOTALS);
-
-        List<Game> finalGames = gameRepository.findBySeasonIdAndStatus(season.getId(), Game.GameStatus.FINAL)
-                .stream()
-                .filter(g -> g.getHomeScore() != null && g.getAwayScore() != null)
-                .collect(Collectors.toList());
+        List<Game> finalGames = data.finalGames();
 
         if (finalGames.isEmpty()) {
             log.info("No final games for season {}, skipping", seasonYear);
             return;
         }
-
-        finalGames.sort(Comparator.comparing(g -> g.getGameDate().toLocalDate()));
 
         // Fixed team index: all teams that appear in any game this season
         List<Long> teamIds = finalGames.stream()
@@ -89,11 +106,7 @@ public class MasseyRatingService {
         Map<Long, Integer> teamIndex = new HashMap<>();
         for (int i = 0; i < teamIds.size(); i++) teamIndex.put(teamIds.get(i), i);
 
-        Map<Long, Team> teamsById = new HashMap<>();
-        for (Game g : finalGames) {
-            teamsById.put(g.getHomeTeam().getId(), g.getHomeTeam());
-            teamsById.put(g.getAwayTeam().getId(), g.getAwayTeam());
-        }
+        Map<Long, Team> teamsById = data.teamsById();
 
         int T     = teamIds.size();
         int size  = T + 1; // spread: T team columns + 1 HCA column
@@ -107,9 +120,7 @@ public class MasseyRatingService {
         double[]   bt = new double[size2];
         Map<Long, Integer> gamesPlayedByTeam = new HashMap<>();
 
-        Map<LocalDate, List<Game>> gamesByDate = finalGames.stream()
-                .collect(Collectors.groupingBy(g -> g.getGameDate().toLocalDate(),
-                        LinkedHashMap::new, Collectors.toList()));
+        Map<LocalDate, List<Game>> gamesByDate = data.gamesByDate();
 
         List<TeamPowerRatingSnapshot> allRatings = new ArrayList<>();
         List<PowerModelParamSnapshot> allParams  = new ArrayList<>();
@@ -167,6 +178,12 @@ public class MasseyRatingService {
                 gamesPlayedByTeam.merge(game.getAwayTeam().getId(), 1, Integer::sum);
             }
 
+            // Before the watermark, nothing is persisted for this date — the solve
+            // exists only to emit snapshots, so skip it.
+            if (fromDate != null && date.isBefore(fromDate)) {
+                continue;
+            }
+
             // ── Spread model ──────────────────────────────────────────────────────
             double[] solution = solve(A, b, T, size);
             if (solution != null) {
@@ -188,11 +205,13 @@ public class MasseyRatingService {
             }
         }
 
-        ratingRepository.saveAll(allRatings);
-        paramRepository.saveAll(allParams);
+        long saveStartMs = System.currentTimeMillis();
+        snapshotJdbcWriter.writeTeamPowerRatingSnapshots(allRatings);
+        snapshotJdbcWriter.writePowerModelParamSnapshots(allParams);
 
-        log.info("Massey ratings complete for season {} — {} snapshots across {} dates",
-                seasonYear, allRatings.size(), gamesByDate.size());
+        long now2 = System.currentTimeMillis();
+        log.info("Massey ratings complete for season {} — {} snapshots across {} dates in {} ms (save {} ms)",
+                seasonYear, allRatings.size(), gamesByDate.size(), now2 - startMs, now2 - saveStartMs);
     }
 
     /** Builds a sorted list of (teamId, ratingBits) for teams that have played at least one game. */

@@ -42,48 +42,68 @@ public class BradleyTerryRatingService {
     private static final double CONVERGE = 1e-6;
     private static final int    MAX_ITER = 500;
 
-    private final SeasonRepository seasonRepository;
-    private final GameRepository gameRepository;
+    private final SeasonGameDataLoader seasonGameDataLoader;
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final PowerModelParamSnapshotRepository paramRepository;
+    private final SnapshotJdbcWriter snapshotJdbcWriter;
 
-    public BradleyTerryRatingService(SeasonRepository seasonRepository,
-                                     GameRepository gameRepository,
+    public BradleyTerryRatingService(SeasonGameDataLoader seasonGameDataLoader,
                                      TeamPowerRatingSnapshotRepository ratingRepository,
-                                     PowerModelParamSnapshotRepository paramRepository) {
-        this.seasonRepository = seasonRepository;
-        this.gameRepository = gameRepository;
+                                     PowerModelParamSnapshotRepository paramRepository,
+                                     SnapshotJdbcWriter snapshotJdbcWriter) {
+        this.seasonGameDataLoader = seasonGameDataLoader;
         this.ratingRepository = ratingRepository;
         this.paramRepository = paramRepository;
+        this.snapshotJdbcWriter = snapshotJdbcWriter;
     }
 
     @Transactional
     public void calculateAndStoreForSeason(int seasonYear) {
-        Season season = seasonRepository.findByYear(seasonYear).orElse(null);
-        if (season == null) {
-            log.warn("Season {} not found, skipping Bradley-Terry calculation", seasonYear);
-            return;
+        calculateAndStoreForSeason(seasonYear, null);
+    }
+
+    /**
+     * @param fromDate watermark: accumulate the whole season's games, but only solve
+     *                 and rewrite snapshots for dates {@code >= fromDate}. The first
+     *                 post-watermark Newton-Raphson starts cold (a few extra iterations);
+     *                 the converged optimum is identical. {@code null} = full rewrite.
+     */
+    @Transactional
+    public void calculateAndStoreForSeason(int seasonYear, LocalDate fromDate) {
+        seasonGameDataLoader.load(seasonYear)
+                .ifPresent(data -> calculateAndStoreForSeason(data, fromDate));
+    }
+
+    @Transactional
+    public void calculateAndStoreForSeason(SeasonGameData data, LocalDate fromDate) {
+        Season season = data.season();
+        int seasonYear = season.getYear();
+
+        log.info("Calculating Bradley-Terry ratings for season {}{}", seasonYear,
+                fromDate != null ? " from " + fromDate : "");
+        long startMs = System.currentTimeMillis();
+
+        if (fromDate == null) {
+            ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+            ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_WEIGHTED);
+            paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
+            paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_WEIGHTED);
+        } else {
+            ratingRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE, fromDate);
+            ratingRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE_WEIGHTED, fromDate);
+            paramRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE, fromDate);
+            paramRepository.deleteBySeasonIdAndModelTypeFromDate(season.getId(), MODEL_TYPE_WEIGHTED, fromDate);
         }
 
-        log.info("Calculating Bradley-Terry ratings for season {}", seasonYear);
-
-        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
-        ratingRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_WEIGHTED);
-        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE);
-        paramRepository.deleteBySeasonIdAndModelType(season.getId(), MODEL_TYPE_WEIGHTED);
-
-        List<Game> finalGames = gameRepository.findBySeasonIdAndStatus(season.getId(), Game.GameStatus.FINAL)
-                .stream()
-                .filter(g -> g.getHomeScore() != null && g.getAwayScore() != null)
-                .filter(g -> !g.getHomeScore().equals(g.getAwayScore())) // ties impossible in CBB but guard anyway
+        // Ties are impossible in CBB but guard anyway — solved as win probabilities
+        List<Game> finalGames = data.finalGames().stream()
+                .filter(g -> !g.getHomeScore().equals(g.getAwayScore()))
                 .collect(Collectors.toList());
 
         if (finalGames.isEmpty()) {
             log.info("No final games for season {}, skipping", seasonYear);
             return;
         }
-
-        finalGames.sort(Comparator.comparing(g -> g.getGameDate().toLocalDate()));
 
         // Fixed team index
         List<Long> teamIds = finalGames.stream()
@@ -92,11 +112,7 @@ public class BradleyTerryRatingService {
         Map<Long, Integer> teamIndex = new HashMap<>();
         for (int i = 0; i < teamIds.size(); i++) teamIndex.put(teamIds.get(i), i);
 
-        Map<Long, Team> teamsById = new HashMap<>();
-        for (Game g : finalGames) {
-            teamsById.put(g.getHomeTeam().getId(), g.getHomeTeam());
-            teamsById.put(g.getAwayTeam().getId(), g.getAwayTeam());
-        }
+        Map<Long, Team> teamsById = data.teamsById();
 
         int T    = teamIds.size();
         int size = T + 1; // last index is α (HCA)
@@ -132,6 +148,12 @@ public class BradleyTerryRatingService {
                 gamesPlayedByTeam.merge(game.getAwayTeam().getId(), 1, Integer::sum);
             }
 
+            // Before the watermark, nothing is persisted for this date — skip the
+            // solves; the first post-watermark solve converges from a cold start.
+            if (fromDate != null && date.isBefore(fromDate)) {
+                continue;
+            }
+
             // ── Unweighted Bradley-Terry ──────────────────────────────────────────
             newtonRaphson(params, seenGames, T, size, false);
             collectSnapshots(allRatings, allParams, params, teamIds, teamIndex, teamsById,
@@ -143,11 +165,13 @@ public class BradleyTerryRatingService {
                     gamesPlayedByTeam, season, MODEL_TYPE_WEIGHTED, date, now);
         }
 
-        ratingRepository.saveAll(allRatings);
-        paramRepository.saveAll(allParams);
+        long saveStartMs = System.currentTimeMillis();
+        snapshotJdbcWriter.writeTeamPowerRatingSnapshots(allRatings);
+        snapshotJdbcWriter.writePowerModelParamSnapshots(allParams);
 
-        log.info("Bradley-Terry ratings complete for season {} — {} snapshots across {} dates",
-                seasonYear, allRatings.size(), gamesByDate.size());
+        long now2 = System.currentTimeMillis();
+        log.info("Bradley-Terry ratings complete for season {} — {} snapshots across {} dates in {} ms (save {} ms)",
+                seasonYear, allRatings.size(), gamesByDate.size(), now2 - startMs, now2 - saveStartMs);
     }
 
     /** Collects team rating snapshots and HCA param snapshot for one model on one date. */
