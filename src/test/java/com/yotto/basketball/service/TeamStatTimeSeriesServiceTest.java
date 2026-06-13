@@ -121,6 +121,12 @@ class TeamStatTimeSeriesServiceTest extends BaseIntegrationTest {
         s.setOffensiveReb(orb);
         s.setDefensiveReb(drb);
         s.setTurnovers(to);
+        // Derived non-null values so the full-stats-block gate passes; these tests
+        // assert on shooting stats, not on assists/steals/blocks/fouls.
+        s.setAssists(Math.max(0, fgm - 8));
+        s.setSteals(Math.max(0, to - 3));
+        s.setBlocks(Math.max(0, orb - 4));
+        s.setFouls(15);
         s.setScrapeDate(LocalDateTime.now());
         return boxRepo.save(s);
     }
