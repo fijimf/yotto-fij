@@ -26,4 +26,23 @@ public interface SeasonPopulationStatRepository extends JpaRepository<SeasonPopu
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM SeasonPopulationStat s WHERE s.season.id = :seasonId")
     void deleteBySeasonId(@Param("seasonId") Long seasonId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM SeasonPopulationStat s WHERE s.season.id = :seasonId AND s.statDate >= :fromDate")
+    void deleteBySeasonIdFromDate(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
+
+    // Stat-name-scoped deletes: multiple services share this table (each owns a set of
+    // stat names), so a service must never wipe another's rows.
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM SeasonPopulationStat s WHERE s.season.id = :seasonId AND s.statName IN :statNames")
+    void deleteBySeasonIdAndStatNames(@Param("seasonId") Long seasonId,
+                                      @Param("statNames") java.util.Collection<String> statNames);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM SeasonPopulationStat s WHERE s.season.id = :seasonId AND s.statDate >= :fromDate " +
+           "AND s.statName IN :statNames")
+    void deleteBySeasonIdFromDateAndStatNames(@Param("seasonId") Long seasonId,
+                                              @Param("fromDate") LocalDate fromDate,
+                                              @Param("statNames") java.util.Collection<String> statNames);
 }

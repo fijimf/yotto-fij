@@ -27,6 +27,14 @@ public interface PowerModelParamSnapshotRepository extends JpaRepository<PowerMo
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType);
 
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM PowerModelParamSnapshot p WHERE p.season.id = :seasonId AND p.modelType = :modelType " +
+           "AND p.snapshotDate >= :fromDate")
+    void deleteBySeasonIdAndModelTypeFromDate(
+            @Param("seasonId") Long seasonId,
+            @Param("modelType") String modelType,
+            @Param("fromDate") LocalDate fromDate);
+
     /** Most recent param value for a season/model/paramName strictly before the given date. */
     @Query(value = "SELECT * FROM power_model_param_snapshots " +
                    "WHERE season_id = :seasonId AND model_type = :modelType " +

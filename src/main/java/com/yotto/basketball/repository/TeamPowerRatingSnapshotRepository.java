@@ -50,6 +50,14 @@ public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPow
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType);
 
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM TeamPowerRatingSnapshot s WHERE s.season.id = :seasonId AND s.modelType = :modelType " +
+           "AND s.snapshotDate >= :fromDate")
+    void deleteBySeasonIdAndModelTypeFromDate(
+            @Param("seasonId") Long seasonId,
+            @Param("modelType") String modelType,
+            @Param("fromDate") LocalDate fromDate);
+
     /** Most recent snapshot for a team/season/model strictly before the given date. */
     @Query(value = "SELECT * FROM team_power_rating_snapshots " +
                    "WHERE team_id = :teamId AND season_id = :seasonId " +
