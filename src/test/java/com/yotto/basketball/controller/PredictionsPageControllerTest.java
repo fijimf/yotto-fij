@@ -99,8 +99,11 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
 
     @Test
     void predictions_groupedByDate_containsScheduledGames() throws Exception {
-        mkScheduled(LocalDateTime.now().plusDays(2));
-        mkScheduled(LocalDateTime.now().plusDays(2).plusHours(3));
+        // Fixed times of day: now()+3h crosses midnight when the suite runs after 21:00,
+        // splitting the two games onto different calendar dates
+        LocalDate target = LocalDate.now().plusDays(2);
+        mkScheduled(target.atTime(12, 0));
+        mkScheduled(target.atTime(15, 0));
 
         mockMvc.perform(get("/predictions"))
                 .andExpect(status().isOk())
