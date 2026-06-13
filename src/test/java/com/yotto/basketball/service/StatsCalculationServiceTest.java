@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.within;
 class StatsCalculationServiceTest extends BaseIntegrationTest {
 
     @Autowired StatsCalculationService service;
+    @Autowired ConferenceGameFlagService flagService;
     @Autowired SeasonRepository seasonRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired ConferenceRepository conferenceRepo;
@@ -93,6 +94,12 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
                 LocalDateTime.of(2025, 1, 15, 20, 0));
     }
 
+    /** Mirrors production orchestration: conference-game flags are refreshed before the calc. */
+    private void calculate() {
+        flagService.updateForSeason(2025);
+        service.calculateAndUpdateForSeason(2025);
+    }
+
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -107,7 +114,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, sec);
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         var statsB = statsRepo.findByTeamIdAndSeasonId(teamB.getId(), season.getId()).orElseThrow();
@@ -123,7 +130,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, sec);
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         assertThat(statsA.getCalcPointsFor()).isEqualTo(80);
@@ -136,7 +143,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, sec);
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         assertThat(statsA.getCalcConferenceWins()).isEqualTo(1);
@@ -152,7 +159,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, acc);
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         assertThat(statsA.getCalcConferenceWins()).isEqualTo(0);
@@ -165,7 +172,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, sec);
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         var statsB = statsRepo.findByTeamIdAndSeasonId(teamB.getId(), season.getId()).orElseThrow();
@@ -181,7 +188,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, sec);
         mkFinalGame(teamA, teamB, 80, 70, true);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         var statsB = statsRepo.findByTeamIdAndSeasonId(teamB.getId(), season.getId()).orElseThrow();
@@ -197,7 +204,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, sec);
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         assertThat(statsA.getCalcStddevPtsFor()).isNull();
@@ -213,7 +220,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         mkFinalGame(teamA, teamB, 80, 70, false, LocalDateTime.of(2025, 1, 10, 20, 0));
         mkFinalGame(teamA, teamB, 90, 75, false, LocalDateTime.of(2025, 1, 17, 20, 0));
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         assertThat(statsA.getCalcStddevPtsFor()).isNotNull();
@@ -229,7 +236,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
             mkFinalGame(teamA, teamB, 80, 70, false, LocalDateTime.of(2025, 1, 10 + i, 20, 0));
         }
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         assertThat(statsA.getCalcStreak()).isEqualTo(3);
@@ -244,7 +251,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
             mkFinalGame(teamB, teamA, 80, 70, false, LocalDateTime.of(2025, 1, 10 + i, 20, 0));
         }
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         var statsA = statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId()).orElseThrow();
         assertThat(statsA.getCalcStreak()).isEqualTo(-3);
@@ -263,7 +270,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         g.setGameDate(LocalDateTime.of(2025, 1, 15, 20, 0));
         gameRepo.save(g);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         assertThat(statsRepo.findBySeasonId(season.getId())).isEmpty();
     }
@@ -274,8 +281,8 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         enroll(teamB, sec);
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
+        calculate();
 
         assertThat(statsRepo.findBySeasonId(season.getId())).hasSize(2);
     }
@@ -286,7 +293,7 @@ class StatsCalculationServiceTest extends BaseIntegrationTest {
         // teamB has no membership
         mkFinalGame(teamA, teamB, 80, 70, false);
 
-        service.calculateAndUpdateForSeason(2025);
+        calculate();
 
         assertThat(statsRepo.findBySeasonId(season.getId())).hasSize(1);
         assertThat(statsRepo.findByTeamIdAndSeasonId(teamA.getId(), season.getId())).isPresent();

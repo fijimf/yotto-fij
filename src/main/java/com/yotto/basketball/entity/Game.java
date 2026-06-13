@@ -55,6 +55,10 @@ public class Game {
 
     private LocalDate scrapeDate;
 
+    /** Bumped only when the row actually changes — drives stat-calc change detection. */
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "tournament_type")
     private TournamentType tournamentType;
@@ -99,6 +103,14 @@ public class Game {
     }
 
     public Game() {
+    }
+
+    // @PreUpdate fires only when Hibernate finds the entity dirty, so updatedAt
+    // moves on actual change, not on every re-scrape that touches nothing.
+    @PrePersist
+    @PreUpdate
+    void touchUpdatedAt() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     public Long getId() {
@@ -219,6 +231,10 @@ public class Game {
 
     public void setScrapeDate(LocalDate scrapeDate) {
         this.scrapeDate = scrapeDate;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 
     public TournamentType getTournamentType() {

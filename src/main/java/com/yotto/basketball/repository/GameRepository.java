@@ -74,6 +74,13 @@ public interface GameRepository extends JpaRepository<Game, Long> {
            "AND NOT EXISTS (SELECT 1 FROM TeamGameStats t WHERE t.game = g)")
     List<Game> findFinalGamesWithoutStats(@Param("seasonId") Long seasonId);
 
+    /** Earliest game date among games whose row changed at or after the given instant. */
+    @Query(value = "SELECT MIN(CAST(game_date AS date)) FROM games " +
+                   "WHERE season_id = :seasonId AND updated_at >= :since",
+           nativeQuery = true)
+    java.time.LocalDate findMinGameDateUpdatedSince(@Param("seasonId") Long seasonId,
+                                                    @Param("since") LocalDateTime since);
+
     @Query("SELECT DISTINCT s FROM Game g JOIN g.season s WHERE g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId ORDER BY s.year DESC")
     List<Season> findSeasonsByTeamId(@Param("teamId") Long teamId);
 
