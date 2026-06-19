@@ -871,15 +871,6 @@ tbody tr:hover {
     margin-bottom: 2rem;
 }
 
-.schedule-section__title {
-    font-family: var(--font-display);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    margin-bottom: 0.75rem;
-    letter-spacing: 0.02em;
-}
-
 /* Season tabs */
 .season-tabs {
     display: flex;
@@ -1310,10 +1301,47 @@ tbody tr:hover {
     margin-top: 0.5rem;
 }
 
-    /* Team Profile (box-score stat panel) */
+    /* Team page top-level tabs (Schedule | Team Profile) */
+
+.team-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.team-tabs__tab {
+    padding: 0.6rem 1.1rem;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.team-tabs__tab:hover {
+    color: var(--color-text);
+}
+
+.team-tabs__tab--active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.team-tab-panel[hidden] {
+    display: none;
+}
+
+/* Team Profile (box-score stat panel) */
 
 .team-stats {
-    margin-top: 3rem;
+    margin-top: 0;
 }
 
 .team-stats__header {
@@ -3256,4 +3284,321 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     }
     .bracket-slot { scroll-snap-align: start; }
     .bracket-game { font-size: 0.8rem; }
+}
+
+/* ── Conferences ───────────────────────────────────────────────────────── */
+
+/* Conference index + standings tables */
+.conf-table-wrap {
+    overflow-x: auto;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.conf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.conf-table thead th {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.conf-table tbody td {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.conf-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.conf-table tbody tr:hover {
+    background: var(--color-bg-surface-hover);
+}
+
+.conf-table__rank {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    width: 3.5rem;
+}
+
+.conf-table__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.conf-table__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.conf-table__link:hover {
+    color: var(--color-primary);
+}
+
+.conf-table__logo {
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+/* Conference hero */
+.conf-hero {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.conf-hero__logo-wrap {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.conf-hero__logo {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+}
+
+.conf-hero__name {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.conf-hero__abbr {
+    font-size: 1rem;
+    color: var(--color-text-muted);
+    margin-top: 0.15rem;
+}
+
+/* Summary stat strip */
+.conf-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.conf-summary__stat {
+    flex: 1 1 140px;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.conf-summary__value {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.conf-summary__label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+
+/* Section tabs */
+.conf-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+}
+
+.conf-tabs__tab {
+    padding: 0.6rem 1.1rem;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.conf-tabs__tab:hover {
+    color: var(--color-text);
+}
+
+.conf-tabs__tab--active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.conf-tab-panel[hidden] {
+    display: none;
+}
+
+/* Champion banner */
+.conf-champion {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 1rem;
+    background: rgba(var(--color-primary-rgb), 0.08);
+    border: 1px solid rgba(var(--color-primary-rgb), 0.25);
+    border-radius: var(--radius);
+}
+
+.conf-champion__label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.conf-champion__team {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.conf-champion__team:hover { color: var(--color-primary); }
+
+.conf-champion__logo { object-fit: contain; }
+
+/* Tournament rounds */
+.conf-round {
+    margin-bottom: 1.25rem;
+}
+
+.conf-round__title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.conf-round__games {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.75rem;
+}
+
+.conf-game {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+}
+
+.conf-game__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+    color: var(--color-text-muted);
+}
+
+.conf-game__row--win {
+    color: var(--color-text);
+    font-weight: 700;
+}
+
+.conf-game__seed {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    width: 1.25rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.conf-game__team {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.conf-game__team span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conf-game__logo { object-fit: contain; flex-shrink: 0; }
+
+.conf-game__score {
+    font-variant-numeric: tabular-nums;
+    width: 2rem;
+    text-align: right;
+}
+
+.conf-game__meta {
+    margin-top: 0.3rem;
+    padding-top: 0.3rem;
+    border-top: 1px solid var(--color-border);
+    text-align: right;
+}
+
+.conf-game__date {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.conf-game__date:hover { color: var(--color-primary); }
+
+/* NCAA summary */
+.conf-ncaa-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.conf-ncaa-summary__champ { color: var(--color-primary); }
+
+.conf-ncaa-row--champ {
+    background: rgba(var(--color-primary-rgb), 0.06);
+}
+
+@media (max-width: 640px) {
+    .conf-table__hide-mobile { display: none; }
 }

@@ -1,6 +1,7 @@
 package com.yotto.basketball.repository;
 
 import com.yotto.basketball.entity.ConferenceMembership;
+import com.yotto.basketball.entity.Season;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,6 +22,15 @@ public interface ConferenceMembershipRepository extends JpaRepository<Conference
     List<ConferenceMembership> findBySeasonId(Long seasonId);
 
     List<ConferenceMembership> findByConferenceIdAndSeasonId(Long conferenceId, Long seasonId);
+
+    @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.team " +
+           "WHERE cm.conference.id = :conferenceId AND cm.season.id = :seasonId")
+    List<ConferenceMembership> findByConferenceIdAndSeasonIdWithTeam(@Param("conferenceId") Long conferenceId,
+                                                                     @Param("seasonId") Long seasonId);
+
+    @Query("SELECT DISTINCT s FROM ConferenceMembership cm JOIN cm.season s " +
+           "WHERE cm.conference.id = :conferenceId ORDER BY s.year DESC")
+    List<Season> findSeasonsByConferenceId(@Param("conferenceId") Long conferenceId);
 
     boolean existsByTeamIdAndSeasonId(Long teamId, Long seasonId);
 

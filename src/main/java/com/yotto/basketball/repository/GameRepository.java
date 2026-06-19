@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -141,4 +142,17 @@ public interface GameRepository extends JpaRepository<Game, Long> {
             @Param("teamId") Long teamId,
             @Param("seasonId") Long seasonId,
             @Param("beforeDate") LocalDateTime beforeDate);
+
+    /** All games for a season with teams fetched — drives season-wide conference aggregation. */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
+           "WHERE g.season.id = :seasonId")
+    List<Game> findBySeasonIdWithTeams(@Param("seasonId") Long seasonId);
+
+    /** Games in a season involving any of the given teams, with teams + odds fetched. */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam LEFT JOIN FETCH g.bettingOdds " +
+           "WHERE g.season.id = :seasonId " +
+           "  AND (g.homeTeam.id IN :teamIds OR g.awayTeam.id IN :teamIds) " +
+           "ORDER BY g.gameDate, g.id")
+    List<Game> findBySeasonAndTeamIds(@Param("seasonId") Long seasonId,
+                                      @Param("teamIds") Collection<Long> teamIds);
 }

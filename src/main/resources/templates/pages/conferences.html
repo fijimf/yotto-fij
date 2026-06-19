@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Conferences</title>
+</head>
+<body>
+
+<main layout:fragment="content">
+    <div class="teams-header">
+        <h1 class="page-title">Conferences</h1>
+        <div class="teams-header__meta">
+            <span class="teams-header__count" th:text="${conferenceCount} + ' conferences'">32 conferences</span>
+            <span th:if="${seasonYear}" class="teams-header__season"
+                  th:text="'&middot; ' + ${seasonYear} + ' season'">2026 season</span>
+        </div>
+    </div>
+
+    <div th:if="${conferences.isEmpty()}" class="teams-empty">
+        No conference data available.
+    </div>
+
+    <div th:unless="${conferences.isEmpty()}" class="conf-table-wrap">
+        <table class="conf-table">
+            <thead>
+                <tr>
+                    <th class="conf-table__rank">Rank</th>
+                    <th>Conference</th>
+                    <th class="conf-table__num">Teams</th>
+                    <th class="conf-table__num">Avg Power</th>
+                    <th class="conf-table__num conf-table__hide-mobile">Record</th>
+                    <th class="conf-table__num conf-table__hide-mobile">Non-Conf</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="conf : ${conferences}">
+                    <td class="conf-table__rank"
+                        th:text="${conf.conferenceRank != null} ? ('#' + ${conf.conferenceRank}) : '—'">#1</td>
+                    <td class="conf-table__name">
+                        <a th:href="@{'/conferences/' + ${conf.id}}" class="conf-table__link">
+                            <img th:if="${conf.logoUrl}" th:src="${conf.logoUrl}" th:alt="${conf.name}"
+                                 class="conf-table__logo" loading="lazy" width="24" height="24" />
+                            <span th:text="${conf.name}">Big Ten</span>
+                        </a>
+                    </td>
+                    <td class="conf-table__num" th:text="${conf.teamCount}">18</td>
+                    <td class="conf-table__num" th:text="${conf.ratingDisplay()}">12.45</td>
+                    <td class="conf-table__num conf-table__hide-mobile" th:text="${conf.record()}">280-150</td>
+                    <td class="conf-table__num conf-table__hide-mobile" th:text="${conf.nonConfRecord()}">90-40</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+</body>
+</html>
