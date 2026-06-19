@@ -38,6 +38,10 @@ class TeamWebControllerTest extends BaseIntegrationTest {
     @Autowired PowerModelParamSnapshotRepository paramRepo;
     @Autowired BettingOddsRepository oddsRepo;
 
+    @Autowired TeamGameStatsRepository boxRepo;
+    @Autowired TeamStatSnapshotRepository statSnapshotRepo;
+    @Autowired com.yotto.basketball.service.TeamStatTimeSeriesService teamStatTimeSeriesService;
+
     Season season;
     Conference sec;
     Team teamA, teamB;
@@ -99,6 +103,54 @@ class TeamWebControllerTest extends BaseIntegrationTest {
         g.setSeason(season);
         g.setGameDate(date.atTime(20, 0));
         return gameRepo.save(g);
+    }
+
+    private void enroll(Team team, Conference conf) {
+        ConferenceMembership m = new ConferenceMembership();
+        m.setTeam(team);
+        m.setConference(conf);
+        m.setSeason(season);
+        membershipRepo.save(m);
+    }
+
+    private void mkBox(Game game, Team team, String homeAway,
+                       int fgm, int fga, int fg3m, int fg3a, int ftm, int fta,
+                       int orb, int drb, int to) {
+        TeamGameStats s = new TeamGameStats();
+        s.setGame(game);
+        s.setTeam(team);
+        s.setHomeAway(homeAway);
+        s.setFgMade(fgm);
+        s.setFgAttempted(fga);
+        s.setFg3Made(fg3m);
+        s.setFg3Attempted(fg3a);
+        s.setFtMade(ftm);
+        s.setFtAttempted(fta);
+        s.setOffensiveReb(orb);
+        s.setDefensiveReb(drb);
+        s.setTurnovers(to);
+        // Full standard ESPN block so the box-score gate passes.
+        s.setAssists(Math.max(0, fgm - 8));
+        s.setSteals(Math.max(0, to - 3));
+        s.setBlocks(Math.max(0, orb - 4));
+        s.setFouls(15);
+        s.setScrapeDate(LocalDateTime.now());
+        boxRepo.save(s);
+    }
+
+    /** A final game between A and B with both box scores present, then run the calc. */
+    private void seedBoxScoresAndCalc() {
+        enroll(teamA, sec);
+        enroll(teamB, sec);
+        Game g = mkGame(teamA, teamB, 80, 70, Game.GameStatus.FINAL, LocalDate.of(2025, 1, 10), false);
+        mkBox(g, teamA, "HOME", 30, 60, 5, 20, 15, 20, 10, 25, 12);
+        mkBox(g, teamB, "AWAY", 25, 55, 8, 25, 12, 16, 8, 22, 15);
+        teamStatTimeSeriesService.calculateAndStoreForSeason(2025);
+    }
+
+    private static TeamWebController.StatRow findRow(TeamWebController.TeamStatPanel panel, String statName) {
+        return panel.groups().stream().flatMap(g -> g.rows().stream())
+                .filter(r -> r.statName().equals(statName)).findFirst().orElse(null);
     }
 
     // ── GET /teams ────────────────────────────────────────────────────────────
@@ -265,6 +317,69 @@ class TeamWebControllerTest extends BaseIntegrationTest {
     @Test
     void teamSeasonSchedule_unknownYear_returns404() throws Exception {
         mockMvc.perform(get("/teams/{id}/season/{year}", teamA.getId(), 9999))
+                .andExpect(status().isNotFound());
+    }
+
+    // ── Team Profile stat panel ───────────────────────────────────────────────
+
+    @Test
+    void teamDetail_noStatData_statPanelNull() throws Exception {
+        mkStats(teamA, sec, 1, 0, 0, 0);
+        mkGame(teamA, teamB, 80, 70, Game.GameStatus.FINAL, LocalDate.of(2025, 1, 10), false);
+
+        MvcResult res = mockMvc.perform(get("/teams/{id}", teamA.getId()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(res.getModelAndView().getModel().get("statPanel")).isNull();
+    }
+
+    @Test
+    void teamDetail_includesStatPanel_withGroupsRanksAndValues() throws Exception {
+        seedBoxScoresAndCalc();
+
+        MvcResult res = mockMvc.perform(get("/teams/{id}", teamA.getId()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        TeamWebController.TeamStatPanel panel = (TeamWebController.TeamStatPanel)
+                res.getModelAndView().getModel().get("statPanel");
+        assertThat(panel).isNotNull();
+        assertThat(panel.year()).isEqualTo(2025);
+        assertThat(panel.gamesPlayed()).isEqualTo(1);
+        assertThat(panel.groups()).isNotEmpty();
+
+        // eFG% for A = (30 + 0.5×5) / 60 = 0.5417 → "54.2%"; A leads B → rank 1 of 2.
+        TeamWebController.StatRow efg = findRow(panel, "efg_pct");
+        assertThat(efg).isNotNull();
+        assertThat(efg.formattedValue()).isEqualTo("54.2%");
+        assertThat(efg.rank()).isEqualTo(1);
+        assertThat(efg.fieldSize()).isEqualTo(2);
+        assertThat(efg.rankDisplay()).isEqualTo("#1 of 2");
+        assertThat(efg.percentile()).isEqualTo(100);
+        assertThat(efg.higherIsBetter()).isTrue();
+
+        // Offensive Rtg = 100 × 80 / 71.5 possessions = 111.9 (DECIMAL_1).
+        TeamWebController.StatRow offRtg = findRow(panel, "off_efficiency");
+        assertThat(offRtg.formattedValue()).isEqualTo("111.9");
+
+        // Groups appear in catalog category order, headers populated.
+        assertThat(panel.groups().get(0).header()).isEqualTo("Efficiency");
+    }
+
+    @Test
+    void teamSeasonStatPanel_fragment_returnsPanelView() throws Exception {
+        seedBoxScoresAndCalc();
+
+        mockMvc.perform(get("/teams/{id}/season/{year}/stats-panel", teamA.getId(), 2025))
+                .andExpect(status().isOk())
+                .andExpect(view().name("fragments/team-stat-panel :: panel"))
+                .andExpect(model().attributeExists("statPanel"));
+    }
+
+    @Test
+    void teamSeasonStatPanel_unknownYear_returns404() throws Exception {
+        mockMvc.perform(get("/teams/{id}/season/{year}/stats-panel", teamA.getId(), 9999))
                 .andExpect(status().isNotFound());
     }
 }

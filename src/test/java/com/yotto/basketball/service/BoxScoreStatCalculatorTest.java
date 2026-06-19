@@ -92,16 +92,15 @@ class BoxScoreStatCalculatorTest {
 
     @Test
     void registryDefinesAllStats() {
-        assertThat(calculator.definitions()).hasSize(25);
+        assertThat(calculator.definitions()).hasSize(22);
         assertThat(calculator.definitions())
                 .extracting(DailyStatCalculator.StatMeta::name)
-                .contains("pace", "off_efficiency", "def_efficiency",
+                .containsExactlyInAnyOrder("pace", "off_efficiency", "def_efficiency",
                         "efg_pct", "opp_efg_pct", "tov_rate", "opp_tov_rate",
                         "orb_pct", "drb_pct", "ft_rate", "opp_ft_rate",
                         "ts_pct", "fg_pct", "fg3_pct", "ft_pct", "fg3_rate",
                         "trb_pct", "ast_to_ratio", "assisted_fg_pct",
-                        "stl_rate", "blk_pct", "pf_per_game",
-                        "paint_pts_share", "fast_break_pts_share", "turnover_pts_share");
+                        "stl_rate", "blk_pct", "pf_per_game");
     }
 
     @Test
@@ -143,42 +142,6 @@ class BoxScoreStatCalculatorTest {
         assertThat(a.get("stl_rate")).isCloseTo(7.0 / 69.6, within(TOL));
         assertThat(a.get("blk_pct")).isCloseTo(4.0 / (55 - 25), within(TOL));
         assertThat(a.get("pf_per_game")).isCloseTo(16.0, within(TOL));
-    }
-
-    @Test
-    void sparseScoringFields_emittedOnlyWhenPresent() {
-        TeamGameStats a = boxA();
-        a.setPointsInPaint(40);
-        a.setFastBreakPts(12);
-        // turnoverPts deliberately left null
-        calculator.onGame(mkGame(teamA, teamB, 80, 70), a, boxB());
-
-        Map<String, Double> stats = statsFor(1L, D1);
-        assertThat(stats.get("paint_pts_share")).isCloseTo(40.0 / 80, within(TOL));
-        assertThat(stats.get("fast_break_pts_share")).isCloseTo(12.0 / 80, within(TOL));
-        assertThat(stats).doesNotContainKey("turnover_pts_share");
-    }
-
-    @Test
-    void sparseScoringFields_absentForAllGames_notEmitted() {
-        calculator.onGame(mkGame(teamA, teamB, 80, 70), boxA(), boxB());
-
-        Map<String, Double> stats = statsFor(1L, D1);
-        assertThat(stats).doesNotContainKeys(
-                "paint_pts_share", "fast_break_pts_share", "turnover_pts_share");
-    }
-
-    @Test
-    void sparseShare_baseIsOnlyGamesWhereFieldPresent() {
-        // Game 1 has paint data, game 2 does not → share base is game 1's points only
-        TeamGameStats g1 = boxA();
-        g1.setPointsInPaint(40);
-        calculator.onGame(mkGame(teamA, teamB, 80, 70), g1, boxB());
-        calculator.onGame(mkGame(teamB, teamA, 90, 85), boxB(), boxA()); // A's box has no paint
-
-        Map<String, Double> a = statsFor(1L, D2);
-        // 40 / 80, NOT 40 / (80 + 85)
-        assertThat(a.get("paint_pts_share")).isCloseTo(40.0 / 80, within(TOL));
     }
 
     @Test

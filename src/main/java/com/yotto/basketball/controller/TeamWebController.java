@@ -2,9 +2,13 @@ package com.yotto.basketball.controller;
 
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.GameRepository;
+import com.yotto.basketball.repository.SeasonPopulationStatRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.SeasonStatisticsRepository;
 import com.yotto.basketball.repository.TeamRepository;
+import com.yotto.basketball.repository.TeamStatSnapshotRepository;
+import com.yotto.basketball.service.BoxScoreStatCalculator;
+import com.yotto.basketball.service.DailyStatCalculator;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -12,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -26,17 +31,23 @@ public class TeamWebController {
     private final GameRepository gameRepository;
     private final SeasonStatisticsRepository seasonStatisticsRepository;
     private final TournamentBadgeFormatter tournamentBadgeFormatter;
+    private final TeamStatSnapshotRepository teamStatSnapshotRepository;
+    private final SeasonPopulationStatRepository popStatRepository;
 
     public TeamWebController(TeamRepository teamRepository,
                              SeasonRepository seasonRepository,
                              GameRepository gameRepository,
                              SeasonStatisticsRepository seasonStatisticsRepository,
-                             TournamentBadgeFormatter tournamentBadgeFormatter) {
+                             TournamentBadgeFormatter tournamentBadgeFormatter,
+                             TeamStatSnapshotRepository teamStatSnapshotRepository,
+                             SeasonPopulationStatRepository popStatRepository) {
         this.teamRepository = teamRepository;
         this.seasonRepository = seasonRepository;
         this.gameRepository = gameRepository;
         this.seasonStatisticsRepository = seasonStatisticsRepository;
         this.tournamentBadgeFormatter = tournamentBadgeFormatter;
+        this.teamStatSnapshotRepository = teamStatSnapshotRepository;
+        this.popStatRepository = popStatRepository;
     }
 
     // ── Teams listing ──
@@ -156,6 +167,7 @@ public class TeamWebController {
         model.addAttribute("seasons", seasons);
         model.addAttribute("schedule", currentSeasonSchedule);
         model.addAttribute("currentSeasonYear", currentSeason != null ? currentSeason.getYear() : null);
+        model.addAttribute("statPanel", currentSeason != null ? buildStatPanel(id, currentSeason) : null);
 
         return "pages/team-detail";
     }
@@ -186,6 +198,87 @@ public class TeamWebController {
         ));
 
         return "fragments/team-season :: season-panel";
+    }
+
+    @GetMapping("/teams/{id}/season/{year}/stats-panel")
+    public String teamSeasonStatPanel(@PathVariable Long id,
+                                      @PathVariable Integer year,
+                                      Model model) {
+        Season season = seasonRepository.findByYear(year)
+                .orElseThrow(() -> new EntityNotFoundException("Season not found: " + year));
+        model.addAttribute("statPanel", buildStatPanel(id, season));
+        return "fragments/team-stat-panel :: panel";
+    }
+
+    // ── Team Profile stat panel ──
+
+    /**
+     * Builds the box-score-derived stat panel for a team's latest snapshot in a
+     * season: every calculated stat grouped by {@link TeamStatDisplay.Category},
+     * each with its value, national rank, and a direction-aware percentile.
+     * Returns {@code null} when the season has no time-series data yet, or the
+     * team has no snapshot on the latest date.
+     */
+    private TeamStatPanel buildStatPanel(Long teamId, Season season) {
+        LocalDate date = teamStatSnapshotRepository.findLatestSnapshotDate(season.getId()).orElse(null);
+        if (date == null) return null;
+
+        List<TeamStatSnapshot> rows =
+                teamStatSnapshotRepository.findByTeamSeasonAndDate(teamId, season.getId(), date);
+        if (rows.isEmpty()) return null;
+
+        // Field size per stat comes free from the league-wide population rows (teamCount).
+        Map<String, Integer> fieldSizeByStat = popStatRepository
+                .findLeagueWideBySeasonAndDate(season.getId(), date).stream()
+                .collect(Collectors.toMap(SeasonPopulationStat::getStatName,
+                        SeasonPopulationStat::getTeamCount, (a, b) -> a));
+
+        Map<String, Boolean> directionByStat = BoxScoreStatCalculator.statMetas().stream()
+                .collect(Collectors.toMap(DailyStatCalculator.StatMeta::name,
+                        DailyStatCalculator.StatMeta::higherIsBetter));
+
+        Map<TeamStatDisplay.Category, List<StatRow>> byCategory =
+                new EnumMap<>(TeamStatDisplay.Category.class);
+        for (TeamStatSnapshot s : rows) {
+            TeamStatDisplay disp = TeamStatDisplay.forStat(s.getStatName());
+            TeamStatDisplay.Category cat = disp != null ? disp.getCategory() : TeamStatDisplay.Category.OTHER;
+            String label = disp != null ? disp.getLabel() : s.getStatName();
+            String formatted = disp != null ? disp.format(s.getValue())
+                    : String.format(Locale.US, "%.2f", s.getValue());
+            String formatName = (disp != null ? disp.getFormat() : TeamStatDisplay.Format.RAW).name();
+
+            Integer fieldSize = fieldSizeByStat.get(s.getStatName());
+            Integer percentile = percentile(s.getRank(), fieldSize);
+            boolean higherIsBetter = directionByStat.getOrDefault(s.getStatName(), true);
+
+            byCategory.computeIfAbsent(cat, k -> new ArrayList<>())
+                    .add(new StatRow(s.getStatName(), label, formatted, formatName,
+                            s.getRank(), fieldSize, percentile,
+                            s.getZscore(), s.getConfZscore(), higherIsBetter));
+        }
+
+        List<StatGroup> groups = new ArrayList<>();
+        for (TeamStatDisplay.Category cat : TeamStatDisplay.Category.values()) {
+            List<StatRow> catRows = byCategory.get(cat);
+            if (catRows == null || catRows.isEmpty()) continue;
+            catRows.sort(Comparator.comparingInt(r -> catalogOrder(r.statName())));
+            groups.add(new StatGroup(cat.getHeader(), catRows));
+        }
+
+        return new TeamStatPanel(season.getYear(), date, rows.get(0).getGamesPlayed(), groups);
+    }
+
+    /** Direction-aware percentile from rank + field size; null when the field is too small. */
+    private static Integer percentile(Integer rank, Integer fieldSize) {
+        if (rank == null || fieldSize == null || fieldSize <= 1) return null;
+        double p = 100.0 * (fieldSize - rank) / (fieldSize - 1);
+        return (int) Math.round(Math.max(0, Math.min(100, p)));
+    }
+
+    /** Catalog declaration order; uncatalogued stats sort last. */
+    private static int catalogOrder(String statName) {
+        TeamStatDisplay disp = TeamStatDisplay.forStat(statName);
+        return disp != null ? disp.ordinal() : Integer.MAX_VALUE;
     }
 
     // Round-order for "furthest reached" — higher index = deeper. Same scale works for NCAA
@@ -344,6 +437,44 @@ public class TeamWebController {
     }
 
     // ── Records ──
+
+    /** The full Team Profile panel: groups of stats for one team's latest snapshot. */
+    public record TeamStatPanel(int year, LocalDate asOfDate, int gamesPlayed, List<StatGroup> groups) {}
+
+    public record StatGroup(String header, List<StatRow> rows) {}
+
+    /**
+     * One stat for the panel. {@code rank}/{@code percentile} are direction-aware
+     * (rank 1 = best regardless of whether high or low is good). {@code formatName}
+     * is emitted to the client so the trajectory chart can format raw values.
+     */
+    public record StatRow(
+            String statName,
+            String label,
+            String formattedValue,
+            String formatName,
+            Integer rank,
+            Integer fieldSize,
+            Integer percentile,
+            Double zscore,
+            Double confZscore,
+            boolean higherIsBetter
+    ) {
+        public String rankDisplay() {
+            return (rank == null || fieldSize == null) ? "—" : "#" + rank + " of " + fieldSize;
+        }
+
+        /**
+         * Full fill class for the percentile bar. Computed here rather than in the
+         * template because the BEM {@code __} would collide with Thymeleaf's
+         * {@code __…__} preprocessing when two appear in one expression.
+         */
+        public String barFillClass() {
+            if (percentile == null) return "stat-bar__fill";
+            return percentile >= 50 ? "stat-bar__fill stat-bar__fill--good"
+                                    : "stat-bar__fill stat-bar__fill--bad";
+        }
+    }
 
     public record ConferenceInfo(String name, String logoUrl) {}
 

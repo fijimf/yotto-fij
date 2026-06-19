@@ -1310,6 +1310,144 @@ tbody tr:hover {
     margin-top: 0.5rem;
 }
 
+    /* Team Profile (box-score stat panel) */
+
+.team-stats {
+    margin-top: 3rem;
+}
+
+.team-stats__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.team-stats__asof {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1.25rem;
+}
+
+.stat-group {
+    margin-bottom: 1.5rem;
+}
+
+.stat-group__header {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.stat-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.stat-grid__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 4.5rem 6rem minmax(6rem, 9rem);
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0.25rem;
+    border-radius: var(--radius);
+}
+
+.stat-grid__row:hover {
+    background: var(--color-bg-surface-hover);
+}
+
+.stat-grid__label {
+    font-size: 0.9rem;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stat-grid__value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: right;
+}
+
+.stat-grid__rank {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    text-align: right;
+}
+
+.stat-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.stat-bar--empty {
+    background: transparent;
+}
+
+.stat-bar__fill {
+    height: 100%;
+    border-radius: 3px;
+}
+
+.stat-bar__fill--good {
+    background: #22c55e;
+}
+
+.stat-bar__fill--bad {
+    background: #ef4444;
+}
+
+.team-stats__trajectory {
+    margin-top: 0.5rem;
+}
+
+.team-stats__trajectory-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.team-stats__trajectory-head .analytics-chart-card__title {
+    margin-bottom: 0;
+}
+
+.team-stats__trajectory .analytics-chart-wrap {
+    height: 240px;
+}
+
+.team-stats__trajectory .analytics-chart-wrap canvas {
+    max-height: 240px;
+}
+
+@media (max-width: 640px) {
+    .stat-grid__row {
+        grid-template-columns: minmax(0, 1fr) 4rem;
+        grid-template-areas:
+            "label value"
+            "bar   rank";
+        gap: 0.2rem 0.75rem;
+    }
+    .stat-grid__label { grid-area: label; }
+    .stat-grid__value { grid-area: value; }
+    .stat-grid__rank  { grid-area: rank; text-align: left; }
+    .stat-bar { grid-area: bar; align-self: center; }
+}
+
 /* Season stats page */
 
 .page-header {

@@ -21,9 +21,7 @@ import java.util.function.Function;
  *
  * <p>The gate ({@link #isUsable}) requires the full standard ESPN stats block —
  * shooting, rebounds, turnovers, assists, steals, blocks, fouls — which ESPN
- * always returns together. The scoring-distribution fields (points in paint,
- * fast-break points, turnover points) are sparse and handled null-aware: their
- * share stats only accumulate over the games where ESPN supplied them.
+ * always returns together.
  *
  * <p>Adding a stat is one entry in {@link #REGISTRY} — no schema change.
  */
@@ -64,11 +62,7 @@ public class BoxScoreStatCalculator implements DailyStatCalculator {
             // Defensive playmaking (own steals/blocks are defensive events)
             new StatDef("stl_rate",       true,  a -> a.ratio(a.stl, a.oppPoss())),
             new StatDef("blk_pct",        true,  a -> a.ratio(a.blk, a.oppFga - a.oppFg3a)),
-            new StatDef("pf_per_game",    false, a -> a.games > 0 ? a.pf / a.games : null),
-            // Scoring distribution (sparse — only over games where ESPN supplied the field)
-            new StatDef("paint_pts_share",      true, a -> a.ratio(a.paintPts, a.paintBasePts)),
-            new StatDef("fast_break_pts_share", true, a -> a.ratio(a.fastBreakPts, a.fastBreakBasePts)),
-            new StatDef("turnover_pts_share",   true, a -> a.ratio(a.turnoverPts, a.turnoverBasePts))
+            new StatDef("pf_per_game",    false, a -> a.games > 0 ? a.pf / a.games : null)
     );
 
     /** Stat names owned by this calculator (used for population-row deletes). */
@@ -119,8 +113,7 @@ public class BoxScoreStatCalculator implements DailyStatCalculator {
     /**
      * A box score is usable when the full standard ESPN stats block is present.
      * These fields ship together in one stats array, so requiring them all does
-     * not selectively drop games. The sparse scoring-distribution fields are NOT
-     * gated here — they are accumulated null-aware in {@link TeamAcc#addGame}.
+     * not selectively drop games.
      */
     private static boolean isUsable(TeamGameStats s) {
         return s != null
@@ -138,11 +131,6 @@ public class BoxScoreStatCalculator implements DailyStatCalculator {
         double pts, oppPts;
         double fgm, fga, fg3m, fg3a, ftm, fta, orb, drb, to, ast, stl, blk, pf;
         double oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta, oppOrb, oppDrb, oppTo;
-        // Sparse scoring-distribution fields: each paired with the points scored in
-        // the games where ESPN supplied it, so the share is over a consistent base.
-        double paintPts, paintBasePts;
-        double fastBreakPts, fastBreakBasePts;
-        double turnoverPts, turnoverBasePts;
 
         void addGame(int ownScore, int oppScore, TeamGameStats own, TeamGameStats opp) {
             games++;
@@ -160,19 +148,6 @@ public class BoxScoreStatCalculator implements DailyStatCalculator {
             oppFtm  += opp.getFtMade();       oppFta  += opp.getFtAttempted();
             oppOrb  += opp.getOffensiveReb(); oppDrb  += opp.getDefensiveReb();
             oppTo   += opp.getTurnovers();
-
-            if (own.getPointsInPaint() != null) {
-                paintPts += own.getPointsInPaint();
-                paintBasePts += ownScore;
-            }
-            if (own.getFastBreakPts() != null) {
-                fastBreakPts += own.getFastBreakPts();
-                fastBreakBasePts += ownScore;
-            }
-            if (own.getTurnoverPts() != null) {
-                turnoverPts += own.getTurnoverPts();
-                turnoverBasePts += ownScore;
-            }
         }
 
         double poss()    { return fga - orb + to + FTA_POSS_WEIGHT * fta; }

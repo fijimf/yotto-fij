@@ -58,10 +58,12 @@
         No games found for this team.
     </div>
 
-    <!-- Analytics section -->
-    <div class="analytics-section" th:if="${currentSeasonYear != null}">
-        <div class="analytics-section__header">
-            <h2 class="section-title">Season Analytics</h2>
+    <!-- Team Profile (box-score analytics) -->
+    <section class="team-stats" th:if="${statPanel != null}"
+             th:data-team-id="${teamId}"
+             th:data-season-year="${currentSeasonYear}">
+        <div class="team-stats__header">
+            <h2 class="section-title">Team Profile</h2>
             <div class="analytics-season-tabs">
                 <span th:each="season : ${seasons}"
                       class="analytics-tab"
@@ -71,37 +73,18 @@
             </div>
         </div>
 
-        <div class="analytics-charts">
-            <div class="analytics-chart-card">
-                <h3 class="analytics-chart-card__title">Win % Progression</h3>
-                <div class="analytics-chart-wrap">
-                    <canvas id="chart-win-pct"></canvas>
-                </div>
-            </div>
-            <div class="analytics-chart-card">
-                <h3 class="analytics-chart-card__title">Points Scored vs Allowed (game avg)</h3>
-                <div class="analytics-chart-wrap">
-                    <canvas id="chart-points"></canvas>
-                </div>
-            </div>
+        <div id="team-stats-panel">
+            <div th:replace="~{fragments/team-stat-panel :: panel}"></div>
         </div>
 
-        <div class="analytics-stats-row" id="analytics-summary">
-            <div class="stat-pill" id="stat-pill-margin">
-                <span class="stat-pill__label">Avg Margin</span>
-                <span class="stat-pill__value" id="stat-margin-value">—</span>
+        <!-- Trajectory -->
+        <div class="analytics-chart-card team-stats__trajectory">
+            <div class="team-stats__trajectory-head">
+                <h3 class="analytics-chart-card__title">Trajectory</h3>
+                <select id="trajectory-stat" class="form-input form-input--sm"></select>
             </div>
-            <div class="stat-pill" id="stat-pill-corr">
-                <span class="stat-pill__label">Pts Correlation</span>
-                <span class="stat-pill__value" id="stat-corr-value">—</span>
-            </div>
-            <div class="stat-pill">
-                <span class="stat-pill__label">Last 10</span>
-                <span class="stat-pill__value" id="stat-rolling-value">—</span>
-            </div>
-            <div class="stat-pill">
-                <span class="stat-pill__label">League Win% Z</span>
-                <span class="stat-pill__value" id="stat-zscore-value">—</span>
+            <div class="analytics-chart-wrap">
+                <canvas id="chart-stat-trajectory"></canvas>
             </div>
         </div>
 
@@ -110,60 +93,79 @@
                 View full league rankings &rarr;
             </a>
         </p>
-    </div>
+    </section>
 
 </main>
 
 <th:block layout:fragment="scripts">
-<script th:inline="javascript">
+<script>
 (function () {
-    const main = document.querySelector('main');
-    const teamId = main ? main.dataset.teamId : null;
-    let currentYear = main ? main.dataset.seasonYear : null;
+    const section = document.querySelector('.team-stats');
+    if (!section) return;
 
+    const teamId = section.dataset.teamId;
+    let currentYear = section.dataset.seasonYear;
     if (!teamId || !currentYear) return;
 
-    let winPctChart = null;
-    let pointsChart = null;
+    const panelEl = document.getElementById('team-stats-panel');
+    const selectEl = document.getElementById('trajectory-stat');
+    const canvas = document.getElementById('chart-stat-trajectory');
+    let trajectoryChart = null;
 
-    function fmt1(v) { return v != null ? v.toFixed(1) : '—'; }
-    function fmt3(v) { return v != null ? v.toFixed(3) : '—'; }
-    function fmtPct(v) { return v != null ? (v * 100).toFixed(1) + '%' : '—'; }
-
-    function renderCharts(data) {
-        if (!data || data.length === 0) {
-            document.getElementById('analytics-summary').style.display = 'none';
-            return;
+    function fmtStat(v, format) {
+        if (v == null) return '—';
+        switch (format) {
+            case 'PERCENT_1': return (v * 100).toFixed(1) + '%';
+            case 'DECIMAL_2': return v.toFixed(2);
+            case 'DECIMAL_1': return v.toFixed(1);
+            default: return v.toFixed(2);
         }
+    }
 
-        const labels = data.map(d => d.snapshotDate);
-        const winPcts = data.map(d => d.winPct != null ? +(d.winPct * 100).toFixed(1) : null);
-        const meanFor = data.map(d => d.meanPtsFor != null ? +d.meanPtsFor.toFixed(1) : null);
-        const meanAgt = data.map(d => d.meanPtsAgainst != null ? +d.meanPtsAgainst.toFixed(1) : null);
+    // Rebuild the stat dropdown from the rendered rows. Returns the format map.
+    function rebuildSelect() {
+        const rows = panelEl.querySelectorAll('.stat-grid__row[data-stat]');
+        const formats = {};
+        const prior = selectEl.value;
+        selectEl.innerHTML = '';
+        rows.forEach(row => {
+            const name = row.dataset.stat;
+            formats[name] = row.dataset.format;
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = row.dataset.label;
+            selectEl.appendChild(opt);
+        });
+        // Preserve the prior selection across season swaps; else default to TS%.
+        if (formats[prior]) selectEl.value = prior;
+        else if (formats['ts_pct']) selectEl.value = 'ts_pct';
+        return formats;
+    }
 
-        const latest = data[data.length - 1];
-        document.getElementById('stat-margin-value').textContent = fmt1(latest.meanMargin);
-        document.getElementById('stat-corr-value').textContent = fmt3(latest.correlationPts);
-        const rw = latest.rollingWins, rl = latest.rollingLosses;
-        document.getElementById('stat-rolling-value').textContent =
-            (rw != null && rl != null) ? rw + '-' + rl : '—';
-        document.getElementById('stat-zscore-value').textContent = fmt3(latest.zscoreWinPct);
+    let statFormats = {};
 
-        const commonOpts = {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: { legend: { position: 'bottom' } },
-            scales: { x: { ticks: { maxTicksLimit: 10 } } }
-        };
+    function loadTrajectory(statName) {
+        if (!statName) return;
+        const format = statFormats[statName] || 'RAW';
+        fetch('/api/statistics/team/' + teamId + '/season/' + currentYear + '/stat/' + statName)
+            .then(r => r.ok ? r.json() : [])
+            .then(points => renderTrajectory(points, format))
+            .catch(() => {});
+    }
 
-        if (winPctChart) winPctChart.destroy();
-        winPctChart = new Chart(document.getElementById('chart-win-pct'), {
+    function renderTrajectory(points, format) {
+        const labels = points.map(p => p.snapshotDate);
+        const values = points.map(p => p.value);
+        const ranks = points.map(p => p.rank);
+
+        if (trajectoryChart) trajectoryChart.destroy();
+        trajectoryChart = new Chart(canvas, {
             type: 'line',
             data: {
                 labels,
                 datasets: [{
-                    label: 'Win %',
-                    data: winPcts,
+                    label: selectEl.options[selectEl.selectedIndex] ? selectEl.options[selectEl.selectedIndex].text : '',
+                    data: values,
                     borderColor: '#3b82f6',
                     borderWidth: 1,
                     backgroundColor: 'rgba(59,130,246,0.1)',
@@ -173,61 +175,51 @@
                     spanGaps: true
                 }]
             },
-            options: { ...commonOpts, scales: { ...commonOpts.scales, y: { min: 0, max: 100 } } }
-        });
-
-        if (pointsChart) pointsChart.destroy();
-        pointsChart = new Chart(document.getElementById('chart-points'), {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Avg Scored',
-                        data: meanFor,
-                        borderColor: '#22c55e',
-                        borderWidth: 1,
-                        backgroundColor: 'transparent',
-                        tension: 0.3,
-                        pointRadius: 0,
-                        lineWidth: 1,
-                        spanGaps: true
-                    },
-                    {
-                        label: 'Avg Allowed',
-                        data: meanAgt,
-                        borderColor: '#ef4444',
-                        borderWidth: 1,
-                        backgroundColor: 'transparent',
-                        tension: 0.3,
-                        pointRadius: 0,
-                        lineWidth: 1,
-                        spanGaps: true
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const r = ranks[ctx.dataIndex];
+                                const valStr = fmtStat(ctx.parsed.y, format);
+                                return r != null ? valStr + '  (#' + r + ')' : valStr;
+                            }
+                        }
                     }
-                ]
-            },
-            options: commonOpts
+                },
+                scales: {
+                    x: { ticks: { maxTicksLimit: 10 } },
+                    y: { ticks: { callback: v => fmtStat(v, format) } }
+                }
+            }
         });
     }
 
-    function loadData(teamId, year) {
-        fetch('/api/statistics/team/' + teamId + '/season/' + year)
-            .then(r => r.ok ? r.json() : [])
-            .then(renderCharts)
-            .catch(() => {});
+    function refresh() {
+        statFormats = rebuildSelect();
+        loadTrajectory(selectEl.value);
     }
 
-    // Season tab switching
-    document.querySelectorAll('.analytics-tab').forEach(tab => {
+    selectEl.addEventListener('change', function () { loadTrajectory(this.value); });
+
+    // Season tab switching — swap the panel fragment, then rebuild + reload.
+    section.querySelectorAll('.analytics-tab').forEach(tab => {
         tab.addEventListener('click', function () {
-            document.querySelectorAll('.analytics-tab').forEach(t => t.classList.remove('analytics-tab--active'));
+            const year = this.dataset.year;
+            section.querySelectorAll('.analytics-tab').forEach(t => t.classList.remove('analytics-tab--active'));
             this.classList.add('analytics-tab--active');
-            currentYear = this.dataset.year;
-            loadData(teamId, currentYear);
+            currentYear = year;
+            fetch('/teams/' + teamId + '/season/' + year + '/stats-panel')
+                .then(r => r.ok ? r.text() : '')
+                .then(html => { panelEl.innerHTML = html; refresh(); })
+                .catch(() => {});
         });
     });
 
-    loadData(teamId, currentYear);
+    refresh();
 })();
 </script>
 <script>

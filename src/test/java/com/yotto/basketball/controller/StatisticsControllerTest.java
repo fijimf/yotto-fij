@@ -31,6 +31,8 @@ class StatisticsControllerTest extends BaseIntegrationTest {
     @Autowired PowerModelParamSnapshotRepository paramRepo;
     @Autowired SeasonStatisticsRepository statsRepo;
     @Autowired BettingOddsRepository oddsRepo;
+    @Autowired TeamGameStatsRepository boxRepo;
+    @Autowired com.yotto.basketball.service.TeamStatTimeSeriesService teamStatTimeSeriesService;
 
     Season season;
     Team teamA, teamB;
@@ -90,6 +92,47 @@ class StatisticsControllerTest extends BaseIntegrationTest {
         gameRepo.save(g);
     }
 
+    private void mkBox(Game game, Team team, String homeAway,
+                       int fgm, int fga, int fg3m, int fg3a, int ftm, int fta,
+                       int orb, int drb, int to) {
+        TeamGameStats s = new TeamGameStats();
+        s.setGame(game);
+        s.setTeam(team);
+        s.setHomeAway(homeAway);
+        s.setFgMade(fgm);
+        s.setFgAttempted(fga);
+        s.setFg3Made(fg3m);
+        s.setFg3Attempted(fg3a);
+        s.setFtMade(ftm);
+        s.setFtAttempted(fta);
+        s.setOffensiveReb(orb);
+        s.setDefensiveReb(drb);
+        s.setTurnovers(to);
+        s.setAssists(Math.max(0, fgm - 8));
+        s.setSteals(Math.max(0, to - 3));
+        s.setBlocks(Math.max(0, orb - 4));
+        s.setFouls(15);
+        s.setScrapeDate(LocalDateTime.now());
+        boxRepo.save(s);
+    }
+
+    /** A FINAL game with both box scores, then run the box-score time-series calc. */
+    private void seedBoxScoreTrajectory() {
+        Game g = new Game();
+        g.setHomeTeam(teamA);
+        g.setAwayTeam(teamB);
+        g.setHomeScore(80);
+        g.setAwayScore(70);
+        g.setStatus(Game.GameStatus.FINAL);
+        g.setNeutralSite(false);
+        g.setSeason(season);
+        g.setGameDate(LocalDateTime.of(2025, 1, 10, 20, 0));
+        gameRepo.save(g);
+        mkBox(g, teamA, "HOME", 30, 60, 5, 20, 15, 20, 10, 25, 12);
+        mkBox(g, teamB, "AWAY", 25, 55, 8, 25, 12, 16, 8, 22, 15);
+        teamStatTimeSeriesService.calculateAndStoreForSeason(2025);
+    }
+
     // ── GET /api/statistics/team/{teamId}/season/{year} ───────────────────────
 
     @Test
@@ -126,6 +169,40 @@ class StatisticsControllerTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$[0].snapshotDate").exists())
                 .andExpect(jsonPath("$[0].teamId").value(teamA.getId()))
                 .andExpect(jsonPath("$[0].teamName").value("Alabama"));
+    }
+
+    // ── GET /api/statistics/team/{teamId}/season/{year}/stat/{statName} ───────
+
+    @Test
+    void teamStatTrajectory_afterCalc_returnsOrderedPoints() throws Exception {
+        seedBoxScoreTrajectory();
+
+        mockMvc.perform(get("/api/statistics/team/{teamId}/season/{year}/stat/{statName}",
+                        teamA.getId(), 2025, "efg_pct"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].snapshotDate").value("2025-01-10"))
+                // eFG% for A = (30 + 0.5×5) / 60 = 0.5417
+                .andExpect(jsonPath("$[0].value").value(org.hamcrest.Matchers.closeTo(0.5417, 0.001)))
+                .andExpect(jsonPath("$[0].rank").value(1));
+    }
+
+    @Test
+    void teamStatTrajectory_unknownStat_returnsEmptyList() throws Exception {
+        seedBoxScoreTrajectory();
+
+        mockMvc.perform(get("/api/statistics/team/{teamId}/season/{year}/stat/{statName}",
+                        teamA.getId(), 2025, "not_a_real_stat"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void teamStatTrajectory_unknownSeason_returnsEmptyList() throws Exception {
+        mockMvc.perform(get("/api/statistics/team/{teamId}/season/{year}/stat/{statName}",
+                        teamA.getId(), 9999, "efg_pct"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     // ── GET /api/statistics/season/{year}/snapshots ───────────────────────────

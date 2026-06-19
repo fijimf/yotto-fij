@@ -2,9 +2,11 @@ package com.yotto.basketball.controller;
 
 import com.yotto.basketball.entity.SeasonPopulationStat;
 import com.yotto.basketball.entity.TeamSeasonStatSnapshot;
+import com.yotto.basketball.entity.TeamStatSnapshot;
 import com.yotto.basketball.repository.SeasonPopulationStatRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
+import com.yotto.basketball.repository.TeamStatSnapshotRepository;
 import com.yotto.basketball.service.StatisticsTimeSeriesService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,15 +24,18 @@ public class StatisticsController {
     private final SeasonRepository seasonRepository;
     private final TeamSeasonStatSnapshotRepository snapshotRepository;
     private final SeasonPopulationStatRepository popStatRepository;
+    private final TeamStatSnapshotRepository teamStatSnapshotRepository;
     private final StatisticsTimeSeriesService timeSeriesService;
 
     public StatisticsController(SeasonRepository seasonRepository,
                                 TeamSeasonStatSnapshotRepository snapshotRepository,
                                 SeasonPopulationStatRepository popStatRepository,
+                                TeamStatSnapshotRepository teamStatSnapshotRepository,
                                 StatisticsTimeSeriesService timeSeriesService) {
         this.seasonRepository = seasonRepository;
         this.snapshotRepository = snapshotRepository;
         this.popStatRepository = popStatRepository;
+        this.teamStatSnapshotRepository = teamStatSnapshotRepository;
         this.timeSeriesService = timeSeriesService;
     }
 
@@ -41,6 +46,22 @@ public class StatisticsController {
                 .orElseThrow(() -> new EntityNotFoundException("Season not found: " + year));
         return snapshotRepository.findByTeamAndSeason(teamId, season.getId())
                 .stream().map(SnapshotDto::from).toList();
+    }
+
+    /**
+     * One box-score-derived stat's season trajectory for a team — one point per
+     * game date, ordered ascending. Returns {@code []} for an unknown season or
+     * an unknown/absent stat (keeps the chart fetch on the team page simple).
+     */
+    @GetMapping("/team/{teamId}/season/{year}/stat/{statName}")
+    public List<StatPointDto> teamStatTrajectory(@PathVariable Long teamId,
+                                                 @PathVariable Integer year,
+                                                 @PathVariable String statName) {
+        return seasonRepository.findByYear(year)
+                .map(season -> teamStatSnapshotRepository
+                        .findByTeamSeasonAndStat(teamId, season.getId(), statName)
+                        .stream().map(StatPointDto::from).toList())
+                .orElseGet(List::of);
     }
 
     /** All team snapshots for a specific date (defaults to latest date with data). */
@@ -139,6 +160,12 @@ public class StatisticsController {
                     s.getRpi(), s.getRpiWp(), s.getRpiOwp(), s.getRpiOowp(),
                     s.getTeam().getId(), s.getTeam().getName(), s.getTeam().getLogoUrl()
             );
+        }
+    }
+
+    public record StatPointDto(LocalDate snapshotDate, double value, Integer rank, Double zscore) {
+        static StatPointDto from(TeamStatSnapshot s) {
+            return new StatPointDto(s.getSnapshotDate(), s.getValue(), s.getRank(), s.getZscore());
         }
     }
 
