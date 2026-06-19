@@ -32,9 +32,14 @@
         </div>
     </div>
 
-    <!-- Schedule section -->
-    <div class="schedule-section" th:if="${!seasons.isEmpty()}">
-        <h2 class="schedule-section__title">Schedule</h2>
+    <!-- View tabs: Schedule | Team Profile -->
+    <nav class="team-tabs" th:if="${!seasons.isEmpty()}">
+        <button class="team-tabs__tab team-tabs__tab--active" type="button" data-tab="schedule">Schedule</button>
+        <button th:if="${statPanel != null}" class="team-tabs__tab" type="button" data-tab="stats">Team Profile</button>
+    </nav>
+
+    <!-- Schedule tab -->
+    <div id="tab-schedule" class="team-tab-panel schedule-section" th:if="${!seasons.isEmpty()}">
 
         <!-- Season tabs -->
         <div class="season-tabs">
@@ -58,12 +63,11 @@
         No games found for this team.
     </div>
 
-    <!-- Team Profile (box-score analytics) -->
-    <section class="team-stats" th:if="${statPanel != null}"
+    <!-- Team Profile tab (box-score analytics) -->
+    <section id="tab-stats" class="team-tab-panel team-stats" th:if="${statPanel != null}" hidden
              th:data-team-id="${teamId}"
              th:data-season-year="${currentSeasonYear}">
         <div class="team-stats__header">
-            <h2 class="section-title">Team Profile</h2>
             <div class="analytics-season-tabs">
                 <span th:each="season : ${seasons}"
                       class="analytics-tab"
@@ -219,7 +223,37 @@
         });
     });
 
-    refresh();
+    // The stats tab starts hidden; defer the first chart render until it's shown,
+    // otherwise Chart.js measures a zero-size canvas. Re-show just resizes it.
+    let initialized = false;
+    section.addEventListener('team-stats:shown', function () {
+        if (!initialized) { refresh(); initialized = true; }
+        else if (trajectoryChart) { trajectoryChart.resize(); }
+    });
+})();
+</script>
+<script>
+// Top-level Schedule / Team Profile tab switching.
+(function () {
+    const tabBar = document.querySelector('.team-tabs');
+    if (!tabBar) return;
+
+    const buttons = tabBar.querySelectorAll('.team-tabs__tab');
+    const panels = {
+        schedule: document.getElementById('tab-schedule'),
+        stats: document.getElementById('tab-stats')
+    };
+    const statsSection = document.getElementById('tab-stats');
+
+    function activate(name) {
+        buttons.forEach(b => b.classList.toggle('team-tabs__tab--active', b.dataset.tab === name));
+        Object.keys(panels).forEach(k => { if (panels[k]) panels[k].hidden = (k !== name); });
+        if (name === 'stats' && statsSection) {
+            statsSection.dispatchEvent(new CustomEvent('team-stats:shown'));
+        }
+    }
+
+    buttons.forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
 })();
 </script>
 <script>

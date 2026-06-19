@@ -871,15 +871,6 @@ tbody tr:hover {
     margin-bottom: 2rem;
 }
 
-.schedule-section__title {
-    font-family: var(--font-display);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    margin-bottom: 0.75rem;
-    letter-spacing: 0.02em;
-}
-
 /* Season tabs */
 .season-tabs {
     display: flex;
@@ -1310,10 +1301,47 @@ tbody tr:hover {
     margin-top: 0.5rem;
 }
 
-    /* Team Profile (box-score stat panel) */
+    /* Team page top-level tabs (Schedule | Team Profile) */
+
+.team-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.team-tabs__tab {
+    padding: 0.6rem 1.1rem;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.team-tabs__tab:hover {
+    color: var(--color-text);
+}
+
+.team-tabs__tab--active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.team-tab-panel[hidden] {
+    display: none;
+}
+
+/* Team Profile (box-score stat panel) */
 
 .team-stats {
-    margin-top: 3rem;
+    margin-top: 0;
 }
 
 .team-stats__header {
