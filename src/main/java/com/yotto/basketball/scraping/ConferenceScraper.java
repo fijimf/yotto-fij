@@ -45,8 +45,9 @@ public class ConferenceScraper {
             for (JsonNode conf : conferences) {
                 String groupId = conf.path("groupId").asText();
 
-                // Skip the parent "NCAA Division I" group (groupId "50")
-                if ("50".equals(groupId)) {
+                // Skip the parent "NCAA Division I" group and any non-conference event
+                // groups (e.g. the College Basketball Crown) ESPN lists here.
+                if (EspnGroups.isNonConference(groupId)) {
                     continue;
                 }
 

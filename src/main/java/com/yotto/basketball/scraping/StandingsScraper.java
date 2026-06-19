@@ -57,6 +57,13 @@ public class StandingsScraper {
 
             for (JsonNode confChild : children) {
                 String confEspnId = confChild.path("id").asText();
+
+                // Never re-point a team's conference membership at a non-conference event group
+                // (e.g. the College Basketball Crown), which would clobber its real conference.
+                if (EspnGroups.isNonConference(confEspnId)) {
+                    continue;
+                }
+
                 Conference conference = conferenceRepository.findByEspnId(confEspnId).orElse(null);
                 if (conference == null) {
                     log.warn("Unknown conference with ESPN ID: {}, skipping", confEspnId);

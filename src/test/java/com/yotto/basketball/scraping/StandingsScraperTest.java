@@ -201,6 +201,52 @@ class StandingsScraperTest extends BaseIntegrationTest {
     }
 
     @Test
+    void scrape_nonConferenceGroup_doesNotClobberRealMembership() throws Exception {
+        // Even with a stale Crown conference row present, a Crown standings child (id 104) listing
+        // Alabama must NOT re-point Alabama's membership away from the ACC. The Crown child is placed
+        // last, so without the guard it would win the (team, season) upsert.
+        Conference crown = new Conference();
+        crown.setName("College Basketball Crown");
+        crown.setAbbreviation("CBC");
+        crown.setEspnId("104");
+        conferenceRepo.save(crown);
+
+        String json = """
+                {
+                  "children": [
+                    {
+                      "id": "2",
+                      "name": "Atlantic Coast Conference",
+                      "standings": { "entries": [
+                        { "team": { "id": "333" }, "stats": [ { "type": "wins", "value": 20 } ] }
+                      ] }
+                    },
+                    {
+                      "id": "104",
+                      "name": "College Basketball Crown",
+                      "standings": { "entries": [
+                        { "team": { "id": "333" }, "stats": [ { "type": "wins", "value": 1 } ] }
+                      ] }
+                    }
+                  ]
+                }
+                """;
+        when(espnApiClient.fetchStandings(2025)).thenReturn(mapper.readTree(json));
+
+        scraper.scrape(2025);
+
+        Long alabamaId = teamRepo.findByEspnId("333").orElseThrow().getId();
+        Long seasonId  = seasonRepo.findByYear(2025).orElseThrow().getId();
+        Long accId     = conferenceRepo.findByEspnId("2").orElseThrow().getId();
+
+        ConferenceMembership m = membershipRepo.findByTeamIdAndSeasonId(alabamaId, seasonId).orElseThrow();
+        assertThat(m.getConference().getId()).isEqualTo(accId);
+        SeasonStatistics s = statsRepo.findByTeamIdAndSeasonId(alabamaId, seasonId).orElseThrow();
+        assertThat(s.getConference().getId()).isEqualTo(accId);
+        assertThat(s.getWins()).isEqualTo(20); // ACC value, not the Crown's 1
+    }
+
+    @Test
     void scrape_apiFailure_marksBatchFailed() {
         when(espnApiClient.fetchStandings(2025))
                 .thenThrow(new RuntimeException("ESPN unreachable"));

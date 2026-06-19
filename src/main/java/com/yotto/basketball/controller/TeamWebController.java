@@ -281,28 +281,6 @@ public class TeamWebController {
         return disp != null ? disp.ordinal() : Integer.MAX_VALUE;
     }
 
-    // Round-order for "furthest reached" — higher index = deeper. Same scale works for NCAA
-    // and conference tournaments; unknown rounds get -1 so they never beat a known round.
-    private static final List<String> ROUND_ORDER = List.of(
-            "First Four",
-            "1st Round",
-            "2nd Round",
-            "Quarterfinal",
-            "Sweet 16",
-            "Semifinal",
-            "Elite 8",
-            "Final",
-            "Final Four",
-            "Championship",
-            "National Championship"
-    );
-
-    private static int roundIndex(String round) {
-        if (round == null) return -1;
-        int idx = ROUND_ORDER.indexOf(round);
-        return idx >= 0 ? idx : -1;
-    }
-
     private RegularSeasonRecord computeRegularSeasonRecord(List<Game> games, Long teamId) {
         int w = 0, l = 0;
         for (Game g : games) {
@@ -335,7 +313,7 @@ public class TeamWebController {
                 if (g.getTournamentType() != type) continue;
                 if (name == null) name = g.getTournamentName();
                 if (g.getStatus() != Game.GameStatus.FINAL) continue;
-                int idx = roundIndex(g.getTournamentRound());
+                int idx = TournamentRounds.indexOf(g.getTournamentRound());
                 if (idx > best) {
                     best = idx;
                     bestRound = g.getTournamentRound();

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="panel">
+
+    <!-- Summary stat strip -->
+    <div class="conf-summary">
+        <div class="conf-summary__stat">
+            <span class="conf-summary__value" th:text="${detail.summary.ratingDisplay()}">12.45</span>
+            <span class="conf-summary__label">Avg Power Rating</span>
+        </div>
+        <div class="conf-summary__stat">
+            <span class="conf-summary__value" th:text="${detail.summary.rankDisplay()}">#3 of 32</span>
+            <span class="conf-summary__label">Conference Rank</span>
+        </div>
+        <div class="conf-summary__stat">
+            <span class="conf-summary__value" th:text="${detail.summary.record()}">280-150</span>
+            <span class="conf-summary__label">Overall Record</span>
+        </div>
+        <div class="conf-summary__stat">
+            <span class="conf-summary__value" th:text="${detail.summary.nonConfRecord()}">90-40</span>
+            <span class="conf-summary__label">Non-Conference</span>
+        </div>
+        <div class="conf-summary__stat" th:if="${detail.ncaa != null}">
+            <span class="conf-summary__value" th:text="${detail.ncaa.bidCount}">6</span>
+            <span class="conf-summary__label">NCAA Bids</span>
+        </div>
+    </div>
+
+    <!-- Section tabs -->
+    <nav class="conf-tabs">
+        <button class="conf-tabs__tab conf-tabs__tab--active" type="button" data-conf-tab="standings">
+            Standings
+        </button>
+        <button th:if="${detail.tournament != null}" class="conf-tabs__tab" type="button"
+                data-conf-tab="tournament" th:text="${detail.tournament.name}">Conference Tournament</button>
+        <button th:if="${detail.ncaa != null}" class="conf-tabs__tab" type="button"
+                data-conf-tab="ncaa">NCAA Tournament</button>
+    </nav>
+
+    <!-- Standings panel -->
+    <div class="conf-tab-panel" data-conf-panel="standings">
+        <div th:if="${detail.standings.isEmpty()}" class="teams-empty">
+            No teams found for this season.
+        </div>
+        <div th:unless="${detail.standings.isEmpty()}" class="conf-table-wrap">
+            <table class="conf-table conf-standings">
+                <thead>
+                    <tr>
+                        <th class="conf-table__rank">#</th>
+                        <th>Team</th>
+                        <th class="conf-table__num">Conf</th>
+                        <th class="conf-table__num">Overall</th>
+                        <th class="conf-table__num conf-table__hide-mobile">Home</th>
+                        <th class="conf-table__num conf-table__hide-mobile">Road</th>
+                        <th class="conf-table__num conf-table__hide-mobile">Streak</th>
+                        <th class="conf-table__num">Power</th>
+                        <th class="conf-table__num">Rank</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="row : ${detail.standings}">
+                        <td class="conf-table__rank" th:text="${row.standing}">1</td>
+                        <td class="conf-table__name">
+                            <a th:href="@{'/teams/' + ${row.teamId}}" class="conf-table__link">
+                                <img th:if="${row.teamLogoUrl}" th:src="${row.teamLogoUrl}"
+                                     th:alt="${row.teamName}" class="conf-table__logo"
+                                     loading="lazy" width="22" height="22" />
+                                <span th:text="${row.teamName}">Purdue</span>
+                            </a>
+                        </td>
+                        <td class="conf-table__num" th:text="${row.confRecord()}">15-5</td>
+                        <td class="conf-table__num" th:text="${row.overallRecord()}">28-6</td>
+                        <td class="conf-table__num conf-table__hide-mobile" th:text="${row.homeRecord()}">16-1</td>
+                        <td class="conf-table__num conf-table__hide-mobile" th:text="${row.roadRecord()}">10-4</td>
+                        <td class="conf-table__num conf-table__hide-mobile" th:text="${row.streakDisplay()}">W4</td>
+                        <td class="conf-table__num" th:text="${row.ratingDisplay()}">18.20</td>
+                        <td class="conf-table__num" th:text="${row.powerRankDisplay()}">#3</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Conference tournament panel -->
+    <div class="conf-tab-panel" data-conf-panel="tournament" th:if="${detail.tournament != null}" hidden>
+        <div class="conf-champion" th:if="${detail.tournament.championId != null}">
+            <span class="conf-champion__label">Champion</span>
+            <a th:href="@{'/teams/' + ${detail.tournament.championId}}" class="conf-champion__team">
+                <img th:if="${detail.tournament.championLogoUrl}" th:src="${detail.tournament.championLogoUrl}"
+                     th:alt="${detail.tournament.championName}" class="conf-champion__logo"
+                     loading="lazy" width="28" height="28" />
+                <span th:text="${detail.tournament.championName}">Connecticut</span>
+            </a>
+        </div>
+
+        <div th:each="group : ${detail.tournament.groups}" class="conf-round">
+            <h3 class="conf-round__title" th:text="${group.label}">Quarterfinals</h3>
+            <div class="conf-round__games">
+                <div th:each="g : ${group.games}" class="conf-game">
+                    <div class="conf-game__row" th:classappend="${g.topWon} ? 'conf-game__row--win'">
+                        <span th:if="${g.topSeed != null}" class="conf-game__seed" th:text="${g.topSeed}">1</span>
+                        <a th:href="@{'/teams/' + ${g.topTeamId}}" class="conf-game__team">
+                            <img th:if="${g.topTeamLogoUrl}" th:src="${g.topTeamLogoUrl}"
+                                 class="conf-game__logo" loading="lazy" width="18" height="18" />
+                            <span th:text="${g.topTeamName}">Purdue</span>
+                        </a>
+                        <span class="conf-game__score" th:text="${g.topScore != null} ? ${g.topScore} : ''">78</span>
+                    </div>
+                    <div class="conf-game__row" th:classappend="${g.bottomWon} ? 'conf-game__row--win'">
+                        <span th:if="${g.bottomSeed != null}" class="conf-game__seed" th:text="${g.bottomSeed}">8</span>
+                        <a th:href="@{'/teams/' + ${g.bottomTeamId}}" class="conf-game__team">
+                            <img th:if="${g.bottomTeamLogoUrl}" th:src="${g.bottomTeamLogoUrl}"
+                                 class="conf-game__logo" loading="lazy" width="18" height="18" />
+                            <span th:text="${g.bottomTeamName}">Michigan</span>
+                        </a>
+                        <span class="conf-game__score" th:text="${g.bottomScore != null} ? ${g.bottomScore} : ''">70</span>
+                    </div>
+                    <div class="conf-game__meta">
+                        <a th:href="@{'/games/' + ${g.gameId}}" class="conf-game__date"
+                           th:text="${#temporals.format(g.date, 'MMM d')}">Mar 15</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NCAA tournament panel -->
+    <div class="conf-tab-panel" data-conf-panel="ncaa" th:if="${detail.ncaa != null}" hidden>
+        <div class="conf-ncaa-summary">
+            <span><strong th:text="${detail.ncaa.bidCount}">6</strong> bids</span>
+            <span><strong th:text="${detail.ncaa.record()}">11-6</strong> combined</span>
+            <span th:if="${detail.ncaa.champion != null}" class="conf-ncaa-summary__champ">
+                🏆 <strong th:text="${detail.ncaa.champion}">Connecticut</strong> — National Champion
+            </span>
+        </div>
+        <div class="conf-table-wrap">
+            <table class="conf-table">
+                <thead>
+                    <tr>
+                        <th>Team</th>
+                        <th class="conf-table__num">Seed</th>
+                        <th class="conf-table__hide-mobile">Region</th>
+                        <th class="conf-table__num">Record</th>
+                        <th>Furthest Round</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="t : ${detail.ncaa.teams}"
+                        th:classappend="${t.champion} ? 'conf-ncaa-row--champ'">
+                        <td class="conf-table__name">
+                            <a th:href="@{'/teams/' + ${t.teamId}}" class="conf-table__link">
+                                <img th:if="${t.logoUrl}" th:src="${t.logoUrl}" th:alt="${t.teamName}"
+                                     class="conf-table__logo" loading="lazy" width="22" height="22" />
+                                <span th:text="${t.teamName}">Connecticut</span>
+                            </a>
+                        </td>
+                        <td class="conf-table__num" th:text="${t.seed != null} ? ${t.seed} : '—'">1</td>
+                        <td class="conf-table__hide-mobile" th:text="${t.region != null} ? ${t.region} : '—'">East</td>
+                        <td class="conf-table__num" th:text="${t.record()}">6-0</td>
+                        <td th:text="${t.furthestRound != null} ? ${t.furthestRound} : '—'">National Championship</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

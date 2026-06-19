@@ -64,6 +64,27 @@ class ConferenceScraperTest extends BaseIntegrationTest {
     }
 
     @Test
+    void scrapeConferences_skipsNonConferenceGroups() throws Exception {
+        // ESPN lists the College Basketball Crown (group 104) like a real conference; it must be skipped.
+        String json = """
+                {
+                  "conferences": [
+                    { "groupId": "50", "name": "NCAA Division I", "shortName": "NCAA" },
+                    { "groupId": "2", "name": "Atlantic Coast Conference", "shortName": "ACC" },
+                    { "groupId": "104", "name": "College Basketball Crown", "shortName": "CBC", "parentGroupId": "50" }
+                  ]
+                }
+                """;
+        when(espnApiClient.fetchConferences()).thenReturn(mapper.readTree(json));
+
+        ScrapeBatch batch = conferenceScraper.scrape(2025);
+
+        assertThat(batch.getRecordsCreated()).isEqualTo(1); // only the ACC
+        assertThat(conferenceRepository.findByEspnId("104")).isEmpty();
+        assertThat(conferenceRepository.findByEspnId("2")).isPresent();
+    }
+
+    @Test
     void scrapeConferences_updatesExistingConference() throws Exception {
         // Pre-insert a conference
         Conference existing = new Conference();

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${conference.name}">Conference</title>
+</head>
+<body>
+
+<main layout:fragment="content">
+
+    <!-- Conference header -->
+    <div class="conf-hero">
+        <div class="conf-hero__logo-wrap" th:if="${conference.logoUrl}">
+            <img th:src="${conference.logoUrl}" th:alt="${conference.name}" class="conf-hero__logo" />
+        </div>
+        <div class="conf-hero__info">
+            <h1 class="conf-hero__name" th:text="${conference.name}">Big Ten Conference</h1>
+            <p class="conf-hero__abbr" th:if="${conference.abbreviation}"
+               th:text="${conference.abbreviation}">B1G</p>
+        </div>
+    </div>
+
+    <!-- Season selector -->
+    <div class="season-tabs" th:if="${!seasons.isEmpty()}">
+        <button th:each="season : ${seasons}"
+                class="season-tabs__tab"
+                th:classappend="${season.year == currentSeasonYear} ? 'season-tabs__tab--active'"
+                th:data-season="${season.year}"
+                th:hx-get="@{'/conferences/' + ${conferenceId} + '/season/' + ${season.year}}"
+                hx-target="#conf-season-content"
+                hx-swap="innerHTML"
+                th:text="${season.year}">2026</button>
+    </div>
+
+    <div th:if="${seasons.isEmpty()}" class="teams-empty">
+        No data found for this conference.
+    </div>
+
+    <!-- Season content (latest season pre-loaded; others via HTMX) -->
+    <div id="conf-season-content" th:if="${detail != null}">
+        <div th:replace="~{fragments/conference-season :: panel}"></div>
+    </div>
+
+</main>
+
+<th:block layout:fragment="scripts">
+<script>
+// Active-state toggle for the season tabs (HTMX swaps the content).
+(function () {
+    const tabs = document.querySelectorAll('.season-tabs__tab');
+    tabs.forEach(tab => tab.addEventListener('click', function () {
+        tabs.forEach(t => t.classList.remove('season-tabs__tab--active'));
+        this.classList.add('season-tabs__tab--active');
+    }));
+})();
+
+// Section tabs (Standings / Conference Tournament / NCAA). Delegated on the
+// stable wrapper so it keeps working after HTMX swaps the season content.
+(function () {
+    const wrap = document.getElementById('conf-season-content');
+    if (!wrap) return;
+    wrap.addEventListener('click', function (e) {
+        const tab = e.target.closest('.conf-tabs__tab');
+        if (!tab) return;
+        const name = tab.dataset.confTab;
+        wrap.querySelectorAll('.conf-tabs__tab').forEach(t =>
+            t.classList.toggle('conf-tabs__tab--active', t === tab));
+        wrap.querySelectorAll('.conf-tab-panel').forEach(p =>
+            p.hidden = (p.dataset.confPanel !== name));
+    });
+})();
+</script>
+</th:block>
+
+</body>
+</html>
