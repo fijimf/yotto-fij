@@ -23,8 +23,9 @@
             <h1 class="team-hero__name" th:text="${team.name}">Alabama</h1>
             <p class="team-hero__mascot" th:text="${team.mascot}">Crimson Tide</p>
             <div class="team-hero__meta">
-                <span th:if="${currentConference}" class="team-hero__conference"
-                      th:text="${currentConference.name}">SEC</span>
+                <a th:if="${currentConference}" class="team-hero__conference"
+                   th:href="@{'/conferences/' + ${currentConference.id}}"
+                   th:text="${currentConference.name}">SEC</a>
                 <a th:if="${team.espnId}" class="team-hero__espn-link"
                    th:href="'https://www.espn.com/mens-college-basketball/team/_/id/' + ${team.espnId} + '/' + (${team.slug} ?: '')"
                    target="_blank" rel="noopener">ESPN</a>

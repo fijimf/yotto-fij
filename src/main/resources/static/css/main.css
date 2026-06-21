@@ -851,6 +851,10 @@ tbody tr:hover {
     font-weight: 600;
 }
 
+a.team-hero__conference:hover {
+    text-decoration: underline;
+}
+
 .team-hero__espn-link {
     color: var(--color-text-muted);
     font-size: 0.82rem;
