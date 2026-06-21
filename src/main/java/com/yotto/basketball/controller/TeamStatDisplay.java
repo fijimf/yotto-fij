@@ -44,9 +44,13 @@ public enum TeamStatDisplay {
     FG3_RATE("fg3_rate", "3PT Rate", Category.SHOOTING, Format.PERCENT_1),
 
     // Rebounding
+    RPG("rpg", "Rebounds / Game", Category.REBOUNDING, Format.DECIMAL_1),
+    ORPG("orpg", "Off. Reb / Game", Category.REBOUNDING, Format.DECIMAL_1),
+    DRPG("drpg", "Def. Reb / Game", Category.REBOUNDING, Format.DECIMAL_1),
     TRB_PCT("trb_pct", "Total Reb%", Category.REBOUNDING, Format.PERCENT_1),
 
-    // Playmaking
+    // Assists
+    APG("apg", "Assists / Game", Category.PLAYMAKING, Format.DECIMAL_1),
     AST_TO_RATIO("ast_to_ratio", "Assist/TO", Category.PLAYMAKING, Format.DECIMAL_2),
     ASSISTED_FG_PCT("assisted_fg_pct", "Assisted FG%", Category.PLAYMAKING, Format.PERCENT_1),
 
@@ -62,7 +66,7 @@ public enum TeamStatDisplay {
         FOUR_FACTORS_DEF("Four Factors — Defense"),
         SHOOTING("Shooting"),
         REBOUNDING("Rebounding"),
-        PLAYMAKING("Playmaking"),
+        PLAYMAKING("Assists"),
         DEFENSE("Defense"),
         OTHER("Other");
 

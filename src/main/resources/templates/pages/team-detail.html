@@ -36,7 +36,7 @@
     <!-- View tabs: Schedule | Team Profile -->
     <nav class="team-tabs" th:if="${!seasons.isEmpty()}">
         <button class="team-tabs__tab team-tabs__tab--active" type="button" data-tab="schedule">Schedule</button>
-        <button th:if="${statPanel != null}" class="team-tabs__tab" type="button" data-tab="stats">Team Profile</button>
+        <button th:if="${statPanel != null}" class="team-tabs__tab" type="button" data-tab="stats">Team Statistics</button>
     </nav>
 
     <!-- Schedule tab -->
@@ -81,155 +81,32 @@
         <div id="team-stats-panel">
             <div th:replace="~{fragments/team-stat-panel :: panel}"></div>
         </div>
-
-        <!-- Trajectory -->
-        <div class="analytics-chart-card team-stats__trajectory">
-            <div class="team-stats__trajectory-head">
-                <h3 class="analytics-chart-card__title">Trajectory</h3>
-                <select id="trajectory-stat" class="form-input form-input--sm"></select>
-            </div>
-            <div class="analytics-chart-wrap">
-                <canvas id="chart-stat-trajectory"></canvas>
-            </div>
-        </div>
-
-        <p class="analytics-link">
-            <a th:href="@{'/seasons/' + ${currentSeasonYear} + '/stats'}" class="link">
-                View full league rankings &rarr;
-            </a>
-        </p>
     </section>
 
 </main>
 
 <th:block layout:fragment="scripts">
 <script>
+// Team Statistics — season switching swaps the stat panel fragment in place.
 (function () {
     const section = document.querySelector('.team-stats');
     if (!section) return;
 
     const teamId = section.dataset.teamId;
-    let currentYear = section.dataset.seasonYear;
-    if (!teamId || !currentYear) return;
+    if (!teamId) return;
 
     const panelEl = document.getElementById('team-stats-panel');
-    const selectEl = document.getElementById('trajectory-stat');
-    const canvas = document.getElementById('chart-stat-trajectory');
-    let trajectoryChart = null;
 
-    function fmtStat(v, format) {
-        if (v == null) return '—';
-        switch (format) {
-            case 'PERCENT_1': return (v * 100).toFixed(1) + '%';
-            case 'DECIMAL_2': return v.toFixed(2);
-            case 'DECIMAL_1': return v.toFixed(1);
-            default: return v.toFixed(2);
-        }
-    }
-
-    // Rebuild the stat dropdown from the rendered rows. Returns the format map.
-    function rebuildSelect() {
-        const rows = panelEl.querySelectorAll('.stat-grid__row[data-stat]');
-        const formats = {};
-        const prior = selectEl.value;
-        selectEl.innerHTML = '';
-        rows.forEach(row => {
-            const name = row.dataset.stat;
-            formats[name] = row.dataset.format;
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = row.dataset.label;
-            selectEl.appendChild(opt);
-        });
-        // Preserve the prior selection across season swaps; else default to TS%.
-        if (formats[prior]) selectEl.value = prior;
-        else if (formats['ts_pct']) selectEl.value = 'ts_pct';
-        return formats;
-    }
-
-    let statFormats = {};
-
-    function loadTrajectory(statName) {
-        if (!statName) return;
-        const format = statFormats[statName] || 'RAW';
-        fetch('/api/statistics/team/' + teamId + '/season/' + currentYear + '/stat/' + statName)
-            .then(r => r.ok ? r.json() : [])
-            .then(points => renderTrajectory(points, format))
-            .catch(() => {});
-    }
-
-    function renderTrajectory(points, format) {
-        const labels = points.map(p => p.snapshotDate);
-        const values = points.map(p => p.value);
-        const ranks = points.map(p => p.rank);
-
-        if (trajectoryChart) trajectoryChart.destroy();
-        trajectoryChart = new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [{
-                    label: selectEl.options[selectEl.selectedIndex] ? selectEl.options[selectEl.selectedIndex].text : '',
-                    data: values,
-                    borderColor: '#3b82f6',
-                    borderWidth: 1,
-                    backgroundColor: 'rgba(59,130,246,0.1)',
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 0,
-                    spanGaps: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => {
-                                const r = ranks[ctx.dataIndex];
-                                const valStr = fmtStat(ctx.parsed.y, format);
-                                return r != null ? valStr + '  (#' + r + ')' : valStr;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: { ticks: { maxTicksLimit: 10 } },
-                    y: { ticks: { callback: v => fmtStat(v, format) } }
-                }
-            }
-        });
-    }
-
-    function refresh() {
-        statFormats = rebuildSelect();
-        loadTrajectory(selectEl.value);
-    }
-
-    selectEl.addEventListener('change', function () { loadTrajectory(this.value); });
-
-    // Season tab switching — swap the panel fragment, then rebuild + reload.
     section.querySelectorAll('.analytics-tab').forEach(tab => {
         tab.addEventListener('click', function () {
             const year = this.dataset.year;
             section.querySelectorAll('.analytics-tab').forEach(t => t.classList.remove('analytics-tab--active'));
             this.classList.add('analytics-tab--active');
-            currentYear = year;
             fetch('/teams/' + teamId + '/season/' + year + '/stats-panel')
                 .then(r => r.ok ? r.text() : '')
-                .then(html => { panelEl.innerHTML = html; refresh(); })
+                .then(html => { if (html) panelEl.innerHTML = html; })
                 .catch(() => {});
         });
-    });
-
-    // The stats tab starts hidden; defer the first chart render until it's shown,
-    // otherwise Chart.js measures a zero-size canvas. Re-show just resizes it.
-    let initialized = false;
-    section.addEventListener('team-stats:shown', function () {
-        if (!initialized) { refresh(); initialized = true; }
-        else if (trajectoryChart) { trajectoryChart.resize(); }
     });
 })();
 </script>

@@ -363,8 +363,14 @@ class TeamWebControllerTest extends BaseIntegrationTest {
         TeamWebController.StatRow offRtg = findRow(panel, "off_efficiency");
         assertThat(offRtg.formattedValue()).isEqualTo("111.9");
 
-        // Groups appear in catalog category order, headers populated.
-        assertThat(panel.groups().get(0).header()).isEqualTo("Efficiency");
+        // Groups appear in the panel display order. No TeamSeasonStatSnapshot is
+        // seeded here, so the Scoring group is absent and Shooting leads; Shooting
+        // precedes Efficiency under the new ordering.
+        List<String> headers = panel.groups().stream()
+                .map(TeamWebController.StatGroup::header).toList();
+        assertThat(headers).doesNotContain("Scoring");
+        assertThat(headers.get(0)).isEqualTo("Shooting");
+        assertThat(headers.indexOf("Shooting")).isLessThan(headers.indexOf("Efficiency"));
     }
 
     @Test

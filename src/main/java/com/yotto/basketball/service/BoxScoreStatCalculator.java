@@ -53,10 +53,14 @@ public class BoxScoreStatCalculator implements DailyStatCalculator {
             new StatDef("fg3_pct",        true,  a -> a.ratio(a.fg3m, a.fg3a)),
             new StatDef("ft_pct",         true,  a -> a.ratio(a.ftm, a.fta)),
             new StatDef("fg3_rate",       true,  a -> a.ratio(a.fg3a, a.fga)),
-            // Rebounding (combined)
+            // Rebounding (combined + per game)
             new StatDef("trb_pct",        true,  a -> a.ratio(a.orb + a.drb,
                                                               a.orb + a.drb + a.oppOrb + a.oppDrb)),
+            new StatDef("rpg",            true,  a -> a.games > 0 ? (a.orb + a.drb) / a.games : null),
+            new StatDef("orpg",           true,  a -> a.games > 0 ? a.orb / a.games : null),
+            new StatDef("drpg",           true,  a -> a.games > 0 ? a.drb / a.games : null),
             // Ball movement
+            new StatDef("apg",              true, a -> a.games > 0 ? a.ast / a.games : null),
             new StatDef("ast_to_ratio",     true, a -> a.ratio(a.ast, a.to)),
             new StatDef("assisted_fg_pct",  true, a -> a.ratio(a.ast, a.fgm)),
             // Defensive playmaking (own steals/blocks are defensive events)

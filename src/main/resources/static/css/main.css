@@ -1363,6 +1363,19 @@ a.team-hero__conference:hover {
     margin-bottom: 1.25rem;
 }
 
+.stat-groups {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 2.5rem;
+    align-items: start;
+}
+
+@media (max-width: 768px) {
+    .stat-groups {
+        grid-template-columns: 1fr;
+    }
+}
+
 .stat-group {
     margin-bottom: 1.5rem;
 }
@@ -1439,31 +1452,6 @@ a.team-hero__conference:hover {
 
 .stat-bar__fill--bad {
     background: #ef4444;
-}
-
-.team-stats__trajectory {
-    margin-top: 0.5rem;
-}
-
-.team-stats__trajectory-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.team-stats__trajectory-head .analytics-chart-card__title {
-    margin-bottom: 0;
-}
-
-.team-stats__trajectory .analytics-chart-wrap {
-    height: 240px;
-}
-
-.team-stats__trajectory .analytics-chart-wrap canvas {
-    max-height: 240px;
 }
 
 @media (max-width: 640px) {

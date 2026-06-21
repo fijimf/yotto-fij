@@ -92,14 +92,15 @@ class BoxScoreStatCalculatorTest {
 
     @Test
     void registryDefinesAllStats() {
-        assertThat(calculator.definitions()).hasSize(22);
+        assertThat(calculator.definitions()).hasSize(26);
         assertThat(calculator.definitions())
                 .extracting(DailyStatCalculator.StatMeta::name)
                 .containsExactlyInAnyOrder("pace", "off_efficiency", "def_efficiency",
                         "efg_pct", "opp_efg_pct", "tov_rate", "opp_tov_rate",
                         "orb_pct", "drb_pct", "ft_rate", "opp_ft_rate",
                         "ts_pct", "fg_pct", "fg3_pct", "ft_pct", "fg3_rate",
-                        "trb_pct", "ast_to_ratio", "assisted_fg_pct",
+                        "trb_pct", "rpg", "orpg", "drpg",
+                        "apg", "ast_to_ratio", "assisted_fg_pct",
                         "stl_rate", "blk_pct", "pf_per_game");
     }
 
@@ -136,6 +137,11 @@ class BoxScoreStatCalculatorTest {
         // New stats (A & B)
         assertThat(a.get("ts_pct")).isCloseTo(80.0 / (2 * (60 + 0.475 * 20)), within(TOL));
         assertThat(a.get("trb_pct")).isCloseTo((10.0 + 25) / (10 + 25 + 8 + 22), within(TOL));
+        // Per-game counts over one game equal the single-game totals.
+        assertThat(a.get("rpg")).isCloseTo(10.0 + 25, within(TOL));
+        assertThat(a.get("orpg")).isCloseTo(10.0, within(TOL));
+        assertThat(a.get("drpg")).isCloseTo(25.0, within(TOL));
+        assertThat(a.get("apg")).isCloseTo(18.0, within(TOL));
         assertThat(a.get("ast_to_ratio")).isCloseTo(18.0 / 12, within(TOL));
         assertThat(a.get("assisted_fg_pct")).isCloseTo(18.0 / 30, within(TOL));
         // steal rate is over opponent possessions; block % over opponent 2PT attempts

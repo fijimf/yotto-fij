@@ -6,6 +6,7 @@ import com.yotto.basketball.repository.SeasonPopulationStatRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.SeasonStatisticsRepository;
 import com.yotto.basketball.repository.TeamRepository;
+import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
 import com.yotto.basketball.repository.TeamStatSnapshotRepository;
 import com.yotto.basketball.service.BoxScoreStatCalculator;
 import com.yotto.basketball.service.DailyStatCalculator;
@@ -21,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Controller
@@ -32,6 +34,7 @@ public class TeamWebController {
     private final SeasonStatisticsRepository seasonStatisticsRepository;
     private final TournamentBadgeFormatter tournamentBadgeFormatter;
     private final TeamStatSnapshotRepository teamStatSnapshotRepository;
+    private final TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository;
     private final SeasonPopulationStatRepository popStatRepository;
 
     public TeamWebController(TeamRepository teamRepository,
@@ -40,6 +43,7 @@ public class TeamWebController {
                              SeasonStatisticsRepository seasonStatisticsRepository,
                              TournamentBadgeFormatter tournamentBadgeFormatter,
                              TeamStatSnapshotRepository teamStatSnapshotRepository,
+                             TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
                              SeasonPopulationStatRepository popStatRepository) {
         this.teamRepository = teamRepository;
         this.seasonRepository = seasonRepository;
@@ -47,6 +51,7 @@ public class TeamWebController {
         this.seasonStatisticsRepository = seasonStatisticsRepository;
         this.tournamentBadgeFormatter = tournamentBadgeFormatter;
         this.teamStatSnapshotRepository = teamStatSnapshotRepository;
+        this.teamSeasonStatSnapshotRepository = teamSeasonStatSnapshotRepository;
         this.popStatRepository = popStatRepository;
     }
 
@@ -258,7 +263,13 @@ public class TeamWebController {
         }
 
         List<StatGroup> groups = new ArrayList<>();
-        for (TeamStatDisplay.Category cat : TeamStatDisplay.Category.values()) {
+        // Scoring leads the panel; it is derived from season-level point distributions
+        // (TeamSeasonStatSnapshot), not the box-score stats above.
+        StatGroup scoring = buildScoringGroup(teamId, season);
+        if (scoring != null) groups.add(scoring);
+
+        // Explicit display order; pairs left↔right in the two-column desktop grid.
+        for (TeamStatDisplay.Category cat : PANEL_GROUP_ORDER) {
             List<StatRow> catRows = byCategory.get(cat);
             if (catRows == null || catRows.isEmpty()) continue;
             catRows.sort(Comparator.comparingInt(r -> catalogOrder(r.statName())));
@@ -266,6 +277,71 @@ public class TeamWebController {
         }
 
         return new TeamStatPanel(season.getYear(), date, rows.get(0).getGamesPlayed(), groups);
+    }
+
+    /** Box-score group display order (Scoring is prepended separately). OTHER trails so a new uncatalogued stat still surfaces. */
+    private static final List<TeamStatDisplay.Category> PANEL_GROUP_ORDER = List.of(
+            TeamStatDisplay.Category.SHOOTING,
+            TeamStatDisplay.Category.REBOUNDING,
+            TeamStatDisplay.Category.PLAYMAKING,
+            TeamStatDisplay.Category.FOUR_FACTORS_OFF,
+            TeamStatDisplay.Category.FOUR_FACTORS_DEF,
+            TeamStatDisplay.Category.EFFICIENCY,
+            TeamStatDisplay.Category.DEFENSE,
+            TeamStatDisplay.Category.OTHER);
+
+    /** One scoring metric: its label, direction, value accessor, and (optional) stored league z-score. */
+    private record ScoringMetric(String key, String label, boolean higherIsBetter,
+                                 Function<TeamSeasonStatSnapshot, Double> value,
+                                 Function<TeamSeasonStatSnapshot, Double> zscore) {}
+
+    private static final List<ScoringMetric> SCORING_METRICS = List.of(
+            new ScoringMetric("mean_pts_for", "Mean PPG", true,
+                    TeamSeasonStatSnapshot::getMeanPtsFor, TeamSeasonStatSnapshot::getZscoreMeanPtsFor),
+            new ScoringMetric("mean_pts_against", "Mean OPPG", false,
+                    TeamSeasonStatSnapshot::getMeanPtsAgainst, TeamSeasonStatSnapshot::getZscoreMeanPtsAgainst),
+            new ScoringMetric("stddev_pts_for", "Std Dev PPG", false,
+                    TeamSeasonStatSnapshot::getStddevPtsFor, s -> null),
+            new ScoringMetric("stddev_pts_against", "Std Dev OPPG", false,
+                    TeamSeasonStatSnapshot::getStddevPtsAgainst, s -> null));
+
+    /**
+     * Builds the Scoring group from a team's latest {@link TeamSeasonStatSnapshot}.
+     * Ranks are computed in-memory against every team's snapshot on the same date
+     * (the snapshot table stores no rank), so the rows match the rank+bar look of
+     * the box-score groups. Std-dev is treated lower-is-better (more consistent).
+     * Returns {@code null} when the season has no point-distribution data yet.
+     */
+    private StatGroup buildScoringGroup(Long teamId, Season season) {
+        LocalDate date = teamSeasonStatSnapshotRepository.findLatestSnapshotDate(season.getId()).orElse(null);
+        if (date == null) return null;
+
+        List<TeamSeasonStatSnapshot> all =
+                teamSeasonStatSnapshotRepository.findBySeasonAndDate(season.getId(), date);
+        TeamSeasonStatSnapshot mine = all.stream()
+                .filter(s -> s.getTeam().getId().equals(teamId)).findFirst().orElse(null);
+        if (mine == null) return null;
+
+        List<StatRow> rows = new ArrayList<>();
+        for (ScoringMetric m : SCORING_METRICS) {
+            Double value = m.value().apply(mine);
+            Integer rank = null, fieldSize = null, percentile = null;
+            if (value != null) {
+                List<Double> peers = all.stream().map(m.value()).filter(Objects::nonNull).toList();
+                if (!peers.isEmpty()) {
+                    fieldSize = peers.size();
+                    long ahead = peers.stream()
+                            .filter(v -> m.higherIsBetter() ? v > value : v < value).count();
+                    rank = (int) ahead + 1;
+                    percentile = percentile(rank, fieldSize);
+                }
+            }
+            String formatted = value != null ? String.format(Locale.US, "%.1f", value) : "—";
+            rows.add(new StatRow(m.key(), m.label(), formatted,
+                    TeamStatDisplay.Format.DECIMAL_1.name(),
+                    rank, fieldSize, percentile, m.zscore().apply(mine), null, m.higherIsBetter()));
+        }
+        return new StatGroup("Scoring", rows);
     }
 
     /** Direction-aware percentile from rank + field size; null when the field is too small. */
