@@ -851,6 +851,10 @@ tbody tr:hover {
     font-weight: 600;
 }
 
+a.team-hero__conference:hover {
+    text-decoration: underline;
+}
+
 .team-hero__espn-link {
     color: var(--color-text-muted);
     font-size: 0.82rem;
@@ -3601,4 +3605,134 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 
 @media (max-width: 640px) {
     .conf-table__hide-mobile { display: none; }
+}
+
+/* ── Games scoreboard ──────────────────────────────────────────────────── */
+
+.games-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.games-nav__center {
+    flex: 1;
+    text-align: center;
+}
+
+.games-nav__date {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.games-nav__meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.games-nav__picker {
+    width: auto;
+}
+
+.games-nav__today {
+    font-weight: 600;
+}
+
+.games-nav__btn {
+    flex-shrink: 0;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--color-primary);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.games-nav__btn:hover {
+    background: var(--color-bg-surface-hover);
+    border-color: var(--color-primary);
+}
+
+.games-nav__btn--disabled {
+    color: var(--color-text-muted);
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* Scoreboard rows (reuse .schedule-table base; whole row clickable) */
+.games-row {
+    cursor: pointer;
+}
+
+.games-row__status {
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+.games-row__final {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.games-row__live {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius);
+    background: var(--color-danger);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.games-row__ppd {
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.games-row__team {
+    white-space: nowrap;
+}
+
+.games-row__team--win {
+    font-weight: 700;
+}
+
+.games-row__name {
+    margin-left: 0.1rem;
+}
+
+.games-row__score {
+    margin-left: 0.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.games-row__at {
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+.games-row__line,
+.games-row__ou {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+    .games-nav__date { font-size: 1.2rem; }
+    .games-nav__btn { padding: 0.4rem 0.6rem; }
 }

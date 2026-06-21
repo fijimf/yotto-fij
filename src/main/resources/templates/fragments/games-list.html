@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- The full swappable content: date navigation bar + games list. Both the /games page and the
+     /games/on/{date} HTMX endpoint render this, so prev/next/picker stay in sync on swap. -->
+<div th:fragment="games-list">
+
+    <div class="games-nav">
+        <a class="games-nav__btn"
+           th:if="${prevDate != null}"
+           th:hx-get="@{'/games/on/' + ${prevDate}}"
+           hx-target="#games-content" hx-swap="innerHTML"
+           th:hx-push-url="@{/games(date=${prevDate})}"
+           th:href="@{/games(date=${prevDate})}">&#9664; Prev</a>
+        <span class="games-nav__btn games-nav__btn--disabled" th:if="${prevDate == null}">&#9664; Prev</span>
+
+        <div class="games-nav__center">
+            <h1 class="games-nav__date"
+                th:text="${#temporals.format(date, 'EEEE, MMMM d, yyyy')}">Saturday, March 14, 2026</h1>
+            <div class="games-nav__meta">
+                <span th:text="${gameCount} + ' games'">42 games</span>
+                <input type="date" class="form-input form-input--sm games-nav__picker"
+                       th:value="${date}"
+                       onchange="if(this.value) window.location='/games?date=' + this.value;" />
+                <a class="games-nav__today" th:href="@{/games(date=${todayDate})}">Today</a>
+            </div>
+        </div>
+
+        <a class="games-nav__btn"
+           th:if="${nextDate != null}"
+           th:hx-get="@{'/games/on/' + ${nextDate}}"
+           hx-target="#games-content" hx-swap="innerHTML"
+           th:hx-push-url="@{/games(date=${nextDate})}"
+           th:href="@{/games(date=${nextDate})}">Next &#9654;</a>
+        <span class="games-nav__btn games-nav__btn--disabled" th:if="${nextDate == null}">Next &#9654;</span>
+    </div>
+
+    <div th:if="${games.isEmpty()}" class="teams-empty">
+        No games on this date.
+    </div>
+
+    <div th:unless="${games.isEmpty()}" class="schedule-table-wrap">
+        <table class="schedule-table games-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Away</th>
+                    <th></th>
+                    <th>Home</th>
+                    <th class="schedule-table__hide-mobile">Line</th>
+                    <th class="schedule-table__hide-mobile">O/U</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="g : ${games}"
+                    th:attr="data-game-id=${g.gameId}"
+                    class="games-row"
+                    onclick="window.location='/games/' + this.getAttribute('data-game-id')">
+                    <!-- Status / tip time -->
+                    <td class="games-row__status">
+                        <span th:if="${g.isLive()}" class="games-row__live">LIVE</span>
+                        <span th:if="${g.isScheduled()}" class="schedule-table__time"
+                              th:text="${#temporals.format(g.easternTime, 'h:mm a')}">7:00 PM</span>
+                        <span th:if="${g.isFinal()}" class="games-row__final">Final
+                            <span th:if="${!g.overtimeLabel().isEmpty()}" class="schedule-table__ot"
+                                  th:text="${g.overtimeLabel()}">OT</span>
+                        </span>
+                        <span th:if="${g.statusLabel() != ''}" class="games-row__ppd"
+                              th:text="${g.statusLabel()}">PPD</span>
+                    </td>
+
+                    <!-- Away team -->
+                    <td class="games-row__team"
+                        th:classappend="${g.awayWon()} ? 'games-row__team--win'">
+                        <img th:if="${g.awayLogoUrl}" th:src="${g.awayLogoUrl}"
+                             class="schedule-table__opp-logo" loading="lazy" width="20" height="20" />
+                        <span th:if="${g.awaySeed != null}" class="schedule-table__seed"
+                              th:text="'(' + ${g.awaySeed} + ')'">(16)</span>
+                        <span class="games-row__name" th:text="${g.awayName}">Auburn</span>
+                        <span th:if="${g.awayScore != null}" class="games-row__score"
+                              th:text="${g.awayScore}">72</span>
+                    </td>
+
+                    <td class="games-row__at" th:text="${g.location}">@</td>
+
+                    <!-- Home team -->
+                    <td class="games-row__team"
+                        th:classappend="${g.homeWon()} ? 'games-row__team--win'">
+                        <img th:if="${g.homeLogoUrl}" th:src="${g.homeLogoUrl}"
+                             class="schedule-table__opp-logo" loading="lazy" width="20" height="20" />
+                        <span th:if="${g.homeSeed != null}" class="schedule-table__seed"
+                              th:text="'(' + ${g.homeSeed} + ')'">(1)</span>
+                        <span class="games-row__name" th:text="${g.homeName}">Alabama</span>
+                        <span th:if="${g.homeScore != null}" class="games-row__score"
+                              th:text="${g.homeScore}">85</span>
+                        <span th:if="${g.conferenceGame}" class="schedule-table__conf-marker"
+                              title="Conference game">*</span>
+                        <span th:if="${g.tournamentBadge != null}"
+                              class="tournament-badge"
+                              th:classappend="'tournament-badge--' + ${g.tournamentBadge.variant}"
+                              th:title="${g.tournamentBadge.tooltip}"
+                              th:text="${g.tournamentBadge.label}">NCAA 1R</span>
+                    </td>
+
+                    <td class="schedule-table__hide-mobile games-row__line"
+                        th:text="${g.spreadDisplay() != null} ? ${g.spreadDisplay()} : ''">DUKE -3.5</td>
+                    <td class="schedule-table__hide-mobile games-row__ou"
+                        th:text="${g.overUnder != null} ? ${g.overUnder} : ''">145.5</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+</body>
+</html>
