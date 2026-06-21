@@ -155,4 +155,30 @@ public interface GameRepository extends JpaRepository<Game, Long> {
            "ORDER BY g.gameDate, g.id")
     List<Game> findBySeasonAndTeamIds(@Param("seasonId") Long seasonId,
                                       @Param("teamIds") Collection<Long> teamIds);
+
+    // ── Games-by-date scoreboard ───────────────────────────────────────────────
+    // gameDate is stored in UTC; callers pass the [startUtc, endUtc) window that an Eastern
+    // calendar date maps to, so games are bucketed by their Eastern date, not their UTC date.
+
+    /** Games whose UTC instant falls in [start, end), with teams + odds fetched. */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam LEFT JOIN FETCH g.bettingOdds " +
+           "WHERE g.gameDate >= :startUtc AND g.gameDate < :endUtc ORDER BY g.gameDate, g.id")
+    List<Game> findInUtcWindow(@Param("startUtc") LocalDateTime startUtc,
+                               @Param("endUtc") LocalDateTime endUtc);
+
+    /** Earliest game instant (UTC) in a season — converted to an Eastern date by the caller. */
+    @Query("SELECT MIN(g.gameDate) FROM Game g WHERE g.season.id = :seasonId")
+    Optional<LocalDateTime> findMinGameDate(@Param("seasonId") Long seasonId);
+
+    /** Latest game instant (UTC) in a season — converted to an Eastern date by the caller. */
+    @Query("SELECT MAX(g.gameDate) FROM Game g WHERE g.season.id = :seasonId")
+    Optional<LocalDateTime> findMaxGameDate(@Param("seasonId") Long seasonId);
+
+    /** Latest game instant strictly before the given window start — drives "previous day with games." */
+    @Query("SELECT MAX(g.gameDate) FROM Game g WHERE g.gameDate < :startUtc")
+    Optional<LocalDateTime> findMaxGameDateBefore(@Param("startUtc") LocalDateTime startUtc);
+
+    /** Earliest game instant on/after the given window end — drives "next day with games." */
+    @Query("SELECT MIN(g.gameDate) FROM Game g WHERE g.gameDate >= :endUtc")
+    Optional<LocalDateTime> findMinGameDateOnOrAfter(@Param("endUtc") LocalDateTime endUtc);
 }
