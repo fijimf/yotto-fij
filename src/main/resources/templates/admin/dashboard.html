@@ -23,13 +23,22 @@
     <section class="admin-section" th:if="${automation != null}">
         <div class="admin-section__header">
             <h2 class="admin-section__title">Automation</h2>
-            <form th:action="@{/admin/automation/run-now}" method="post" class="inline-form">
-                <button type="submit" class="btn btn--outline btn--sm"
-                        th:disabled="${!automation.hasSeasonsInScope()}"
-                        title="Trigger the scheduled re-scrape cycle right now (same code path as the cron)">
-                    Run scheduled cycle now
-                </button>
-            </form>
+            <div style="display: flex; gap: 0.5rem;">
+                <form th:action="@{/admin/automation/run-now}" method="post" class="inline-form">
+                    <button type="submit" class="btn btn--outline btn--sm"
+                            th:disabled="${!automation.hasSeasonsInScope()}"
+                            title="Trigger the scheduled re-scrape cycle right now (same code path as the cron)">
+                        Run scheduled cycle now
+                    </button>
+                </form>
+                <form th:action="@{/admin/scrape/full/all}" method="post" class="inline-form"
+                      onsubmit="return confirm('Re-run the full scrape pipeline from scratch for ALL seasons? This is a long-running operation.');">
+                    <button type="submit" class="btn btn--outline btn--sm"
+                            title="Run the full scrape pipeline from scratch for every season">
+                        Re-scrape all seasons
+                    </button>
+                </form>
+            </div>
         </div>
 
         <div class="card"

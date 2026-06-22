@@ -38,6 +38,24 @@ public class AsyncScrapeService {
         scrapeFullSeasonAsync(seasonYear, ScrapeBatch.Source.MANUAL);
     }
 
+    /**
+     * Runs the full scrape pipeline for every supplied season sequentially in a
+     * single background task — each season completes before the next begins so
+     * we never fan out concurrent load onto ESPN's API.
+     */
+    @Async("scrapeExecutor")
+    public void scrapeAllSeasonsFullAsync(java.util.List<Integer> seasonYears) {
+        log.info("Async full re-scrape started for all {} seasons: {}", seasonYears.size(), seasonYears);
+        for (int seasonYear : seasonYears) {
+            try {
+                orchestrator.scrapeFullSeason(seasonYear, ScrapeBatch.Source.MANUAL);
+            } catch (Exception e) {
+                log.error("Async full season scrape failed for {} — continuing with remaining seasons", seasonYear, e);
+            }
+        }
+        log.info("Async full re-scrape of all seasons completed");
+    }
+
     @Async("scrapeExecutor")
     public void scrapeFullSeasonAsync(int seasonYear, ScrapeBatch.Source source) {
         log.info("Async full season scrape started for {} (source={})", seasonYear, source);
