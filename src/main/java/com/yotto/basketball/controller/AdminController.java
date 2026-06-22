@@ -146,6 +146,22 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/scrape/full/all")
+    public String scrapeAllSeasonsFull(RedirectAttributes redirectAttributes) {
+        List<Season> seasons = seasonRepository.findAll();
+        seasons.sort((a, b) -> a.getYear().compareTo(b.getYear()));
+        if (seasons.isEmpty()) {
+            redirectAttributes.addFlashAttribute("error", "No seasons to scrape — add a season first");
+            return "redirect:/admin";
+        }
+        List<Integer> years = seasons.stream().map(Season::getYear).toList();
+        asyncScrapeService.scrapeAllSeasonsFullAsync(years);
+        redirectAttributes.addFlashAttribute("success",
+                "Full pipeline re-scrape started for all " + years.size()
+                        + " seasons (sequential) — watch Scrape History for progress");
+        return "redirect:/admin";
+    }
+
     @PostMapping("/scrape/teams/{year}")
     public String scrapeTeams(@PathVariable Integer year, RedirectAttributes redirectAttributes) {
         asyncScrapeService.scrapeTeamsAsync(year);
