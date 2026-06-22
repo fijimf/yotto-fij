@@ -12,7 +12,7 @@
            th:text="'Through ' + ${statPanel.gamesPlayed} + ' games · as of ' + ${statPanel.asOfDate}">
             Through 22 games · as of 2026-02-26</p>
 
-        <div class="stat-groups">
+        <dikv class="stat-groups">
             <div class="stat-group" th:each="group : ${statPanel.groups}">
                 <h3 class="stat-group__header" th:text="${group.header}">Shooting</h3>
                 <div class="stat-grid">
@@ -32,7 +32,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </dikv>
     </th:block>
 
 </div>
