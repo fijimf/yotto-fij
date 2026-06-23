@@ -14,7 +14,7 @@
             <li><a class="nav__link" th:href="@{/teams}" th:classappend="${#strings.equals(currentPage, 'teams')} ? 'nav__link--active'">Teams</a></li>
             <li><a class="nav__link" th:href="@{/conferences}" th:classappend="${#strings.equals(currentPage, 'conferences')} ? 'nav__link--active'">Conferences</a></li>
             <li><a class="nav__link" th:href="@{/games}" th:classappend="${#strings.equals(currentPage, 'games')} ? 'nav__link--active'">Games</a></li>
-            <li><a class="nav__link" th:href="@{/seasons}" th:classappend="${#strings.equals(currentPage, 'seasons')} ? 'nav__link--active'">Seasons</a></li>
+            <li><a class="nav__link" th:href="@{/seasons/stats}" th:classappend="${#strings.equals(currentPage, 'seasons')} ? 'nav__link--active'">Season Stats</a></li>
             <li><a class="nav__link" th:href="@{/rankings}" th:classappend="${#strings.equals(currentPage, 'rankings')} ? 'nav__link--active'">Rankings</a></li>
             <li th:if="${#dates.month(#dates.createNow()) >= 3 and #dates.month(#dates.createNow()) <= 11}">
                 <a class="nav__link" th:href="@{/bracket}" th:classappend="${#strings.equals(currentPage, 'bracket')} ? 'nav__link--active'">Bracket</a>

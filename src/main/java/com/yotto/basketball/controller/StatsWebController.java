@@ -34,6 +34,16 @@ public class StatsWebController {
         this.popStatRepository = popStatRepository;
     }
 
+    /** Year-less entry point (used by the top nav): redirects to the latest season's stats. */
+    @GetMapping("/seasons/stats")
+    public String seasonStatsLatest() {
+        Integer latestYear = seasonRepository.findAll().stream()
+                .map(Season::getYear)
+                .max(Integer::compareTo)
+                .orElseThrow(() -> new EntityNotFoundException("No seasons found"));
+        return "redirect:/seasons/" + latestYear + "/stats";
+    }
+
     @GetMapping("/seasons/{year}/stats")
     public String seasonStats(
             @PathVariable Integer year,
