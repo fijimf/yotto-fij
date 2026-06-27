@@ -15,7 +15,10 @@
   }
 
   // ── Config ────────────────────────────────────────────────────────────────
-  const MARGIN = { top: 60, right: 80, bottom: 80, left: 80 };
+  // Margins hold the axis tick labels, the team logo/name labels, and the
+  // score-rug ticks. Kept tight so the scatterplot gets as much room as
+  // possible while nothing clips at the viewBox edge.
+  const MARGIN = { top: 52, right: 72, bottom: 84, left: 96 };
   const BASE_SIZE = 800;
   const SCORE_MIN = 40;
   const SCORE_MAX = 120;
@@ -37,11 +40,11 @@
     spreadLine:     { label: "Spread Line",   visible: true  },
     ouLine:         { label: "O/U Line",      visible: true  },
     impliedMarker:  { label: "Implied Score", visible: true  },
-    seasonMarkers:  { label: "Season Games",  visible: false },
+    seasonMarkers:  { label: "Season Games",  visible: true  },
     avgMarker:      { label: "Avg Score",     visible: true  },
     iqrBox:         { label: "IQR Box",       visible: true  },
     ellipse:        { label: "95% Ellipse",   visible: true  },
-    marginals:      { label: "Distributions", visible: true  },
+    marginals:      { label: "Score Rug",     visible: true  },
   };
 
   // ── Warning conditions (incomplete data) ─────────────────────────────────
@@ -52,8 +55,9 @@
       data.awaySdFor == null || data.awaySdAgainst == null ||
       data.homeCorr == null  || data.awayCorr == null)
     warnings.ellipse = "Std dev / correlation stats unavailable";
-  if (data.homeMeanFor == null || data.awayMeanFor == null)
-    warnings.marginals = "Distribution mean/std dev stats unavailable";
+  if ((data.homeGames == null || data.homeGames.length === 0) &&
+      (data.awayGames == null || data.awayGames.length === 0))
+    warnings.marginals = "No season games for score rug";
   if (data.spread == null)    warnings.spreadLine = "No spread data";
   if (data.overUnder == null) warnings.ouLine = "No over/under data";
   if (data.spread == null || data.overUnder == null) warnings.impliedMarker = "Requires spread and O/U";
@@ -69,19 +73,6 @@
     const svg = d3.select(container).append("svg")
       .attr("viewBox", `0 0 ${totalW} ${totalH}`)
       .attr("preserveAspectRatio", "xMidYMid meet");
-
-    // ── Defs (gradients) ────────────────────────────────────────────────────
-    const defs = svg.append("defs");
-    function makeGrad(id, color, x1, y1, x2, y2) {
-      const gr = defs.append("linearGradient")
-        .attr("id", id).attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2);
-      gr.append("stop").attr("offset", "0%").attr("stop-color", color).attr("stop-opacity", 0.2);
-      gr.append("stop").attr("offset", "100%").attr("stop-color", color).attr("stop-opacity", 0);
-    }
-    makeGrad("grad-home-for",     homeColor, "0%",   "0%",   "100%", "0%");
-    makeGrad("grad-away-against", awayColor, "100%", "0%",   "0%",   "0%");
-    makeGrad("grad-home-against", homeColor, "0%",   "100%", "0%",   "0%");
-    makeGrad("grad-away-for",     awayColor, "0%",   "0%",   "0%",   "100%");
 
     const g = svg.append("g").attr("transform", `translate(${MARGIN.left},${MARGIN.top})`);
 
@@ -121,12 +112,22 @@
     g.append("g")
       .call(d3.axisLeft(yScale).ticks(8));
 
+    // Top and right edges have no D3 axis; draw plain border lines there so the
+    // away team's rug ticks (top = away PF, right = away PA) read as anchored to
+    // an edge rather than floating in space.
+    g.append("line")
+      .attr("x1", 0).attr("y1", 0).attr("x2", innerW).attr("y2", 0)
+      .attr("stroke", "#cbd5e1").attr("stroke-width", 1);
+    g.append("line")
+      .attr("x1", innerW).attr("y1", 0).attr("x2", innerW).attr("y2", innerH)
+      .attr("stroke", "#cbd5e1").attr("stroke-width", 1);
+
     // ── Axis labels: [logo] team name ─────────────────────────────────────────
     const LOGO_SIZE = 32;
 
     // X-axis label (away team) — bottom
     const xLabelG = g.append("g");
-    const xLabelY = innerH + 55;
+    const xLabelY = innerH + 60;
     const xLabelX = innerW / 2;
     if (data.awayLogoUrl) {
       xLabelG.append("image")
@@ -142,10 +143,11 @@
       .attr("fill", awayColor)
       .text(`${data.awayFullName} (${data.awayAbbr})`);
 
-    // Y-axis label (home team) — left, rotated
+    // Y-axis label (home team) — left, rotated. The perpendicular offset is kept
+    // small enough that the outward-extending logo stays inside the left margin.
     if (data.homeLogoUrl) {
       const yLabelG = g.append("g")
-        .attr("transform", `rotate(-90) translate(${-innerH / 2}, ${-MARGIN.left + 8})`);
+        .attr("transform", `rotate(-90) translate(${-innerH / 2}, ${-MARGIN.left + 44})`);
       yLabelG.append("image")
         .attr("href", data.homeLogoUrl)
         .attr("width", LOGO_SIZE).attr("height", LOGO_SIZE)
@@ -198,22 +200,22 @@
       resultMarker:  g.append("g"),
     };
 
-    // ── Clip segment to [SCORE_MIN, SCORE_MAX]² ───────────────────────────────
+    // ── Clip segment to [SCORE_MIN, SCORE_MAX]² (Liang-Barsky) ────────────────
     function clipLine(x1, y1, x2, y2) {
       const dx = x2 - x1, dy = y2 - y1;
-      let tMin = 0, tMax = 1;
-      function clip(n, d) {
-        if (d === 0) return n < 0;
-        const t = n / d;
-        if (d < 0) { if (t > tMax) return true; if (t > tMin) tMin = t; }
-        else       { if (t < tMin) return true; if (t < tMax) tMax = t; }
-        return false;
+      const p = [-dx, dx, -dy, dy];
+      const q = [x1 - SCORE_MIN, SCORE_MAX - x1, y1 - SCORE_MIN, SCORE_MAX - y1];
+      let t0 = 0, t1 = 1;
+      for (let i = 0; i < 4; i++) {
+        if (p[i] === 0) {
+          if (q[i] < 0) return null; // parallel and outside this boundary
+        } else {
+          const t = q[i] / p[i];
+          if (p[i] < 0) { if (t > t1) return null; if (t > t0) t0 = t; } // entering
+          else          { if (t < t0) return null; if (t < t1) t1 = t; } // leaving
+        }
       }
-      if (clip(SCORE_MIN - x1, dx)) return null;
-      if (clip(x1 - SCORE_MAX, -dx)) return null;
-      if (clip(SCORE_MIN - y1, dy)) return null;
-      if (clip(y1 - SCORE_MAX, -dy)) return null;
-      return { x1: x1 + tMin*dx, y1: y1 + tMin*dy, x2: x1 + tMax*dx, y2: y1 + tMax*dy };
+      return { x1: x1 + t0*dx, y1: y1 + t0*dy, x2: x1 + t1*dx, y2: y1 + t1*dy };
     }
 
     // ── 2. Spread Line ────────────────────────────────────────────────────────
@@ -266,7 +268,7 @@
       const impliedAway = (data.overUnder + data.spread) / 2;
       layers.impliedMarker.append("circle")
         .attr("cx", xScale(impliedAway)).attr("cy", yScale(impliedHome))
-        .attr("r", 8)
+        .attr("r", 6)
         .attr("fill", NEUTRAL_COLOR).attr("fill-opacity", 0.8)
         .attr("stroke", d3.color(NEUTRAL_COLOR).darker(1)).attr("stroke-width", 2)
         .on("mouseover", e => showTip(e,
@@ -274,56 +276,63 @@
         .on("mouseout", hideTip);
     }
 
-    // ── 9. Marginal Distributions ─────────────────────────────────────────────
-    function normalPdf(x, mu, sigma) {
-      return (1/(sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * ((x-mu)/sigma)**2);
+    // ── 9. Score Rug (per-game marginal ticks) ────────────────────────────────
+    // One short tick per game, projected onto the relevant axis. Overlapping
+    // ticks accumulate opacity, giving an empirical sense of each team's scoring
+    // spread. Honest to the data (actual games, not a fitted normal) and anchored
+    // flush to the axis. Dual-axis placement mirrors the original marginals:
+    //   Home Points-For → left (Y)    Away Points-Against → right (Y)
+    //   Away Points-For → top (X)     Home Points-Against → bottom (X)
+    const RUG_LEN = 11;
+    const RUG_GAP = 2;
+    function drawRug(layerG, scores, orient, color) {
+      const ticks = (scores || []).filter(s => s != null && s >= SCORE_MIN && s <= SCORE_MAX);
+      ticks.forEach(s => {
+        let x1, y1, x2, y2;
+        if (orient === "left")        { const yy = yScale(s); y1 = y2 = yy; x1 = -RUG_GAP;          x2 = -RUG_GAP - RUG_LEN; }
+        else if (orient === "right")  { const yy = yScale(s); y1 = y2 = yy; x1 = innerW + RUG_GAP;  x2 = innerW + RUG_GAP + RUG_LEN; }
+        else if (orient === "top")    { const xx = xScale(s); x1 = x2 = xx; y1 = -RUG_GAP;          y2 = -RUG_GAP - RUG_LEN; }
+        else /* bottom */             { const xx = xScale(s); x1 = x2 = xx; y1 = innerH + RUG_GAP;  y2 = innerH + RUG_GAP + RUG_LEN; }
+        layerG.append("line")
+          .attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2)
+          .attr("stroke", color).attr("stroke-width", 2.25)
+          .attr("stroke-opacity", 0.45).attr("stroke-linecap", "round");
+      });
     }
-    function marginalPoints(mu, sigma, n=200) {
-      const lo = mu - 3*sigma, hi = mu + 3*sigma;
-      return d3.range(n+1).map(i => { const x = lo+(i/n)*(hi-lo); return { x, y: normalPdf(x,mu,sigma) }; });
+    // Small label per rug so its meaning is legible at a glance. Placed just
+    // inside the chart, running along its axis. Home labels (left, bottom)
+    // justify into the SW corner; away labels (top, right) into the NE corner.
+    const RUG_LBL_PAD = 5;     // gap from the axis edge (cross-axis)
+    const RUG_LBL_NUDGE = 26;  // offset along the axis so the pair clears the corner
+    function drawRugLabel(text, orient, color) {
+      const lbl = layers.marginals.append("text")
+        .attr("font-size", "10px").attr("font-weight", "600")
+        .attr("fill", color).attr("fill-opacity", 0.85)
+        .text(text);
+      if (orient === "left")          // home scored: up the left edge, anchored SW
+        lbl.attr("text-anchor", "start")
+           .attr("transform", `translate(${RUG_LBL_PAD + 9}, ${innerH - RUG_LBL_PAD - RUG_LBL_NUDGE}) rotate(-90)`);
+      else if (orient === "bottom")   // home allowed: along the bottom edge, anchored SW
+        lbl.attr("text-anchor", "start")
+           .attr("x", RUG_LBL_PAD + RUG_LBL_NUDGE).attr("y", innerH - RUG_LBL_PAD);
+      else if (orient === "right")    // away allowed: down the right edge, anchored NE
+        lbl.attr("text-anchor", "start")
+           .attr("transform", `translate(${innerW - RUG_LBL_PAD - 9}, ${RUG_LBL_PAD + RUG_LBL_NUDGE}) rotate(90)`);
+      else /* top */                  // away scored: along the top edge, anchored NE
+        lbl.attr("text-anchor", "end")
+           .attr("x", innerW - RUG_LBL_PAD - RUG_LBL_NUDGE).attr("y", RUG_LBL_PAD + 10);
     }
-    const MARG_H = 38;
-    function drawMarginal(layerG, pts, mu, sigma, orient, gradId, color) {
-      const sc = MARG_H / normalPdf(mu, mu, sigma);
-      if (orient === "left") {
-        layerG.append("path").datum(pts).attr("fill", `url(#${gradId})`)
-          .attr("d", d3.area().x0(0).x1(d => -d.y*sc).y(d => yScale(d.x)));
-        layerG.append("path").datum(pts)
-          .attr("d", d3.line().x(d => -d.y*sc).y(d => yScale(d.x)))
-          .attr("fill","none").attr("stroke",color).attr("stroke-width",1.5).attr("stroke-opacity",0.6);
-      } else if (orient === "right") {
-        layerG.append("path").datum(pts).attr("fill", `url(#${gradId})`)
-          .attr("d", d3.area().x0(innerW).x1(d => innerW+d.y*sc).y(d => yScale(d.x)));
-        layerG.append("path").datum(pts)
-          .attr("d", d3.line().x(d => innerW+d.y*sc).y(d => yScale(d.x)))
-          .attr("fill","none").attr("stroke",color).attr("stroke-width",1.5).attr("stroke-opacity",0.6);
-      } else if (orient === "top") {
-        layerG.append("path").datum(pts).attr("fill", `url(#${gradId})`)
-          .attr("d", d3.area().x(d => xScale(d.x)).y0(0).y1(d => -d.y*sc));
-        layerG.append("path").datum(pts)
-          .attr("d", d3.line().x(d => xScale(d.x)).y(d => -d.y*sc))
-          .attr("fill","none").attr("stroke",color).attr("stroke-width",1.5).attr("stroke-opacity",0.6);
-      } else if (orient === "bottom") {
-        layerG.append("path").datum(pts).attr("fill", `url(#${gradId})`)
-          .attr("d", d3.area().x(d => xScale(d.x)).y0(innerH).y1(d => innerH+d.y*sc));
-        layerG.append("path").datum(pts)
-          .attr("d", d3.line().x(d => xScale(d.x)).y(d => innerH+d.y*sc))
-          .attr("fill","none").attr("stroke",color).attr("stroke-width",1.5).attr("stroke-opacity",0.6);
-      }
+    if (data.homeGames && data.homeGames.length) {
+      drawRug(layers.marginals, data.homeGames.map(d => d.teamScore),     "left",   homeColor);
+      drawRug(layers.marginals, data.homeGames.map(d => d.opponentScore), "bottom", homeColor);
+      drawRugLabel(`${data.homeAbbr} scored`,  "left",   homeColor);
+      drawRugLabel(`${data.homeAbbr} allowed`, "bottom", homeColor);
     }
-    const hasMarginals = data.homeMeanFor!=null && data.homeSdFor!=null
-                      && data.homeMeanAgainst!=null && data.homeSdAgainst!=null
-                      && data.awayMeanFor!=null && data.awaySdFor!=null
-                      && data.awayMeanAgainst!=null && data.awaySdAgainst!=null;
-    if (hasMarginals) {
-      drawMarginal(layers.marginals, marginalPoints(data.homeMeanFor,data.homeSdFor),
-        data.homeMeanFor,data.homeSdFor,"left","grad-home-for",homeColor);
-      drawMarginal(layers.marginals, marginalPoints(data.awayMeanAgainst,data.awaySdAgainst),
-        data.awayMeanAgainst,data.awaySdAgainst,"right","grad-away-against",awayColor);
-      drawMarginal(layers.marginals, marginalPoints(data.awayMeanFor,data.awaySdFor),
-        data.awayMeanFor,data.awaySdFor,"top","grad-away-for",awayColor);
-      drawMarginal(layers.marginals, marginalPoints(data.homeMeanAgainst,data.homeSdAgainst),
-        data.homeMeanAgainst,data.homeSdAgainst,"bottom","grad-home-against",homeColor);
+    if (data.awayGames && data.awayGames.length) {
+      drawRug(layers.marginals, data.awayGames.map(d => d.teamScore),     "top",    awayColor);
+      drawRug(layers.marginals, data.awayGames.map(d => d.opponentScore), "right",  awayColor);
+      drawRugLabel(`${data.awayAbbr} scored`,  "top",    awayColor);
+      drawRugLabel(`${data.awayAbbr} allowed`, "right",  awayColor);
     }
 
     // ── 7. IQR Boxes ──────────────────────────────────────────────────────────
@@ -377,7 +386,7 @@
       layerG.selectAll(null).data(games).enter().append("circle")
         .attr("cx", d => xScale(isHome ? d.opponentScore : d.teamScore))
         .attr("cy", d => yScale(isHome ? d.teamScore : d.opponentScore))
-        .attr("r", 6)
+        .attr("r", 4)
         .attr("fill", d => d.win ? color : "none").attr("fill-opacity", 0.5)
         .attr("stroke", color).attr("stroke-width", 1.5)
         .style("cursor","pointer")
@@ -392,7 +401,7 @@
       drawSeasonMarkers(layers.seasonMarkers, data.awayGames, false, awayColor);
 
     // ── 6. Average Score Markers ──────────────────────────────────────────────
-    const SQ = 10;
+    const SQ = 8;
     if (data.homeAvgFor && data.homeAvgAgainst) {
       layers.avgMarker.append("rect")
         .attr("x", xScale(data.homeAvgAgainst)-SQ/2).attr("y", yScale(data.homeAvgFor)-SQ/2)
@@ -414,7 +423,7 @@
 
     // ── 1. Result Marker ──────────────────────────────────────────────────────
     if (data.actualHomeScore != null && data.actualAwayScore != null) {
-      const cx = xScale(data.actualAwayScore), cy = yScale(data.actualHomeScore), r = 12;
+      const cx = xScale(data.actualAwayScore), cy = yScale(data.actualHomeScore), r = 10;
       layers.resultMarker.append("path")
         .attr("d", `M${cx},${cy-r} L${cx+r},${cy} L${cx},${cy+r} L${cx-r},${cy} Z`)
         .attr("fill",NEUTRAL_COLOR).attr("fill-opacity",0.9)

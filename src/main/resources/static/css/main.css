@@ -2746,7 +2746,7 @@ a.team-hero__conference:hover {
 }
 .game-detail-chart-container {
     width: 100%;
-    max-width: 800px;
+    max-width: 700px;
     margin: 0 auto;
 }
 .game-detail-chart-container svg {
@@ -2760,6 +2760,29 @@ a.team-hero__conference:hover {
     justify-content: center;
     padding: 1rem 0;
     font-size: 0.85rem;
+}
+
+/* Desktop: place the legend as a column beside the chart to shorten the block */
+@media (min-width: 1024px) {
+    .game-detail-chart-wrap {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 1.5rem;
+    }
+    .game-detail-chart-container {
+        margin: 0;
+        flex: 0 1 700px;
+    }
+    .game-detail-chart-legend {
+        flex: 0 0 auto;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        align-items: flex-start;
+        padding: 0;
+        align-self: center;
+    }
 }
 .game-detail-chart-legend__item {
     display: flex;
@@ -2843,13 +2866,11 @@ a.team-hero__conference:hover {
     }
 }
 
-/* ── Chart: mobile 4:3 aspect ratio ─────────────────────────────────────── */
-@media (max-width: 600px) {
-    .game-detail-chart-container {
-        aspect-ratio: 4 / 3;
-        overflow: hidden;
-    }
-}
+/* ── Chart: mobile ──────────────────────────────────────────────────────── */
+/* The SVG is square (viewBox 800×800) and scales responsively via its
+   viewBox, so it simply fills the available width on small screens. We do not
+   force a 4:3 aspect ratio with overflow:hidden here — that would crop the
+   bottom marginal distribution and the X-axis team label. */
 
 /* ── Chart: color override toggle button ────────────────────────────────── */
 .game-detail-chart-header {

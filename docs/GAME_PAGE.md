@@ -116,130 +116,7 @@ Show the ML model only when it is enabled and `featuresComplete = true`. Always 
 
 **Win probability format:** `{homeAbbr} {pHome}% / {awayAbbr} {pAway}%` with implied moneylines below.
 
-**Comparison with betting lines** (when both exist):
-- Spread models: show difference vs. book spread (e.g., `Δ +2.0 pts`)
-- Total models: show difference vs. book over/under
-- Probability models: show implied moneyline vs. book moneyline
-- Highlight discrepancies of >3 points (spread/total) or >15 moneyline points in amber
-
-**For completed games:** Add an "Actual" column or row showing the final score, and a "Error" column showing prediction error (predicted spread − actual margin, predicted total − actual total).
-
----
-
-### Head-to-Head Record
-
-Displays the all-time record between the two teams, computed from the `Game` table (FINAL games only, all seasons, excluding the current game).
-
-**Display format:**
-- `{homeTeam} leads {homeWins}-{awayWins}` — if home team leads
-- `{awayTeam} leads {awayWins}-{homeWins}` — if away team leads
-- `Series tied {wins}-{wins}` — if equal and non-zero
-- `First meeting between these teams` — if both are zero
-
-**Example:** `Head-to-Head: OKST leads 15-8`
-
----
-
-### Last Five Meetings
-
-Lists the most recent completed games between the two teams. Data source: FINAL `Game` records between these two teams (in either home/away direction), excluding the current game, ordered by date descending, limit 5.
-
-**Layout:** Table or list.
-
-```
-Last 5 Meetings
-┌──────────────┬──────────────────────────────────┐
-│ Jan 15, 2023 │ OKST 72 – 68 ISU                 │
-│ Dec 10, 2022 │ ISU 85 – 79 OKST                 │
-│ Feb 20, 2022 │ OKST 65 – 70 ISU                 │
-└──────────────┴──────────────────────────────────┘
-```
-
-**Display rules:**
-- Date: `MMM DD, YYYY` (e.g., `Jan 21, 2023`)
-- Score: `{winner abbr} {winnerScore} – {loserScore} {loser abbr}` — winning team listed first
-- Winning team's score in **bold**
-- Alternating row backgrounds (zebra striping)
-- Each row is a link to `/games/{gameId}` for that historical game
-
-**Visibility:** Hide section entirely if there are no prior meetings (consistent with "First meeting" head-to-head state). If 1–4 prior meetings exist, show those rows without padding to 5.
-
----
-
-### Team Comparison Table
-
-Side-by-side statistics for both teams.
-
-**Layout:** Three-column table — Statistic | Home Team | Away Team.
-
-```
-┌──────────────────────────┬──────────────┬──────────────┐
-│ Statistic                │ {Home Team}  │ {Away Team}  │
-├──────────────────────────┼──────────────┼──────────────┤
-│ Overall Record           │ 10-8         │ 14-3         │
-│ Conference Record        │ 2-4          │ 5-1          │
-│ Home Record              │ 7-2          │ 10-0         │
-│ Away Record              │ 2-4          │ 2-2          │
-│ Neutral Record           │ 1-2          │ 2-1          │
-│ Last 5 Games             │ 2-3          │ 4-1          │
-│ Current Streak           │ W1           │ W3           │
-│ Avg Points For           │ 68.2         │ 71.2         │
-│ Avg Points Against       │ 62.1         │ 58.5         │
-│ Massey Rating            │ 68.2 (#232)  │ 71.2 (#150)  │
-│ Bradley-Terry            │ -0.18 (#210) │ 1.39 (#14)   │
-│ W. Bradley-Terry         │ -0.18 (#210) │ 1.39 (#14)   │
-│ RPI                      │ 0.568 (#67)  │ 0.613 (#15)  │
-└──────────────────────────┴──────────────┴──────────────┘
-```
-
-**Data sources:**
-
-| Row | Source | Notes |
-|-----|--------|-------|
-| Overall Record | `SeasonStatistics.wins` / `losses` | |
-| Conference Record | `SeasonStatistics.conferenceWins` / `conferenceLosses` | |
-| Home Record | `SeasonStatistics.homeWins` / `homeLosses` | |
-| Away Record | `SeasonStatistics.roadWins` / `roadLosses` | |
-| Neutral Record | `Game` table query | FINAL neutral-site games in current season for each team |
-| Last 5 Games | `Game` table query | Last 5 FINAL games before the game date; count wins/losses |
-| Current Streak | `SeasonStatistics.calcStreak` | Positive integer = win streak; negative = loss streak |
-| Avg Points For | `SeasonStatistics.calcPointsFor / (calcWins + calcLosses)` | Derived average |
-| Avg Points Against | `SeasonStatistics.calcPointsAgainst / (calcWins + calcLosses)` | Derived average |
-| Massey Rating | `TeamPowerRatingSnapshot` (`MASSEY` type), most recent before game date | Rank by sorting all team snapshots for that date |
-| Bradley-Terry | `TeamPowerRatingSnapshot` (`BRADLEY_TERRY` type), most recent before game date | Rank derived same way |
-| W. Bradley-Terry | `TeamPowerRatingSnapshot` (`BRADLEY_TERRY_W` type), most recent before game date | Rank derived same way |
-| RPI | `TeamSeasonStatSnapshot.rpi`, most recent before game date | Rank by sorting all team snapshots for that date |
-
-**Formatting rules:**
-
-| Type | Format | Precision | Example |
-|------|--------|-----------|---------|
-| Record | `{W}-{L}` | — | `10-8` |
-| Streak | `W{n}` or `L{n}` | — | `W3`, `L2` |
-| Averages | right-aligned | 1 decimal | `68.2` |
-| Massey (linear) | `{value} (#{rank})` | 1 decimal | `68.2 (#232)` |
-| Bradley-Terry (logistic) | `{value} (#{rank})` | 2 decimals | `-0.18 (#210)` |
-| RPI | `{value} (#{rank})` | 3 decimals | `0.568 (#67)` |
-
-**"Better value" highlighting** (optional): Lightly shade the cell with the better value — more wins is better, higher points-for is better, lower points-against is better, lower rank number is better.
-
-**Streak color:** Green text for win streaks, red for loss streaks.
-
-If a value is unavailable (null snapshot), display `—` in that cell.
-
----
-
-## Game Analysis Chart
-
-An interactive D3.js visualization — the visual centerpiece of the game page. It shows the offensive and defensive scoring profiles of both teams in a shared 2D space, overlaid with betting reference lines, statistical confidence regions, and the actual result if the game is complete.
-
-### Architecture
-
-Chart data is embedded in the Thymeleaf template as inline JSON and used to initialize the D3 chart on page load. No separate AJAX call is needed. The `GameDetailController` must be extended to assemble and pass all required data to the template.
-
-### Chart Configuration
-
-| Property | Value |
+**Comparison with betting lines** (when both exist):2
 |----------|-------|
 | Size (desktop) | 800×800px, responsive to container width |
 | Aspect ratio (mobile) | 4:3 below 600px width |
@@ -279,8 +156,8 @@ The marginal distributions on opposing sides of each axis make this dual interpr
 
 ### Toggles and Interactivity
 
-- Each chart element has a show/hide toggle in a legend panel (positioned below or to the right of the chart; stacks below on mobile)
-- **Default:** All elements visible **except** Season Game Markers (hidden by default)
+- Each chart element has a show/hide toggle in a legend panel (positioned to the right of the chart on desktop; stacks below on mobile)
+- **Default:** All elements visible, including Season Game Markers
 - **Hover tooltips:** Show for all elements with defined hover text
 - **Click:** Navigate to game page where specified
 - **Transitions:** 300ms D3 transitions for show/hide
@@ -362,9 +239,9 @@ One marker per completed game in each team's season (prior to the current game d
 
 | Property | Value |
 |----------|-------|
-| Shape | Circle, 6px radius |
+| Shape | Circle, 4px radius |
 | Style | Win: team color fill (50% opacity) + stroke (100%, 1.5px); Loss: hollow (stroke only, 1.5px) |
-| Condition | Toggle-controlled; **hidden by default** |
+| Condition | Toggle-controlled; **visible by default** |
 | Position (home team game) | X = opponentScore, Y = teamScore |
 | Position (away team game) | X = teamScore, Y = opponentScore |
 | Hover | `{date}: {teamAbbr} {teamScore}, {opponentAbbr} {opponentScore}` |
@@ -457,36 +334,34 @@ Construction:
 
 ---
 
-#### 9. Marginal Distributions
+#### 9. Score Rug
 
-Normal probability density curves rendered in the chart margins, showing how each team's scoring varies along each axis. These are the visual expression of the dual-axis design — home and away team distributions appear on opposite sides of the same axis.
+A rug of short tick marks in the chart margins — one tick per completed game, projected onto the relevant axis. This is the empirical, axis-anchored expression of the dual-axis design: each team's scoring spread appears as ticks along the axis it shares with the opponent. Overlapping ticks accumulate opacity, so denser scoring regions read darker.
+
+Replaces the earlier normal-density "marginal distributions," which were redundant with the 95% ellipse (their 1D projection), implied false precision from a fitted Gaussian on ~15–30 games, and were prone to extending past the viewbox when μ ± 3σ left the 40–120 range. Ticks use the actual game scores instead, are always flush to the axis, and never overflow.
 
 | Property | Value |
 |----------|-------|
-| Style | Team color: 20% opacity area fill with gradient to transparent; 60% opacity stroke, 1.5px |
-| Data source | `TeamSeasonStatSnapshot` (same snapshot as confidence ellipse) |
-| Range | μ − 3σ to μ + 3σ |
-| Scale | Max height = 40px in margin space |
+| Shape | Short line, ~11px long, 2.25px, round cap, 2px gap from the axis |
+| Style | Team color, 45% stroke opacity (overlap builds density) |
+| Label | Small (9px) team-color caption per rug, e.g. "LOU scored" / "USF allowed", parallel to its axis |
+| Data source | Each team's season game list (same set as Season Game Markers / IQR box) |
+| Domain | Only scores within 40–120 are drawn (others skipped, never clipped/overflowed) |
 | Hover | None |
 | Z-order | 5 (background, in margin space) |
 
-**Density function:**
-```
-f(x) = (1 / (σ√(2π))) × exp(−(x − μ)² / (2σ²))
-```
-
 **Rendering positions:**
 
-| Distribution | Side | Direction |
+| Ticks | Side | Value per game |
 |---|---|---|
-| Home team — Points For | Left margin (Y-axis) | Curve extends leftward |
-| Away team — Points Against | Right margin (Y-axis) | Curve extends rightward |
-| Home team — Points Against | Bottom margin (X-axis) | Curve extends downward |
-| Away team — Points For | Top margin (X-axis) | Curve extends upward |
+| Home team — Points For | Left margin (Y-axis), extends left | home team's score |
+| Away team — Points Against | Right margin (Y-axis), extends right | away team's opponent's score |
+| Home team — Points Against | Bottom margin (X-axis), extends down | home team's opponent's score |
+| Away team — Points For | Top margin (X-axis), extends up | away team's score |
 
-Both teams' "Points For" distributions appear on opposite margins of the X-axis; both "Points Against" distributions appear on opposite margins of the Y-axis. This is intentional: the X-axis simultaneously represents the away team's offense and the home team's defense, and the visual contrast between the top and bottom curves makes this duality legible.
+Both teams' "Points For" ticks sit on opposite margins of the X-axis; both "Points Against" ticks on opposite margins of the Y-axis. This is intentional: the X-axis simultaneously represents the away team's offense and the home team's defense, and the contrast between the top and bottom rugs makes that duality legible.
 
-**Axis connection:** Each pair of distributions sharing an axis must visually grow from the axis line itself — one upward/outward and one downward/outward — so the axis is their shared baseline. The away Points-For curve (top) and home Points-Against curve (bottom) both originate at the X-axis line. The home Points-For curve (left) and away Points-Against curve (right) both originate at the Y-axis line. Reversing one curve's fill direction (i.e., gradient runs from the axis outward rather than from the distribution peak) is acceptable to achieve this visual continuity.
+Each rug carries a small caption in its team's color, reading "{abbr} scored" on the two Points-For rugs and "{abbr} allowed" on the two Points-Against rugs, set parallel to its axis. The captions sit in the clear band just beyond the axis tick numbers. The two away-side captions (top, right margins) are centered on their axis; the two home-side captions (left, bottom margins) are nudged off-center along the axis so they clear the centered rotated team-name titles that already occupy those edges.
 
 ---
 
