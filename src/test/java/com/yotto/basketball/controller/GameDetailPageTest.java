@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -29,11 +28,15 @@ class GameDetailPageTest extends BaseIntegrationTest {
     @Autowired SeasonStatisticsRepository statsRepo;
     @Autowired TeamPowerRatingSnapshotRepository ratingRepo;
     @Autowired TeamSeasonStatSnapshotRepository snapshotRepo;
+    @Autowired TeamStatSnapshotRepository derivedStatRepo;
     @Autowired SeasonPopulationStatRepository popStatRepo;
     @Autowired PowerModelParamSnapshotRepository paramRepo;
     @Autowired BettingOddsRepository oddsRepo;
 
     Long gameId;
+    Long homeTeamId;
+    Long awayTeamId;
+    Long seasonDbId;
 
     @BeforeEach
     void setUp() {
@@ -89,6 +92,10 @@ class GameDetailPageTest extends BaseIntegrationTest {
         game.setGameDate(LocalDateTime.of(2025, 2, 15, 19, 0));
         gameRepo.save(game);
         gameId = game.getId();
+
+        homeTeamId = home.getId();
+        awayTeamId = away.getId();
+        seasonDbId = season.getId();
     }
 
     @Test
@@ -102,11 +109,11 @@ class GameDetailPageTest extends BaseIntegrationTest {
     void gameDetailPage_hasRequiredModelAttributes() throws Exception {
         mockMvc.perform(get("/games/" + gameId))
                 .andExpect(status().isOk())
-                .andExpect(model().attributeExists("homeH2HWins"))
-                .andExpect(model().attributeExists("awayH2HWins"))
                 .andExpect(model().attributeExists("lastMeetings"))
                 .andExpect(model().attributeExists("homeStats"))
                 .andExpect(model().attributeExists("awayStats"))
+                .andExpect(model().attributeExists("homeDerived"))
+                .andExpect(model().attributeExists("awayDerived"))
                 .andExpect(model().attributeExists("homeNeutralWins"))
                 .andExpect(model().attributeExists("awayNeutralWins"))
                 .andExpect(model().attributeExists("homeLast5Wins"))
@@ -121,85 +128,58 @@ class GameDetailPageTest extends BaseIntegrationTest {
                 .andExpect(model().attribute("conferenceName", "ACC"));
     }
 
-    @Test
-    void gameDetailPage_h2hWins_zeroWithNoPriorMeetings() throws Exception {
-        mockMvc.perform(get("/games/" + gameId))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("homeH2HWins", 0L))
-                .andExpect(model().attribute("awayH2HWins", 0L));
-    }
-
-    // ── Task 1: BT implied moneylines rendered ───────────────────────────────
+    // ── Team Comparison: streak (regression — was silently never rendering) ──
 
     /**
-     * With BT ratings 1.5 (home) / 0.5 (away), no HCA param:
-     *   pHome ≈ sigmoid(1.0) ≈ 0.7311  →  homeImpliedML = -272
-     *   pAway ≈ 0.2689                  →  awayImpliedML = +272
-     * The predictions table must render these as a "game-detail-implied-ml" span.
+     * Streak cells must render W{n}/L{n} with the win/loss colour class. This guards
+     * the BEM double-underscore pitfall: class names with {@code __} must stay in a
+     * static {@code class} attribute, never inside a Thymeleaf expression (where
+     * {@code __...__} is preprocessing syntax).
      */
     @Test
-    void btPrediction_rendersImpliedMoneylines_inPredictionsTable() throws Exception {
-        addBtSnapshots(1.5, 0.5);
-
-        mockMvc.perform(get("/games/" + gameId))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("game-detail-implied-ml")))
-                .andExpect(content().string(containsString("-272")))
-                .andExpect(content().string(containsString("+272")));
-    }
-
-    // ── Task 2: BT vs book moneyline comparison ──────────────────────────────
-
-    /**
-     * homeImpliedML = -272, bookHomeML = -200 → diff = -72 (|72| > 15 → amber class).
-     */
-    @Test
-    void btPrediction_vsBookColumn_showsMoneylineDiffWithAmberWhenLarge() throws Exception {
-        addBtSnapshots(1.5, 0.5);
-        addOddsWithMoneylines(-200, 165); // book: home -200, away +165
-
-        // diff = -272 - (-200) = -72
-        mockMvc.perform(get("/games/" + gameId))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("-72")))
-                .andExpect(content().string(containsString("game-detail-model-table__delta--alert")));
-    }
-
-    /**
-     * When odds exist (so the vs-Line column renders) but no book home moneyline
-     * is recorded, the vs-Line cell for the BT row must show the em-dash "—".
-     */
-    @Test
-    void btPrediction_vsBookColumn_showsDashWhenNoBookMoneyline() throws Exception {
-        addBtSnapshots(1.5, 0.5);
-        addOddsWithSpreadOnly(new BigDecimal("-3.5"));
+    void comparisonTable_rendersStreaks() throws Exception {
+        setStreaks(4, -2); // home on a 4-game win streak, away on a 2-game skid
 
         String html = mockMvc.perform(get("/games/" + gameId))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        // Extract just the BT row so the em-dash assertion is scoped (em-dashes appear elsewhere on the page).
-        int btRowStart = html.indexOf("DeepFij Win Probability");
-        org.assertj.core.api.Assertions.assertThat(btRowStart)
-                .as("BT row should be present").isGreaterThan(0);
-        int btRowEnd = html.indexOf("</tr>", btRowStart);
-        String btRow = html.substring(btRowStart, btRowEnd);
-
-        org.assertj.core.api.Assertions.assertThat(btRow).contains("—");
-        // Sanity: no diff number should appear in the BT row when no book moneyline exists
-        org.assertj.core.api.Assertions.assertThat(btRow)
-                .doesNotContain("game-detail-model-table__delta--alert");
+        org.assertj.core.api.Assertions.assertThat(html)
+                .contains("game-detail-comparison-table__streak--win")
+                .contains("W4")
+                .contains("game-detail-comparison-table__streak--loss")
+                .contains("L2");
     }
 
-    // ── Task 3: Mobile accordion markup present ──────────────────────────────
+    // ── Team Comparison: derived box-score stats (shooting / four factors) ────
+
+    @Test
+    void comparisonTable_rendersDerivedStats() throws Exception {
+        addDerivedStat("fg_pct", 0.512, 0.487); // → FG% 51.2% / 48.7%
+
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("FG%")))
+                .andExpect(content().string(containsString("51.2%")))
+                .andExpect(content().string(containsString("48.7%")));
+    }
 
     /**
-     * The betting and predictions sections must be wrapped in <details> elements
-     * so browsers render them as native accordions on mobile.
+     * The Four-Factors section labels always render even when no derived snapshot
+     * exists (each value cell falls back to an em-dash), so the section never crashes.
      */
     @Test
-    void bettingAndPredictions_haveAccordionMarkup() throws Exception {
-        addBtSnapshots(1.5, 0.5);
+    void comparisonTable_rendersFourFactorsLabels_whenNoDerivedSnapshots() throws Exception {
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Four Factors")))
+                .andExpect(content().string(containsString("eFG%")));
+    }
+
+    // ── Betting section still uses native <details> accordion markup ─────────
+
+    @Test
+    void bettingSection_hasAccordionMarkup() throws Exception {
         addOddsWithMoneylines(-150, 130);
 
         mockMvc.perform(get("/games/" + gameId))
@@ -210,26 +190,31 @@ class GameDetailPageTest extends BaseIntegrationTest {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void addBtSnapshots(double homeRating, double awayRating) {
-        Team home = teamRepo.findAll().stream()
-                .filter(t -> "DUKE".equals(t.getAbbreviation())).findFirst().orElseThrow();
-        Team away = teamRepo.findAll().stream()
-                .filter(t -> "UNC".equals(t.getAbbreviation())).findFirst().orElseThrow();
-        Season season = seasonRepo.findAll().get(0);
-
-        ratingRepo.save(mkBtSnapshot(home, season, homeRating));
-        ratingRepo.save(mkBtSnapshot(away, season, awayRating));
+    private void setStreaks(int homeStreak, int awayStreak) {
+        SeasonStatistics home = statsRepo.findByTeamAndSeasonWithConference(homeTeamId, seasonDbId).orElseThrow();
+        home.setCalcStreak(homeStreak);
+        statsRepo.save(home);
+        SeasonStatistics away = statsRepo.findByTeamAndSeasonWithConference(awayTeamId, seasonDbId).orElseThrow();
+        away.setCalcStreak(awayStreak);
+        statsRepo.save(away);
     }
 
-    private TeamPowerRatingSnapshot mkBtSnapshot(Team team, Season season, double rating) {
-        TeamPowerRatingSnapshot s = new TeamPowerRatingSnapshot();
+    private void addDerivedStat(String statName, double homeValue, double awayValue) {
+        Team home = teamRepo.findById(homeTeamId).orElseThrow();
+        Team away = teamRepo.findById(awayTeamId).orElseThrow();
+        Season season = seasonRepo.findById(seasonDbId).orElseThrow();
+        derivedStatRepo.save(mkDerived(home, season, statName, homeValue));
+        derivedStatRepo.save(mkDerived(away, season, statName, awayValue));
+    }
+
+    private TeamStatSnapshot mkDerived(Team team, Season season, String statName, double value) {
+        TeamStatSnapshot s = new TeamStatSnapshot();
         s.setTeam(team);
         s.setSeason(season);
-        s.setModelType("BRADLEY_TERRY");
-        s.setRating(rating);
-        s.setGamesPlayed(10);
         s.setSnapshotDate(LocalDate.of(2025, 2, 14)); // day before game
-        s.setCalculatedAt(LocalDateTime.of(2025, 2, 14, 6, 0));
+        s.setStatName(statName);
+        s.setValue(value);
+        s.setGamesPlayed(10);
         return s;
     }
 
@@ -239,14 +224,6 @@ class GameDetailPageTest extends BaseIntegrationTest {
         odds.setGame(game);
         odds.setHomeMoneyline(homeML);
         odds.setAwayMoneyline(awayML);
-        oddsRepo.save(odds);
-    }
-
-    private void addOddsWithSpreadOnly(BigDecimal spread) {
-        Game game = gameRepo.findById(gameId).orElseThrow();
-        BettingOdds odds = new BettingOdds();
-        odds.setGame(game);
-        odds.setSpread(spread);
         oddsRepo.save(odds);
     }
 
