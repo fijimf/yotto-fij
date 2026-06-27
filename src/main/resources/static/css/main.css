@@ -3765,3 +3765,112 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     .games-nav__date { font-size: 1.2rem; }
     .games-nav__btn { padding: 0.4rem 0.6rem; }
 }
+
+/* ── Per-statistic pages ───────────────────────────────────────────────────── */
+.stat-detail__crumb {
+    display: inline-block;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    margin-bottom: 0.25rem;
+}
+.stat-detail__crumb:hover { color: var(--color-primary); }
+.stat-detail__desc {
+    max-width: 60ch;
+    color: var(--color-text);
+    margin: 0.25rem 0 0.5rem;
+}
+.stat-detail__context { color: var(--color-text-muted); font-size: 0.9rem; margin: 0; }
+
+.stat-detail__charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin: 1.25rem 0;
+}
+.stat-detail__card { padding: 1rem 1.1rem; display: flex; flex-direction: column; }
+.stat-detail__card-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    margin: 0 0 0.15rem;
+}
+.stat-detail__card-sub { color: var(--color-text-muted); font-size: 0.82rem; margin: 0 0 0.6rem; }
+.stat-detail__chart { width: 100%; }
+.stat-detail__chart-empty {
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: 2rem 0;
+    text-align: center;
+}
+.stat-detail__metric { margin: 0.6rem 0 0; }
+.stat-detail__metric strong { color: var(--color-text); }
+.stat-detail__caveat { font-size: 0.8rem; margin: 0.3rem 0 0; }
+.stat-detail__pop {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    margin: 0.7rem 0 0;
+    font-size: 0.88rem;
+    color: var(--color-text-muted);
+}
+.stat-detail__pop strong { color: var(--color-text); }
+
+.stat-detail__rankings { margin-top: 1.5rem; }
+.stat-detail__rankings .analytics-date-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+
+.stat-legend { margin-left: 0.6rem; font-size: 0.8rem; color: var(--color-text-muted); }
+.stat-legend__dot {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    margin-right: 0.2rem;
+    vertical-align: middle;
+}
+.stat-legend__dot--win { background: var(--color-success); }
+.stat-legend__dot--loss { background: var(--color-danger); }
+
+.stat-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--color-nav-bg);
+    color: var(--color-text-inverse);
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.3;
+    box-shadow: var(--shadow);
+    z-index: 50;
+}
+
+/* Glossary index */
+.stat-index__group { margin-bottom: 1.5rem; }
+.stat-index__category {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.3rem;
+    margin: 0 0 0.75rem;
+}
+.stat-index__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.8rem;
+}
+.stat-index__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.8rem 0.9rem;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s, transform 0.15s;
+}
+.stat-index__item:hover { background: var(--color-bg-surface-hover); transform: translateY(-1px); }
+.stat-index__title { font-weight: 600; color: var(--color-text); }
+.stat-index__blurb { font-size: 0.82rem; color: var(--color-text-muted); }
+.stat-index__dir { font-size: 0.72rem; color: var(--color-primary); margin-top: 0.1rem; }
+
+@media (max-width: 768px) {
+    .stat-detail__charts { grid-template-columns: 1fr; }
+}

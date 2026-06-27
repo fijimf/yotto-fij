@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Statistics Glossary</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Statistics</h1>
+        <div class="page-header__actions" th:if="${latestYear != null}">
+            <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${latestYear} + '/stats'}">League leaderboard</a>
+        </div>
+    </div>
+    <p class="stat-detail__desc">Every derived team statistic. Pick one to see how it splits games and how teams stack up.</p>
+
+    <div class="stat-index__group" th:each="entry : ${statsByCategory}">
+        <h2 class="stat-index__category" th:text="${entry.key}">Category</h2>
+        <div class="stat-index__grid">
+            <a th:each="stat : ${entry.value}" class="card stat-index__item"
+               th:href="@{'/stats/' + ${stat.name()}}">
+                <span class="stat-index__title" th:text="${stat.title()}">Stat Title</span>
+                <span class="stat-index__blurb" th:if="${stat.description() != null}"
+                      th:text="${stat.description()}">Description.</span>
+                <span class="stat-index__dir"
+                      th:text="${stat.higherIsBetter()} ? 'Higher is better' : 'Lower is better'">Higher is better</span>
+            </a>
+        </div>
+    </div>
+
+</main>
+</body>
+</html>

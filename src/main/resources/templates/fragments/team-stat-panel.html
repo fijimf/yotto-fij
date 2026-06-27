@@ -20,7 +20,11 @@
                          th:data-stat="${row.statName}"
                          th:data-label="${row.label}"
                          th:data-format="${row.formatName}">
-                        <span class="stat-grid__label" th:text="${row.label}">True Shooting%</span>
+                        <a th:if="${row.linkable()}" class="stat-grid__label"
+                           th:href="@{'/seasons/' + ${statPanel.year} + '/stats/' + ${row.statName}}"
+                           th:text="${row.label}">True Shooting%</a>
+                        <span th:unless="${row.linkable()}" class="stat-grid__label"
+                              th:text="${row.label}">Mean PPG</span>
                         <span class="stat-grid__value" th:text="${row.formattedValue}">53.2%</span>
                         <span class="stat-grid__rank" th:text="${row.rankDisplay()}">#42 of 363</span>
                         <div class="stat-bar" th:if="${row.percentile != null}"

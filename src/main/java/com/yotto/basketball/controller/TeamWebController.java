@@ -518,6 +518,11 @@ public class TeamWebController {
             return (rank == null || fieldSize == null) ? "—" : "#" + rank + " of " + fieldSize;
         }
 
+        /** True when this stat has a dedicated stat-detail page (the box-score catalog stats). */
+        public boolean linkable() {
+            return com.yotto.basketball.service.StatCatalog.contains(statName);
+        }
+
         /**
          * Full fill class for the percentile bar. Computed here rather than in the
          * template because the BEM {@code __} would collide with Thymeleaf's

@@ -6,6 +6,7 @@ import com.yotto.basketball.entity.TeamGameStats;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -72,6 +73,33 @@ public class BoxScoreStatCalculator implements DailyStatCalculator {
     /** Stat names owned by this calculator (used for population-row deletes). */
     public static List<StatMeta> statMetas() {
         return REGISTRY.stream().map(d -> new StatMeta(d.name(), d.higherIsBetter())).toList();
+    }
+
+    /** A single game's value of a stat from each team's perspective; either side may be null. */
+    public record GamePoint(Double homeValue, Double awayValue) {}
+
+    /**
+     * Every stat's value for one finished game, from the home and away perspectives,
+     * keyed by stat name. Returns an empty map when either box score is unusable or
+     * the game has no final score — never a half-game point. Each value reuses the
+     * exact same extractor as the cumulative snapshot (a one-game accumulator), so
+     * scatter axes match the stat's real definition.
+     */
+    public static Map<String, GamePoint> perGame(Game game, TeamGameStats homeStats, TeamGameStats awayStats) {
+        if (!isUsable(homeStats) || !isUsable(awayStats)
+                || game.getHomeScore() == null || game.getAwayScore() == null) {
+            return Map.of();
+        }
+        TeamAcc home = new TeamAcc();
+        home.addGame(game.getHomeScore(), game.getAwayScore(), homeStats, awayStats);
+        TeamAcc away = new TeamAcc();
+        away.addGame(game.getAwayScore(), game.getHomeScore(), awayStats, homeStats);
+
+        Map<String, GamePoint> out = new LinkedHashMap<>();
+        for (StatDef def : REGISTRY) {
+            out.put(def.name(), new GamePoint(def.extractor().apply(home), def.extractor().apply(away)));
+        }
+        return out;
     }
 
     private final Map<Long, TeamAcc> accByTeamId = new HashMap<>();

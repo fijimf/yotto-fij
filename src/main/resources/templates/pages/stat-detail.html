@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${statPage.meta().title()} + ' — ' + ${statPage.season().year()}">Statistic</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <a class="stat-detail__crumb" th:href="@{/stats}">&larr; All stats</a>
+            <h1 class="page-title" th:text="${statPage.meta().title()}">Effective Field Goal Percentage</h1>
+            <p class="stat-detail__desc" th:if="${statPage.meta().description() != null}"
+               th:text="${statPage.meta().description()}">A short description of the stat.</p>
+            <p class="stat-detail__context">
+                <span th:text="${statPage.meta().higherIsBetter()} ? 'Higher is better' : 'Lower is better'">Higher is better</span>
+                <span th:if="${statPage.population().mean() != null}">
+                    &nbsp;&middot;&nbsp; league avg
+                    <strong th:text="${fmt.value(statPage.population().mean(), statPage.meta().format())}">50.4%</strong>
+                </span>
+                <span th:if="${statPage.season().date() != null}">
+                    &nbsp;&middot;&nbsp; as of <span th:text="${statPage.season().date()}">2026-02-14</span>
+                </span>
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <select class="form-input form-input--sm"
+                    th:attr="data-stat=${statPage.meta().name()}"
+                    onchange="window.location='/seasons/'+this.value+'/stats/'+this.dataset.stat">
+                <option th:each="y : ${statPage.season().availableSeasons()}"
+                        th:value="${y}" th:text="${y}"
+                        th:selected="${y == statPage.season().year()}">2026</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="stat-detail__charts">
+
+        <!-- Per-game scatter -->
+        <div class="card stat-detail__card">
+            <h3 class="stat-detail__card-title">Per-Game Outcomes</h3>
+            <p class="stat-detail__card-sub">
+                Each point is a completed game — x: home value, y: away value.
+                <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--win"></span>home win</span>
+                <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--loss"></span>home loss</span>
+            </p>
+            <div id="stat-scatter" class="stat-detail__chart"></div>
+            <div class="stat-detail__chart-empty" th:if="${statPage.scatter().points().isEmpty()}">
+                No completed games with box scores yet.
+            </div>
+
+            <p class="stat-detail__metric" th:if="${statPage.scatter().predictive().show()}">
+                Predicts home win:
+                <strong th:text="'AUC ' + ${#numbers.formatDecimal(statPage.scatter().predictive().auc(), 1, 2)}">AUC 0.78</strong>
+                <span class="text-muted" th:if="${statPage.scatter().predictive().naiveAccuracy() != null}"
+                      th:text="'(better value wins ' + ${#numbers.formatDecimal(statPage.scatter().predictive().naiveAccuracy() * 100, 1, 0)} + '% of games)'">
+                    (better value wins 71% of games)</span>
+            </p>
+            <p class="stat-detail__metric text-muted"
+               th:unless="${statPage.scatter().predictive().show()}">
+                Weak standalone predictor of the winner.
+            </p>
+
+            <p class="stat-detail__caveat text-muted"
+               th:text="'Based on ' + ${#numbers.formatInteger(statPage.scatter().gamesPlotted(), 1)} + ' of '
+                        + ${#numbers.formatInteger(statPage.scatter().gamesTotal(), 1)} + ' completed games with box scores.'">
+                Based on 1,204 of 1,330 completed games with box scores.
+            </p>
+        </div>
+
+        <!-- Team distribution -->
+        <div class="card stat-detail__card">
+            <h3 class="stat-detail__card-title">Team Distribution</h3>
+            <p class="stat-detail__card-sub">Season-to-date value for every team, with a density curve.</p>
+            <div id="stat-histogram" class="stat-detail__chart"></div>
+            <div class="stat-detail__chart-empty" th:if="${statPage.histogram().binCounts().length == 0}">
+                No team data yet.
+            </div>
+
+            <p class="stat-detail__pop" th:if="${statPage.population().mean() != null}">
+                <span>min <strong th:text="${fmt.value(statPage.population().min(), statPage.meta().format())}">41.2</strong></span>
+                <span>max <strong th:text="${fmt.value(statPage.population().max(), statPage.meta().format())}">58.9</strong></span>
+                <span>mean <strong th:text="${fmt.value(statPage.population().mean(), statPage.meta().format())}">50.4</strong></span>
+                <span>std <strong th:text="${fmt.value(statPage.population().stddev(), statPage.meta().format())}">3.1</strong></span>
+                <span th:if="${statPage.population().count() != null}">(n=<span th:text="${statPage.population().count()}">362</span>)</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Date picker + ranking table -->
+    <div class="stat-detail__rankings">
+        <div class="analytics-date-row" th:if="${statPage.season().latestDate() != null}">
+            <h3 class="stat-detail__card-title">Team Rankings</h3>
+            <label class="form-label" for="stat-date">As of:</label>
+            <input type="date" id="stat-date" class="form-input form-input--sm"
+                   th:value="${statPage.season().date()}"
+                   th:max="${statPage.season().latestDate()}"
+                   th:attr="hx-get=@{'/seasons/' + ${statPage.season().year()} + '/stats/' + ${statPage.meta().name()} + '/table'}"
+                   hx-target="#stat-rank-container"
+                   hx-trigger="change"
+                   name="date" />
+        </div>
+        <div id="stat-rank-container">
+            <div th:replace="~{fragments/stat-rank-table :: rank-table}"></div>
+        </div>
+    </div>
+
+    <!-- Inline chart data -->
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        var STAT_PAGE_DATA = JSON.parse(/*[[${statPageJson}]]*/ "null");
+        /*]]>*/
+    </script>
+
+</main>
+
+<!-- Load D3 + chart script only on this page -->
+<th:block layout:fragment="scripts">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script th:src="@{/js/stat-page.js}"></script>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="rank-table">
+
+    <div th:if="${statPage.rankings().isEmpty()}" class="teams-empty">
+        No team rankings available for this date.
+    </div>
+
+    <div th:if="${!statPage.rankings().isEmpty()}" class="schedule-table-wrap">
+        <table class="schedule-table stats-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Team</th>
+                    <th th:text="${statPage.meta().title()}">Value</th>
+                    <th class="schedule-table__hide-mobile" title="League-wide z-score">z</th>
+                    <th class="schedule-table__hide-mobile" title="Percentile (100 = best)">Pctl</th>
+                    <th>GP</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="row : ${statPage.rankings()}">
+                    <td class="stats-table__rank" th:text="${row.rank() != null ? row.rank() : '—'}">1</td>
+                    <td>
+                        <a th:href="@{'/teams/' + ${row.teamId()}}" class="schedule-table__opp-link">
+                            <img th:if="${row.logoUrl()}" th:src="${row.logoUrl()}"
+                                 class="schedule-table__opp-logo" loading="lazy" width="20" height="20" alt="" />
+                            <span th:text="${row.teamName()}">Team Name</span>
+                        </a>
+                    </td>
+                    <td><strong th:text="${fmt.value(row.value(), statPage.meta().format())}">57.4%</strong></td>
+                    <td class="schedule-table__hide-mobile" th:text="${fmt.zscore(row.zscore())}">+2.30</td>
+                    <td class="schedule-table__hide-mobile" th:text="${fmt.percentile(row.percentile())}">99</td>
+                    <td th:text="${row.gamesPlayed()}">28</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>
