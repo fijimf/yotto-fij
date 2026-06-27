@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 public class GameDetailController {
@@ -29,6 +31,7 @@ public class GameDetailController {
     private final SeasonStatisticsRepository seasonStatsRepository;
     private final TeamPowerRatingSnapshotRepository powerRatingRepository;
     private final TeamSeasonStatSnapshotRepository statSnapshotRepository;
+    private final TeamStatSnapshotRepository derivedStatRepository;
     private final ObjectMapper objectMapper;
     private final TournamentBadgeFormatter tournamentBadgeFormatter;
 
@@ -37,6 +40,7 @@ public class GameDetailController {
                                 SeasonStatisticsRepository seasonStatsRepository,
                                 TeamPowerRatingSnapshotRepository powerRatingRepository,
                                 TeamSeasonStatSnapshotRepository statSnapshotRepository,
+                                TeamStatSnapshotRepository derivedStatRepository,
                                 ObjectMapper objectMapper,
                                 TournamentBadgeFormatter tournamentBadgeFormatter) {
         this.gameRepository = gameRepository;
@@ -44,6 +48,7 @@ public class GameDetailController {
         this.seasonStatsRepository = seasonStatsRepository;
         this.powerRatingRepository = powerRatingRepository;
         this.statSnapshotRepository = statSnapshotRepository;
+        this.derivedStatRepository = derivedStatRepository;
         this.objectMapper = objectMapper;
         this.tournamentBadgeFormatter = tournamentBadgeFormatter;
     }
@@ -111,14 +116,8 @@ public class GameDetailController {
         model.addAttribute("homeStats", homeStats);
         model.addAttribute("awayStats", awayStats);
 
-        // ── Head-to-head record ─────────────────────────────────────────────────
-        List<Game> h2hGames = gameRepository.findAllH2HGames(home.getId(), away.getId(), id);
-        long homeH2HWins = h2hGames.stream().filter(g -> isWinner(g, home.getId())).count();
-        long awayH2HWins = h2hGames.stream().filter(g -> isWinner(g, away.getId())).count();
-        model.addAttribute("homeH2HWins", homeH2HWins);
-        model.addAttribute("awayH2HWins", awayH2HWins);
-
         // ── Last 5 meetings ─────────────────────────────────────────────────────
+        List<Game> h2hGames = gameRepository.findAllH2HGames(home.getId(), away.getId(), id);
         List<LastMeetingDto> lastMeetings = h2hGames.stream()
                 .limit(5)
                 .map(this::toLastMeeting)
@@ -170,6 +169,10 @@ public class GameDetailController {
                 .findLatestBefore(away.getId(), seasonId, gameLocalDate).orElse(null);
         model.addAttribute("homeSnap", homeSnap);
         model.addAttribute("awaySnap", awaySnap);
+
+        // ── Derived box-score stats (shooting, rebounding, four factors) ─────────
+        model.addAttribute("homeDerived", derivedStatsByName(home.getId(), seasonId, gameLocalDate));
+        model.addAttribute("awayDerived", derivedStatsByName(away.getId(), seasonId, gameLocalDate));
 
         // RPI rank: find all snaps on the same date, sort by RPI desc, determine rank
         Integer homeRpiRank = null;
@@ -266,6 +269,15 @@ public class GameDetailController {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
+
+    /** Latest pre-game derived stats for a team, keyed by stat name for template lookup. */
+    private Map<String, TeamStatSnapshot> derivedStatsByName(Long teamId, Long seasonId, LocalDate beforeDate) {
+        Map<String, TeamStatSnapshot> byName = new HashMap<>();
+        for (TeamStatSnapshot s : derivedStatRepository.findLatestBefore(teamId, seasonId, beforeDate)) {
+            byName.put(s.getStatName(), s);
+        }
+        return byName;
+    }
 
     private boolean isWinner(Game g, Long teamId) {
         if (g.getHomeScore() == null || g.getAwayScore() == null) return false;

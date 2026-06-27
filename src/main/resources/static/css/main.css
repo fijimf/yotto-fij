@@ -2704,9 +2704,29 @@ a.team-hero__conference:hover {
 }
 
 /* ── Team Comparison Table ──────────────────────────────────────────────── */
+.game-detail-comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem 2rem;
+}
+@media (min-width: 768px) {
+    .game-detail-comparison-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
 .game-detail-comparison-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+}
+.game-detail-comparison-table__group td {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    background: var(--color-bg-subtle, rgba(0, 0, 0, 0.03));
+    padding-top: 0.6rem;
 }
 .game-detail-comparison-table {
     width: 100%;

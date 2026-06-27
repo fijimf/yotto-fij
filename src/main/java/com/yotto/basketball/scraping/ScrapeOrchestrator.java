@@ -171,6 +171,7 @@ public class ScrapeOrchestrator {
 
     public void calculateTimeSeries(int seasonYear) {
         timeSeriesService.calculateAndStoreForSeason(seasonYear);
+        teamStatTimeSeriesService.calculateAndStoreForSeason(seasonYear);
     }
 
     public void calculatePowerRatings(int seasonYear) {

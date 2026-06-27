@@ -86,7 +86,7 @@
     </div>
 </div>
 
-<!-- ── Row 1: Betting + Predictions ─────────────────────────────────────── -->
+<!-- ── Row 1: Betting ───────────────────────────────────────────────────── -->
 <div class="game-detail-row">
 
     <!-- Betting Information -->
@@ -140,152 +140,10 @@
             </tbody>
         </table>
     </details>
-
-    <!-- Predictions -->
-    <details class="game-detail-col card game-detail-accordion" open
-             th:if="${prediction != null and (prediction.massey != null or prediction.bradleyTerry != null or prediction.ml != null)}">
-        <summary class="game-detail-section__title game-detail-accordion__summary">Predictions</summary>
-
-        <!-- Win probability bar -->
-        <div th:with="pHome=${prediction.ml != null and prediction.ml.featuresComplete ? prediction.ml.homeWinProbability :
-                             (prediction.bradleyTerry != null ? prediction.bradleyTerry.homeWinProbability : null)}"
-             class="game-detail-prob-section" th:if="${pHome != null}">
-            <div class="game-detail-prob-labels">
-                <span th:text="${homeTeamName}">Duke</span>
-                <span class="prediction-card__stat-label">Win Probability</span>
-                <span th:text="${awayTeamName}">UNC</span>
-            </div>
-            <div class="prob-bar prob-bar--lg"
-                 th:style="'--team-color-home: #' + (${homeTeamColor} ?: '3b82f6') + '; --team-color-away: #' + (${awayTeamColor} ?: 'ef4444')">
-                <div class="prob-bar__home"
-                     th:style="'width:' + ${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'"
-                     th:text="${#numbers.formatDecimal(pHome * 100, 1, 0)} + '%'">62%</div>
-                <div class="prob-bar__away"
-                     th:style="'width:' + ${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'"
-                     th:text="${#numbers.formatDecimal((1.0 - pHome) * 100, 1, 0)} + '%'">38%</div>
-            </div>
-        </div>
-
-        <!-- Model table -->
-        <table class="game-detail-model-table">
-            <thead>
-                <tr>
-                    <th>Model</th>
-                    <th>Prediction</th>
-                    <th th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}">vs Line</th>
-                    <th th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">Error</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Massey spread -->
-                <tr th:if="${prediction.massey != null}">
-                    <td>DeepFij Spread</td>
-                    <td th:with="s=${prediction.massey.spread}, absS=${s >= 0 ? s : -s}"
-                        th:text="${(s >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absS, 1, 1)}">DUKE -3.2</td>
-                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
-                        th:with="delta=${odds.spread != null ? prediction.massey.spread - odds.spread.doubleValue() : null}"
-                        th:classappend="${delta != null and T(java.lang.Math).abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${delta != null ? (delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1) : '—'}">+2.0</td>
-                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
-                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
-                        th:with="err=${prediction.actualMargin - prediction.massey.spread}"
-                        th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+10.2</td>
-                </tr>
-                <!-- Massey total -->
-                <tr th:if="${prediction.masseyTotal != null}">
-                    <td>DeepFij Total</td>
-                    <td th:text="${#numbers.formatDecimal(prediction.masseyTotal.total, 3, 1)}">148.4</td>
-                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
-                        th:with="delta=${odds.overUnder != null ? prediction.masseyTotal.total - odds.overUnder.doubleValue() : null}"
-                        th:classappend="${delta != null and T(java.lang.Math).abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${delta != null ? (delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1) : '—'}">-1.5</td>
-                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
-                    <td th:if="${status.name() == 'FINAL' and prediction.actualTotal != null}"
-                        th:with="err=${prediction.actualTotal - prediction.masseyTotal.total}"
-                        th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+2.6</td>
-                </tr>
-                <!-- Bradley-Terry win prob -->
-                <tr th:if="${prediction.bradleyTerry != null}">
-                    <td>DeepFij Win Probability</td>
-                    <td>
-                        <span th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerry.awayWinProbability * 100, 1, 0) + '%'}">DUKE 62% / UNC 38%</span>
-                        <br/>
-                        <span class="game-detail-implied-ml"
-                              th:text="${(prediction.bradleyTerry.homeImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerry.homeImpliedMoneyline + ' / ' + (prediction.bradleyTerry.awayImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerry.awayImpliedMoneyline}">-272 / +272</span>
-                    </td>
-                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
-                        th:with="diff=${odds.homeMoneyline != null ? prediction.bradleyTerry.homeImpliedMoneyline - odds.homeMoneyline : null}"
-                        th:classappend="${diff != null and T(java.lang.Math).abs(diff) > 15} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${diff != null ? (diff > 0 ? '+' + diff : diff) : '—'}">—</td>
-                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
-                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">—</td>
-                </tr>
-                <!-- Bradley-Terry Weighted -->
-                <tr th:if="${prediction.bradleyTerryWeighted != null}">
-                    <td>DeepFij Win Probability (Weighted)</td>
-                    <td>
-                        <span th:text="${homeTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.homeWinProbability * 100, 1, 0) + '% / ' + awayTeamAbbr + ' ' + #numbers.formatDecimal(prediction.bradleyTerryWeighted.awayWinProbability * 100, 1, 0) + '%'}">DUKE 64% / UNC 36%</span>
-                        <br/>
-                        <span class="game-detail-implied-ml"
-                              th:text="${(prediction.bradleyTerryWeighted.homeImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerryWeighted.homeImpliedMoneyline + ' / ' + (prediction.bradleyTerryWeighted.awayImpliedMoneyline > 0 ? '+' : '') + prediction.bradleyTerryWeighted.awayImpliedMoneyline}">-272 / +272</span>
-                    </td>
-                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
-                        th:with="diff=${odds.homeMoneyline != null ? prediction.bradleyTerryWeighted.homeImpliedMoneyline - odds.homeMoneyline : null}"
-                        th:classappend="${diff != null and T(java.lang.Math).abs(diff) > 15} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${diff != null ? (diff > 0 ? '+' + diff : diff) : '—'}">—</td>
-                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
-                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}">—</td>
-                </tr>
-                <!-- ML -->
-                <tr th:if="${prediction.ml != null and prediction.ml.featuresComplete}">
-                    <td>DeepFij ML <span class="ml-badge" th:text="${prediction.ml.modelVersion}">v1</span></td>
-                    <td>
-                        <span th:with="s=${prediction.ml.spread}, absS=${s >= 0 ? s : -s}"
-                              th:text="${(s >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absS, 1, 1)}">DUKE -3.8</span>
-                        <br/>
-                        <span class="game-detail-implied-ml"
-                              th:text="${(prediction.ml.homeImpliedMoneyline > 0 ? '+' : '') + prediction.ml.homeImpliedMoneyline + ' / ' + (prediction.ml.awayImpliedMoneyline > 0 ? '+' : '') + prediction.ml.awayImpliedMoneyline}">-220 / +185</span>
-                    </td>
-                    <td th:if="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"
-                        th:with="delta=${odds.spread != null ? prediction.ml.spread - odds.spread.doubleValue() : null}"
-                        th:classappend="${delta != null and T(java.lang.Math).abs(delta) > 3} ? ' game-detail-model-table__delta--alert'"
-                        th:text="${delta != null ? (delta >= 0 ? '+' : '') + #numbers.formatDecimal(delta, 1, 1) : '—'}">+1.2</td>
-                    <td th:unless="${odds != null and (odds.spread != null or odds.homeMoneyline != null)}"></td>
-                    <td th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
-                        th:with="err=${prediction.actualMargin - prediction.ml.spread}"
-                        th:text="${(err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1)}">+3.2</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <!-- Actual result for FINAL -->
-        <div th:if="${status.name() == 'FINAL' and prediction.actualMargin != null}"
-             class="game-detail-actual">
-            Actual:
-            <strong th:text="${prediction.actualMargin >= 0 ? homeTeamName : awayTeamName}">Duke</strong>
-            won by
-            <strong th:text="${prediction.actualMargin >= 0 ? prediction.actualMargin : -prediction.actualMargin}">7</strong>
-            (total <strong th:text="${prediction.actualTotal}">149</strong>)
-        </div>
-    </details>
 </div><!-- end row 1 -->
 
-<!-- ── Row 2: Head-to-Head + Last Five Meetings ──────────────────────────── -->
+<!-- ── Row 2: Last Five Meetings ─────────────────────────────────────────── -->
 <div class="game-detail-row">
-
-    <!-- Head-to-Head Record -->
-    <section class="game-detail-col card">
-        <h2 class="game-detail-section__title">Head-to-Head</h2>
-        <p class="game-detail-h2h__summary">
-            <span th:if="${homeH2HWins == 0 and awayH2HWins == 0}">First meeting between these teams</span>
-            <span th:if="${homeH2HWins > awayH2HWins}"
-                  th:text="${homeTeamName + ' leads ' + homeH2HWins + '-' + awayH2HWins}">Duke leads 15-8</span>
-            <span th:if="${awayH2HWins > homeH2HWins}"
-                  th:text="${awayTeamName + ' leads ' + awayH2HWins + '-' + homeH2HWins}">UNC leads 8-5</span>
-            <span th:if="${homeH2HWins == awayH2HWins and homeH2HWins > 0}"
-                  th:text="'Series tied ' + homeH2HWins + '-' + awayH2HWins">Series tied 10-10</span>
-        </p>
-    </section>
 
     <!-- Last Five Meetings -->
     <section class="game-detail-col card" th:if="${not #lists.isEmpty(lastMeetings)}">
@@ -314,114 +172,212 @@
 <!-- ── Team Comparison Table ─────────────────────────────────────────────── -->
 <section class="game-detail-section card" th:if="${homeStats != null or awayStats != null}">
     <h2 class="game-detail-section__title">Team Comparison</h2>
-    <div class="game-detail-comparison-wrap">
-        <table class="game-detail-comparison-table">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th th:text="${homeTeamName}">Duke</th>
-                    <th th:text="${awayTeamName}">UNC</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Records -->
-                <tr th:if="${homeStats != null and awayStats != null}">
-                    <td class="game-detail-comparison-table__label">Overall</td>
-                    <td th:text="${(homeStats.wins ?: 0) + '-' + (homeStats.losses ?: 0)}">10-8</td>
-                    <td th:text="${(awayStats.wins ?: 0) + '-' + (awayStats.losses ?: 0)}">14-3</td>
-                </tr>
-                <tr th:if="${homeStats != null and awayStats != null}">
-                    <td class="game-detail-comparison-table__label">Conference</td>
-                    <td th:text="${(homeStats.conferenceWins ?: 0) + '-' + (homeStats.conferenceLosses ?: 0)}">2-4</td>
-                    <td th:text="${(awayStats.conferenceWins ?: 0) + '-' + (awayStats.conferenceLosses ?: 0)}">5-1</td>
-                </tr>
-                <tr th:if="${homeStats != null and awayStats != null}">
-                    <td class="game-detail-comparison-table__label">Home</td>
-                    <td th:text="${(homeStats.homeWins ?: 0) + '-' + (homeStats.homeLosses ?: 0)}">7-2</td>
-                    <td th:text="${(awayStats.homeWins ?: 0) + '-' + (awayStats.homeLosses ?: 0)}">10-0</td>
-                </tr>
-                <tr th:if="${homeStats != null and awayStats != null}">
-                    <td class="game-detail-comparison-table__label">Away</td>
-                    <td th:text="${(homeStats.roadWins ?: 0) + '-' + (homeStats.roadLosses ?: 0)}">2-4</td>
-                    <td th:text="${(awayStats.roadWins ?: 0) + '-' + (awayStats.roadLosses ?: 0)}">2-2</td>
-                </tr>
-                <tr>
-                    <td class="game-detail-comparison-table__label">Neutral</td>
-                    <td th:text="${homeNeutralWins + '-' + homeNeutralLosses}">1-2</td>
-                    <td th:text="${awayNeutralWins + '-' + awayNeutralLosses}">2-1</td>
-                </tr>
-                <tr>
-                    <td class="game-detail-comparison-table__label">Last 5</td>
-                    <td th:text="${homeLast5Wins + '-' + homeLast5Losses}">2-3</td>
-                    <td th:text="${awayLast5Wins + '-' + awayLast5Losses}">4-1</td>
-                </tr>
-                <tr th:if="${homeStats != null and awayStats != null}">
-                    <td class="game-detail-comparison-table__label">Streak</td>
-                    <td th:with="s=${homeStats.calcStreak}"
-                        th:if="${s != null}"
-                        th:classappend="${s >= 0} ? ' game-detail-comparison-table__streak--win' : ' game-detail-comparison-table__streak--loss'"
-                        th:text="${s >= 0 ? 'W' + s : 'L' + (-s)}">W3</td>
-                    <td th:if="${homeStats == null or homeStats.calcStreak == null}">—</td>
-                    <td th:with="s=${awayStats.calcStreak}"
-                        th:if="${s != null}"
-                        th:classappend="${s >= 0} ? ' game-detail-comparison-table__streak--win' : ' game-detail-comparison-table__streak--loss'"
-                        th:text="${s >= 0 ? 'W' + s : 'L' + (-s)}">L2</td>
-                    <td th:if="${awayStats == null or awayStats.calcStreak == null}">—</td>
-                </tr>
-                <!-- Scoring -->
-                <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
-                    <td class="game-detail-comparison-table__label">Avg Pts For</td>
-                    <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
-                        th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">68.2</td>
-                    <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
-                        th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">71.2</td>
-                </tr>
-                <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
-                    <td class="game-detail-comparison-table__label">Avg Pts Against</td>
-                    <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
-                        th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">62.1</td>
-                    <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
-                        th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">58.5</td>
-                </tr>
-                <!-- Ratings -->
-                <tr>
-                    <td class="game-detail-comparison-table__label">Massey</td>
-                    <td th:if="${homeMassey != null}"
-                        th:text="${#numbers.formatDecimal(homeMassey.rating, 1, 1) + ' (#' + homeMassey.rank + ')'}">68.2 (#232)</td>
-                    <td th:unless="${homeMassey != null}">—</td>
-                    <td th:if="${awayMassey != null}"
-                        th:text="${#numbers.formatDecimal(awayMassey.rating, 1, 1) + ' (#' + awayMassey.rank + ')'}">71.2 (#150)</td>
-                    <td th:unless="${awayMassey != null}">—</td>
-                </tr>
-                <tr>
-                    <td class="game-detail-comparison-table__label">Bradley-Terry</td>
-                    <td th:if="${homeBT != null}"
-                        th:text="${#numbers.formatDecimal(homeBT.rating, 1, 2) + ' (#' + homeBT.rank + ')'}">-0.18 (#210)</td>
-                    <td th:unless="${homeBT != null}">—</td>
-                    <td th:if="${awayBT != null}"
-                        th:text="${#numbers.formatDecimal(awayBT.rating, 1, 2) + ' (#' + awayBT.rank + ')'}">1.39 (#14)</td>
-                    <td th:unless="${awayBT != null}">—</td>
-                </tr>
-                <tr>
-                    <td class="game-detail-comparison-table__label">W. Bradley-Terry</td>
-                    <td th:if="${homeBTW != null}"
-                        th:text="${#numbers.formatDecimal(homeBTW.rating, 1, 2) + ' (#' + homeBTW.rank + ')'}">-0.20 (#215)</td>
-                    <td th:unless="${homeBTW != null}">—</td>
-                    <td th:if="${awayBTW != null}"
-                        th:text="${#numbers.formatDecimal(awayBTW.rating, 1, 2) + ' (#' + awayBTW.rank + ')'}">1.41 (#12)</td>
-                    <td th:unless="${awayBTW != null}">—</td>
-                </tr>
-                <tr>
-                    <td class="game-detail-comparison-table__label">RPI</td>
-                    <td th:if="${homeSnap != null and homeSnap.rpi != null}"
-                        th:text="${#numbers.formatDecimal(homeSnap.rpi, 1, 3) + (homeRpiRank != null ? ' (#' + homeRpiRank + ')' : '')}">0.568 (#67)</td>
-                    <td th:unless="${homeSnap != null and homeSnap.rpi != null}">—</td>
-                    <td th:if="${awaySnap != null and awaySnap.rpi != null}"
-                        th:text="${#numbers.formatDecimal(awaySnap.rpi, 1, 3) + (awayRpiRank != null ? ' (#' + awayRpiRank + ')' : '')}">0.613 (#15)</td>
-                    <td th:unless="${awaySnap != null and awaySnap.rpi != null}">—</td>
-                </tr>
-            </tbody>
-        </table>
+    <div class="game-detail-comparison-grid">
+
+        <!-- Column 1: Records & Ratings -->
+        <div class="game-detail-comparison-wrap">
+            <table class="game-detail-comparison-table">
+                <thead>
+                    <tr>
+                        <th>Record &amp; Ratings</th>
+                        <th th:text="${homeTeamAbbr}">DUKE</th>
+                        <th th:text="${awayTeamAbbr}">UNC</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Records -->
+                    <tr th:if="${homeStats != null and awayStats != null}">
+                        <td class="game-detail-comparison-table__label">Overall</td>
+                        <td th:text="${(homeStats.wins ?: 0) + '-' + (homeStats.losses ?: 0)}">10-8</td>
+                        <td th:text="${(awayStats.wins ?: 0) + '-' + (awayStats.losses ?: 0)}">14-3</td>
+                    </tr>
+                    <tr th:if="${homeStats != null and awayStats != null}">
+                        <td class="game-detail-comparison-table__label">Conference</td>
+                        <td th:text="${(homeStats.conferenceWins ?: 0) + '-' + (homeStats.conferenceLosses ?: 0)}">2-4</td>
+                        <td th:text="${(awayStats.conferenceWins ?: 0) + '-' + (awayStats.conferenceLosses ?: 0)}">5-1</td>
+                    </tr>
+                    <tr th:if="${homeStats != null and awayStats != null}">
+                        <td class="game-detail-comparison-table__label">Home</td>
+                        <td th:text="${(homeStats.homeWins ?: 0) + '-' + (homeStats.homeLosses ?: 0)}">7-2</td>
+                        <td th:text="${(awayStats.homeWins ?: 0) + '-' + (awayStats.homeLosses ?: 0)}">10-0</td>
+                    </tr>
+                    <tr th:if="${homeStats != null and awayStats != null}">
+                        <td class="game-detail-comparison-table__label">Away</td>
+                        <td th:text="${(homeStats.roadWins ?: 0) + '-' + (homeStats.roadLosses ?: 0)}">2-4</td>
+                        <td th:text="${(awayStats.roadWins ?: 0) + '-' + (awayStats.roadLosses ?: 0)}">2-2</td>
+                    </tr>
+                    <tr>
+                        <td class="game-detail-comparison-table__label">Neutral</td>
+                        <td th:text="${homeNeutralWins + '-' + homeNeutralLosses}">1-2</td>
+                        <td th:text="${awayNeutralWins + '-' + awayNeutralLosses}">2-1</td>
+                    </tr>
+                    <tr>
+                        <td class="game-detail-comparison-table__label">Last 5</td>
+                        <td th:text="${homeLast5Wins + '-' + homeLast5Losses}">2-3</td>
+                        <td th:text="${awayLast5Wins + '-' + awayLast5Losses}">4-1</td>
+                    </tr>
+                    <tr th:if="${homeStats != null and awayStats != null}">
+                        <td class="game-detail-comparison-table__label">Streak</td>
+                        <td th:if="${homeStats.calcStreak != null}">
+                            <span th:if="${homeStats.calcStreak >= 0}" class="game-detail-comparison-table__streak--win"
+                                  th:text="${'W' + homeStats.calcStreak}">W3</span>
+                            <span th:if="${homeStats.calcStreak < 0}" class="game-detail-comparison-table__streak--loss"
+                                  th:text="${'L' + (-homeStats.calcStreak)}">L2</span>
+                        </td>
+                        <td th:if="${homeStats.calcStreak == null}">—</td>
+                        <td th:if="${awayStats.calcStreak != null}">
+                            <span th:if="${awayStats.calcStreak >= 0}" class="game-detail-comparison-table__streak--win"
+                                  th:text="${'W' + awayStats.calcStreak}">W3</span>
+                            <span th:if="${awayStats.calcStreak < 0}" class="game-detail-comparison-table__streak--loss"
+                                  th:text="${'L' + (-awayStats.calcStreak)}">L2</span>
+                        </td>
+                        <td th:if="${awayStats.calcStreak == null}">—</td>
+                    </tr>
+                    <!-- Scoring -->
+                    <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
+                        <td class="game-detail-comparison-table__label">Avg Pts For</td>
+                        <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
+                            th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">68.2</td>
+                        <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
+                            th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">71.2</td>
+                    </tr>
+                    <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
+                        <td class="game-detail-comparison-table__label">Avg Pts Against</td>
+                        <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
+                            th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">62.1</td>
+                        <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
+                            th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">58.5</td>
+                    </tr>
+                    <!-- Ratings -->
+                    <tr>
+                        <td class="game-detail-comparison-table__label">Massey</td>
+                        <td th:if="${homeMassey != null}"
+                            th:text="${#numbers.formatDecimal(homeMassey.rating, 1, 1) + ' (#' + homeMassey.rank + ')'}">68.2 (#232)</td>
+                        <td th:unless="${homeMassey != null}">—</td>
+                        <td th:if="${awayMassey != null}"
+                            th:text="${#numbers.formatDecimal(awayMassey.rating, 1, 1) + ' (#' + awayMassey.rank + ')'}">71.2 (#150)</td>
+                        <td th:unless="${awayMassey != null}">—</td>
+                    </tr>
+                    <tr>
+                        <td class="game-detail-comparison-table__label">Bradley-Terry</td>
+                        <td th:if="${homeBT != null}"
+                            th:text="${#numbers.formatDecimal(homeBT.rating, 1, 2) + ' (#' + homeBT.rank + ')'}">-0.18 (#210)</td>
+                        <td th:unless="${homeBT != null}">—</td>
+                        <td th:if="${awayBT != null}"
+                            th:text="${#numbers.formatDecimal(awayBT.rating, 1, 2) + ' (#' + awayBT.rank + ')'}">1.39 (#14)</td>
+                        <td th:unless="${awayBT != null}">—</td>
+                    </tr>
+                    <tr>
+                        <td class="game-detail-comparison-table__label">W. Bradley-Terry</td>
+                        <td th:if="${homeBTW != null}"
+                            th:text="${#numbers.formatDecimal(homeBTW.rating, 1, 2) + ' (#' + homeBTW.rank + ')'}">-0.20 (#215)</td>
+                        <td th:unless="${homeBTW != null}">—</td>
+                        <td th:if="${awayBTW != null}"
+                            th:text="${#numbers.formatDecimal(awayBTW.rating, 1, 2) + ' (#' + awayBTW.rank + ')'}">1.41 (#12)</td>
+                        <td th:unless="${awayBTW != null}">—</td>
+                    </tr>
+                    <tr>
+                        <td class="game-detail-comparison-table__label">RPI</td>
+                        <td th:if="${homeSnap != null and homeSnap.rpi != null}"
+                            th:text="${#numbers.formatDecimal(homeSnap.rpi, 1, 3) + (homeRpiRank != null ? ' (#' + homeRpiRank + ')' : '')}">0.568 (#67)</td>
+                        <td th:unless="${homeSnap != null and homeSnap.rpi != null}">—</td>
+                        <td th:if="${awaySnap != null and awaySnap.rpi != null}"
+                            th:text="${#numbers.formatDecimal(awaySnap.rpi, 1, 3) + (awayRpiRank != null ? ' (#' + awayRpiRank + ')' : '')}">0.613 (#15)</td>
+                        <td th:unless="${awaySnap != null and awaySnap.rpi != null}">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Column 2: Shooting, Rebounding & Four Factors -->
+        <div class="game-detail-comparison-wrap">
+            <table class="game-detail-comparison-table">
+                <thead>
+                    <tr>
+                        <th>Shooting &amp; Four Factors</th>
+                        <th th:text="${homeTeamAbbr}">DUKE</th>
+                        <th th:text="${awayTeamAbbr}">UNC</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Shooting -->
+                    <tr th:with="h=${homeDerived['fg_pct']}, a=${awayDerived['fg_pct']}">
+                        <td class="game-detail-comparison-table__label">FG%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">45.2%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">47.1%</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['fg3_pct']}, a=${awayDerived['fg3_pct']}">
+                        <td class="game-detail-comparison-table__label">3PT%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">34.8%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">36.0%</td>
+                    </tr>
+                    <!-- Rebounding -->
+                    <tr th:with="h=${homeDerived['rpg']}, a=${awayDerived['rpg']}">
+                        <td class="game-detail-comparison-table__label">REB / G</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value, 1, 1) : '—'}">34.1</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value, 1, 1) : '—'}">31.8</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['orpg']}, a=${awayDerived['orpg']}">
+                        <td class="game-detail-comparison-table__label">OREB / G</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value, 1, 1) : '—'}">10.2</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value, 1, 1) : '—'}">9.1</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['ast_to_ratio']}, a=${awayDerived['ast_to_ratio']}">
+                        <td class="game-detail-comparison-table__label">AST / TO</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value, 1, 2) : '—'}">1.35</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value, 1, 2) : '—'}">1.12</td>
+                    </tr>
+                    <!-- Four Factors: Offense -->
+                    <tr class="game-detail-comparison-table__group">
+                        <td colspan="3">Four Factors — Offense</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['efg_pct']}, a=${awayDerived['efg_pct']}">
+                        <td class="game-detail-comparison-table__label">eFG%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">52.0%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">54.3%</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['tov_rate']}, a=${awayDerived['tov_rate']}">
+                        <td class="game-detail-comparison-table__label">TOV%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">17.5%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">15.2%</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['orb_pct']}, a=${awayDerived['orb_pct']}">
+                        <td class="game-detail-comparison-table__label">ORB%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">30.1%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">27.8%</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['ft_rate']}, a=${awayDerived['ft_rate']}">
+                        <td class="game-detail-comparison-table__label">FT Rate</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">28.4%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">31.0%</td>
+                    </tr>
+                    <!-- Four Factors: Defense -->
+                    <tr class="game-detail-comparison-table__group">
+                        <td colspan="3">Four Factors — Defense</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['opp_efg_pct']}, a=${awayDerived['opp_efg_pct']}">
+                        <td class="game-detail-comparison-table__label">Opp eFG%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">49.0%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">47.5%</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['opp_tov_rate']}, a=${awayDerived['opp_tov_rate']}">
+                        <td class="game-detail-comparison-table__label">Opp TOV%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">18.0%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">19.2%</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['drb_pct']}, a=${awayDerived['drb_pct']}">
+                        <td class="game-detail-comparison-table__label">DRB%</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">70.5%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">72.1%</td>
+                    </tr>
+                    <tr th:with="h=${homeDerived['opp_ft_rate']}, a=${awayDerived['opp_ft_rate']}">
+                        <td class="game-detail-comparison-table__label">Opp FT Rate</td>
+                        <td th:text="${h != null ? #numbers.formatDecimal(h.value * 100, 1, 1) + '%' : '—'}">30.0%</td>
+                        <td th:text="${a != null ? #numbers.formatDecimal(a.value * 100, 1, 1) + '%' : '—'}">26.5%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </section>
 

@@ -40,6 +40,17 @@ public interface TeamStatSnapshotRepository extends JpaRepository<TeamStatSnapsh
             @Param("seasonId") Long seasonId,
             @Param("date") LocalDate date);
 
+    /** All stats for one team at the most recent snapshot date strictly before the given date. */
+    @Query(value = "SELECT * FROM team_stat_snapshots " +
+                   "WHERE team_id = :teamId AND season_id = :seasonId " +
+                   "  AND snapshot_date = (SELECT MAX(snapshot_date) FROM team_stat_snapshots " +
+                   "    WHERE team_id = :teamId AND season_id = :seasonId AND snapshot_date < :beforeDate)",
+           nativeQuery = true)
+    List<TeamStatSnapshot> findLatestBefore(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId,
+            @Param("beforeDate") LocalDate beforeDate);
+
     @Query("SELECT MAX(s.snapshotDate) FROM TeamStatSnapshot s WHERE s.season.id = :seasonId")
     Optional<LocalDate> findLatestSnapshotDate(@Param("seasonId") Long seasonId);
 
