@@ -3,4 +3,5 @@
 # the netdata role's password). The netdata role is created by Flyway migration V21.
 jobs:
   - name: local
+    autodetection_retry: 60
     dsn: 'postgres://netdata:__NETDATA_DB_PASSWORD__@db:5432/__POSTGRES_DB__?sslmode=disable'
