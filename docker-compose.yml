@@ -63,6 +63,14 @@ services:
     depends_on:
       - nginx
 
+  logrotate:
+    image: alpine:3.20
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/rotate-logs.sh"]
+    volumes:
+      - nginx_logs:/var/log/nginx
+      - ./scripts/rotate-logs.sh:/rotate-logs.sh:ro
+
   netdata:
     image: netdata/netdata:stable
     container_name: netdata

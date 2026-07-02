@@ -133,6 +133,7 @@ Docker Compose services:
 - **nginx**: Reverse proxy on ports 80/443 with Let's Encrypt SSL
 - **goaccess**: real-time analytics from the nginx access log (port 8888, TLS + basic auth)
 - **netdata**: monitoring (see below)
+- **logrotate**: alpine sidecar running `scripts/rotate-logs.sh` — copy-truncate rotation of `goaccess.log`/`access_timed.log` at 50MB, 3 gzipped generations (no signals needed; nginx/goaccess/netdata tolerate truncation)
 
 Files to copy to server: `.env`, `config/mysite`, `docker-compose.yml`, `netdata/`. The `deploy.sh` script handles the full build-transfer-restart cycle.
 
