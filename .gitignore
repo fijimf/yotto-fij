@@ -26,6 +26,9 @@ Thumbs.db
 # Visual brainstorming session artifacts
 .superpowers/
 
+# Netdata postgres collector config — rendered from .env by deploy.sh (contains DB password)
+/netdata/go.d/postgres.conf
+
 # ML model artifacts (runtime artifacts produced by trainer; not versioned)
 models/*.onnx
 models/features.json

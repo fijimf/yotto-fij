@@ -1,0 +1,6 @@
+# Template for the postgres collector config. deploy.sh renders this to postgres.conf
+# on the server, substituting values from .env (postgres.conf is gitignored — it holds
+# the netdata role's password). The netdata role is created by Flyway migration V21.
+jobs:
+  - name: local
+    dsn: 'postgres://netdata:__NETDATA_DB_PASSWORD__@db:5432/__POSTGRES_DB__?sslmode=disable'
