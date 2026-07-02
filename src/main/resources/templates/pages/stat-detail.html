@@ -40,25 +40,25 @@
     <!-- Charts row -->
     <div class="stat-detail__charts">
 
-        <!-- Per-game scatter -->
+        <!-- Entering-value scatter -->
         <div class="card stat-detail__card">
-            <h3 class="stat-detail__card-title">Per-Game Outcomes</h3>
+            <h3 class="stat-detail__card-title">Game Outcomes</h3>
             <p class="stat-detail__card-sub">
-                Each point is a completed game — x: home value, y: away value.
+                Each point is a completed game — x: home team's season-to-date value entering the game, y: away team's.
                 <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--win"></span>home win</span>
                 <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--loss"></span>home loss</span>
             </p>
             <div id="stat-scatter" class="stat-detail__chart"></div>
             <div class="stat-detail__chart-empty" th:if="${statPage.scatter().points().isEmpty()}">
-                No completed games with box scores yet.
+                No completed games where both teams had a prior season-to-date value yet.
             </div>
 
             <p class="stat-detail__metric" th:if="${statPage.scatter().predictive().show()}">
                 Predicts home win:
                 <strong th:text="'AUC ' + ${#numbers.formatDecimal(statPage.scatter().predictive().auc(), 1, 2)}">AUC 0.78</strong>
                 <span class="text-muted" th:if="${statPage.scatter().predictive().naiveAccuracy() != null}"
-                      th:text="'(better value wins ' + ${#numbers.formatDecimal(statPage.scatter().predictive().naiveAccuracy() * 100, 1, 0)} + '% of games)'">
-                    (better value wins 71% of games)</span>
+                      th:text="'(team entering with the better value wins ' + ${#numbers.formatDecimal(statPage.scatter().predictive().naiveAccuracy() * 100, 1, 0)} + '% of games)'">
+                    (team entering with the better value wins 71% of games)</span>
             </p>
             <p class="stat-detail__metric text-muted"
                th:unless="${statPage.scatter().predictive().show()}">
@@ -67,8 +67,8 @@
 
             <p class="stat-detail__caveat text-muted"
                th:text="'Based on ' + ${#numbers.formatInteger(statPage.scatter().gamesPlotted(), 1)} + ' of '
-                        + ${#numbers.formatInteger(statPage.scatter().gamesTotal(), 1)} + ' completed games with box scores.'">
-                Based on 1,204 of 1,330 completed games with box scores.
+                        + ${#numbers.formatInteger(statPage.scatter().gamesTotal(), 1)} + ' completed games where both teams entered with a season-to-date value.'">
+                Based on 1,204 of 1,330 completed games where both teams entered with a season-to-date value.
             </p>
         </div>
 
@@ -103,6 +103,9 @@
                    hx-target="#stat-rank-container"
                    hx-trigger="change"
                    name="date" />
+            <input type="search" id="stat-team-find" class="form-input form-input--sm stat-detail__find"
+                   placeholder="Find team&hellip;" autocomplete="off" spellcheck="false"
+                   aria-label="Find a team in the rankings" />
         </div>
         <div id="stat-rank-container">
             <div th:replace="~{fragments/stat-rank-table :: rank-table}"></div>

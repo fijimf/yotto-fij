@@ -1,19 +1,30 @@
 # Per-Statistic Pages — Specification
 
-Status: **APPROVED — ready to build** · Owner: web/stats · Last updated: 2026-06-27
+Status: **APPROVED — built; revised** · Owner: web/stats · Last updated: 2026-07-02
 
 > All open questions resolved; see §11 for the decision log. This section is the
 > source of truth — the body below already reflects the answers.
+>
+> **Revision R1 (2026-07-02):** the scatter originally plotted each team's value
+> *in that game* (computed from the game's own box score). That was a
+> miscommunication of intent — it made pace degenerate (both teams share one
+> per-game pace estimate, so every point sat on y = x) and made the AUC partly
+> tautological for outcome-determining stats. The scatter now plots each team's
+> **season-to-date value entering the game** (latest snapshot strictly before
+> the game date), making the predictive block a genuine pregame measure. §1,
+> §6.2, §6.3, and §9 below reflect the revised semantics; decision D2 is
+> superseded (see §11).
 
 ## 1. Goal
 
 A dedicated web page for every derived team statistic. Each page explains the
 stat in plain language and visualizes it two ways, side by side:
 
-1. **Game scatter** — one point per completed game: x = home team's value of the
-   stat in that game, y = away team's value, colored by who won (home win =
-   green, home loss = red). If the stat alone predicts the winner reasonably
-   well, surface a single headline number for that.
+1. **Game scatter** — one point per completed game: x = home team's
+   season-to-date value of the stat *entering* the game (as of the day before),
+   y = away team's, colored by who won (home win = green, home loss = red). If
+   the entering value alone predicts the winner reasonably well, surface a
+   single headline number for that.
 2. **Team distribution** — a histogram of the season-to-date value for every
    team, with a kernel-density (KDE) curve behind the bars, and a one-line
    summary of population min / max / mean / std dev underneath.
@@ -34,7 +45,7 @@ automatically yields a page).
   existing season-stats leaderboard page (unchanged except we add links into the
   new pages from it).
 - No new persisted tables or Flyway migrations. All data comes from existing
-  snapshot/population tables plus on-the-fly per-game computation.
+  snapshot/population tables.
 
 ## 3. Routes & discovery
 
@@ -53,7 +64,8 @@ automatically yields a page).
   season) so a user can view the page as of a past date. **Both the distribution
   and the scatter respect this date**: the distribution/ranking use the snapshot
   on that date; the scatter uses every FINAL game in the season **up to and
-  including that date** (whole season when no date given).
+  including that date**, with each team's entering value drawn from its latest
+  snapshot strictly before the game.
 
 **Discovery (no top-level nav link).** The pages are reachable only via links
 from other pages — there is **no** "Stats" entry added to `fragments/nav.html`:
@@ -72,19 +84,20 @@ from other pages — there is **no** "Stats" entry added to `fragments/nav.html`
 │  Shooting efficiency that counts 3-pointers as worth 1.5×...          │  ← description (omitted for obvious stats)
 │  Higher is better · league avg 50.4% · as of Feb 14, 2026            │  ← quick context line
 ├──────────────────────────────────┬──────────────────────────────────┤
-│  PER-GAME OUTCOMES               │  TEAM DISTRIBUTION                 │
+│  GAME OUTCOMES                   │  TEAM DISTRIBUTION                 │
 │                                  │                                   │
-│   away ▲                         │   ▁▃▅█▇▅▃▁  (histogram + KDE)      │
+│   away ▲  (entering values)      │   ▁▃▅█▇▅▃▁  (histogram + KDE)      │
 │   stat │   · ·● ●·               │                                   │
 │        │ ●· ●●· ·●  (green=home  │                                   │
 │        │·● ●·● ·● ·   win,       │                                   │
 │        └───────────► home stat   │                                   │
 │                                  │                                   │
-│   Predicts home win: AUC 0.78    │   min 41.2  max 58.9              │
-│   (better value wins 71% of      │   mean 50.4  std 3.1  (n=362)     │
-│    games)                        │                                   │
+│   Predicts home win: AUC 0.60    │   min 41.2  max 58.9              │
+│   (team entering with the        │   mean 50.4  std 3.1  (n=362)     │
+│    better value wins 58%)        │                                   │
 │   based on 1,204 of 1,330 games  │                                   │
-│   with box scores                │                                   │
+│   where both teams had a         │                                   │
+│   season-to-date value           │                                   │
 ├──────────────────────────────────┴──────────────────────────────────┤
 │  TEAM RANKINGS                                          [date ▼]      │
 │  #   Team            Value     z     Pctl    GP                       │
@@ -98,8 +111,8 @@ from other pages — there is **no** "Stats" entry added to `fragments/nav.html`
 - Title uses the **full name with no abbreviation** (catalog `title`).
 - Description shown only when catalog `description` is non-null (obvious stats —
   e.g. `fg_pct`, `rpg`, `apg` — have `null` description and render no blurb).
-- Scatter carries a coverage caveat line: *"based on N of M completed games with
-  box scores"* (§6.2).
+- Scatter carries a coverage caveat line: *"based on N of M completed games
+  where both teams entered with a season-to-date value"* (§6.2).
 
 ## 5. The missing piece: a standalone stat metadata catalog
 
@@ -209,46 +222,36 @@ the stat as of the chosen date. This is already computed and stored.
   pre-derived geometry. Bin count via Freedman–Diaconis with a sane clamp
   (e.g. 8–30 bins); KDE via Gaussian kernel, bandwidth by Silverman's rule.
 
-### 6.2 Per-game scatter (left chart) — compute per game, reuse the formula
+### 6.2 Entering-value scatter (left chart) — pregame snapshot lookup (R1)
 
-There is **no stored per-game stat value** — only cumulative snapshots and raw
-`TeamGameStats`. But `BoxScoreStatCalculator.TeamAcc.addGame(...)` already
-computes exactly one game's contribution, and the registry extractors run over a
-`TeamAcc`. So a single-game value is *a `TeamAcc` with exactly one game added*,
-and using it guarantees the scatter axes match the stat's real definition.
+Each axis is the team's **season-to-date value entering the game**: its latest
+`TeamStatSnapshot` **strictly before** the game date. Strictly-before matters —
+a snapshot on date D already includes games played on D, so a same-day lookup
+would leak the game's own box score into its "entering" value.
 
-**Decision (D2):** expose per-game computation from `BoxScoreStatCalculator`
-rather than duplicating formulas. Add a public method, e.g.:
-
-```java
-/** All stat values for one finished game, from each team's perspective.
- *  Returns null entries for stats whose denominator is 0 that game. */
-public static Map<String, GamePoint> perGame(Game g,
-                                              TeamGameStats home,
-                                              TeamGameStats away);
-// GamePoint = (Double homeValue, Double awayValue)  // home = own from home POV
-```
-
-Internally: build a one-game `TeamAcc` for home (own=home box, opp=away box) and
-one for away, run every `StatDef.extractor`. This reuses `isUsable`, the
-possession estimator, and all 26 formulas with zero duplication. (`perGame`
-lives on the registry/calculator; this is the *only* registry change — the
-display catalog stays standalone per D1.)
+> Superseded (D2, R1): the original design computed each team's value *in that
+> game* via a one-game `TeamAcc` (`BoxScoreStatCalculator.perGame`). That made
+> pace degenerate — per-game pace averages both teams' possession estimates, so
+> home and away pace were identical by construction and every point sat on
+> y = x — and made the AUC partly tautological (e.g. in-game `off_efficiency`
+> essentially *is* the game's outcome). `perGame` has been removed.
 
 **Assembling the scatter dataset (server-side):**
 1. Games: `gameRepository.findBySeasonIdAndStatus(seasonId, FINAL)`, filtered to
    `gameDate <= date`. Call this count **M** (the denominator of the caveat).
-2. Box scores: load `teamGameStatsRepository.findBySeasonId(seasonId)` once and
-   group by `gameId` in memory (one query, not 2×N — same one-pass spirit as the
-   stats pipeline).
-3. Skip games where either box score is missing/`!isUsable` (mirrors the
-   calculator — never plot half a game).
-4. Each surviving game → one point: `{ x: homeValue, y: awayValue,
-   homeWin: homeScore > awayScore }`. Drop points where either value is null
-   (zero denominator that game). Call the surviving count **N**.
+2. Snapshots: one query for the stat's `(teamId, snapshotDate, value)` rows up
+   to `date` (`findValuesBySeasonStatUpTo`), grouped into a per-team
+   `TreeMap<LocalDate, Double>` in memory (one query, not 2×N).
+3. Per game, each team's entering value = `TreeMap.lowerEntry(gameDate)`
+   (strictly before). Skip the game when either team has no prior snapshot —
+   every team's *first* game of the season always drops out, as do early games
+   before stats were first calculated.
+4. Each surviving game → one point: `{ x: homeEntering, y: awayEntering,
+   homeWin: homeScore > awayScore }`. Call the surviving count **N**.
 
-**Coverage caveat (A8):** always render *"based on N of M completed games with
-box scores"* under the scatter so a sparse early-season plot isn't misread.
+**Coverage caveat (A8):** always render *"based on N of M completed games where
+both teams entered with a season-to-date value"* under the scatter so a sparse
+early-season plot isn't misread.
 
 Point colour: `homeWin` → success green (`--color-success`), else danger red
 (`--color-danger`).
@@ -261,26 +264,28 @@ points, which SVG handles fine and keeps per-point hover trivial.
 "How good is this value alone at predicting the winner." Computed server-side
 over the scatter games, **direction-aware** via `higherIsBetter`.
 
-Define, per game, the home advantage in the stat:
-`d = (homeValue − awayValue)` if `higherIsBetter` else `(awayValue − homeValue)`.
+Define, per game, the home advantage in the **entering** stat:
+`d = (homeEntering − awayEntering)` if `higherIsBetter` else the negation.
 Outcome label `y = homeWin`.
 
 The **headline metric is AUC** — area under the ROC of `d` ranking home wins;
 equivalently the Mann–Whitney statistic = P(d higher in a home win than in a
 home loss). Robust to scale, 0.5 = coin flip, 1.0 = perfect. Computed by
-rank-sum, O(n log n). Displayed as *"Predicts home win: AUC 0.78."*
+rank-sum, O(n log n). Displayed as *"Predicts home win: AUC 0.60."*
 
 Underneath, as a plain-language gloss, the **naive-rule accuracy** — "the team
-with the better single-game value wins": `mean( sign(d) == (homeWin?+1:−1) )`,
-ties excluded — rendered as *"(better value wins 71% of games)."*
+entering with the better value wins": `mean( sign(d) == (homeWin?+1:−1) )`,
+ties excluded — rendered as *"(team entering with the better value wins 58% of
+games)."*
 
 **Gate (A4):** show the predictive block **only when AUC ≥ 0.55**; otherwise
 render a muted *"weak standalone predictor"* note. (The accuracy gloss rides
 along with the AUC block — it is not independently gated.)
 
-> Note: this measures the *single-game* stat's correlation with *that game's*
-> result, the most honest reading of the request ("how good this value alone is
-> in predicting winner"). It is descriptive, not a trained model.
+> Note (R1): because the axes are pregame values, this is a genuine predictive
+> measure — no leakage from the game being predicted. Expect materially lower
+> AUCs than the original in-game version (good stats land roughly 0.55–0.65),
+> so the 0.55 gate now does real work. It is descriptive, not a trained model.
 
 ### 6.4 Ranking table (below charts)
 
@@ -334,10 +339,12 @@ the page fast and testable (the math gets unit tests, not the DOM).
 
 ### 7.1 Reuse / refactor notes
 
-- `BoxScoreStatCalculator`: add **only** the public `perGame(...)` (D2).
-  `TeamAcc`, `isUsable`, extractors stay private and shared. The pipeline
-  contract (`DailyStatCalculator.StatMeta`) is **not** touched — display
-  metadata lives in the standalone `StatCatalog` (D1).
+- `BoxScoreStatCalculator` is **untouched** (R1 — the earlier `perGame` addition
+  was removed with the in-game scatter). The pipeline contract
+  (`DailyStatCalculator.StatMeta`) is not touched — display metadata lives in
+  the standalone `StatCatalog` (D1).
+- `TeamStatSnapshotRepository.findValuesBySeasonStatUpTo` — slim projection
+  (`teamId`, `snapshotDate`, `value`) feeding the entering-value lookup.
 - A small `StatMath` helper (histogram binning, Gaussian KDE, AUC, naive
   accuracy) — pure functions, unit-tested independently.
 
@@ -351,7 +358,7 @@ the page fast and testable (the math gets unit tests, not the DOM).
   (inline JSON), renders:
   - `renderScatter(el, data)` — **SVG**, square plot, shared x/y domain
     `[axisMin, axisMax]`, faint y=x diagonal, points colored by `homeWin`, hover
-    tooltip (teams + score + both values). No canvas path — SVG always (A3).
+    tooltip (both entering values + result). No canvas path — SVG always (A3).
   - `renderHistogram(el, data)` — bars from `binEdges/binCounts` + KDE path from
     `kde.x/kde.y` on a secondary density scale; mean line marker.
 - **CSS:** add a `stat-detail` block to `main.css` reusing existing tokens
@@ -363,9 +370,12 @@ the page fast and testable (the math gets unit tests, not the DOM).
 
 ## 9. Edge cases
 
-- **No box scores yet** (early season / stats not scraped): scatter empty →
-  render an empty-state ("No completed games with box scores yet"); hide the
-  predictive block. The coverage caveat still shows `0 of M`.
+- **No snapshots yet** (early season / stats not calculated): scatter empty →
+  render an empty-state ("No completed games where both teams had a prior
+  season-to-date value yet"); hide the predictive block. The coverage caveat
+  still shows `0 of M`.
+- **Season openers** (R1): every team's first game has no prior snapshot, so
+  it never plots — N is structurally below M even with full box-score coverage.
 - **Stat null for a team that date** (zero denominator cumulatively): excluded
   from histogram/ranking, consistent with snapshot rows never being written.
 - **Single team / n=1**: percentile formula divides by `(count − 1)` → guard
@@ -383,8 +393,9 @@ the page fast and testable (the math gets unit tests, not the DOM).
 
 - Unit: `StatMath` (binning edges, KDE sample shape, AUC against a hand-checked
   tiny set, naive accuracy with ties).
-- Unit: `BoxScoreStatCalculator.perGame` — a known box score yields the same
-  value as a one-game cumulative snapshot (guards the reuse claim).
+- Integration: entering-value lookup (R1) — a game played *on* a snapshot date
+  uses the previous snapshot (strictly-before, no leakage), and games with no
+  prior snapshot for either team are dropped from N.
 - Unit: **catalog completeness** — every `BoxScoreStatCalculator.statMetas()`
   name has a `StatCatalog` entry with a title + format, and the catalog's
   `higherIsBetter` matches the registry for each (guards the standalone-catalog
@@ -401,6 +412,12 @@ the page fast and testable (the math gets unit tests, not the DOM).
 - **A2 (copy):** **No review needed** — §5.1 titles/descriptions are final.
 - **A3 (scatter scale):** **SVG always**, and the scatter **respects `?date=`**
   (games up to the chosen date).
+- **D2′ / R1 (2026-07-02, supersedes D2):** the scatter plots **entering
+  season-to-date values** (latest snapshot strictly before the game date), not
+  in-game values. The in-game design was a miscommunication of intent, exposed
+  by the pace page (per-game pace is identical for both teams by construction).
+  `BoxScoreStatCalculator.perGame` was removed; the scatter reads
+  `TeamStatSnapshot` instead.
 - **A4 (predictive metric):** **AUC**, gated at **≥ 0.55**; naive-rule accuracy
   shown as a gloss beneath it.
 - **A5 (format granularity):** **Keep** the PERCENT / RATE split.

@@ -5,12 +5,10 @@ import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.SeasonPopulationStat;
 import com.yotto.basketball.entity.Team;
-import com.yotto.basketball.entity.TeamGameStats;
 import com.yotto.basketball.entity.TeamStatSnapshot;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonPopulationStatRepository;
 import com.yotto.basketball.repository.SeasonRepository;
-import com.yotto.basketball.repository.TeamGameStatsRepository;
 import com.yotto.basketball.repository.TeamStatSnapshotRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
@@ -19,15 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.TreeMap;
 
 /** Builds the {@link StatPageDto} for one stat in one season as of a snapshot date. */
 @Service
 public class StatPageService {
 
-    /** AUC at or above which the single-game predictiveness block is worth showing. */
+    /** AUC at or above which the entering-value predictiveness block is worth showing. */
     private static final double AUC_SHOW_THRESHOLD = 0.55;
     private static final int KDE_SAMPLES = 100;
 
@@ -35,18 +34,15 @@ public class StatPageService {
     private final TeamStatSnapshotRepository statSnapshotRepository;
     private final SeasonPopulationStatRepository popStatRepository;
     private final GameRepository gameRepository;
-    private final TeamGameStatsRepository teamGameStatsRepository;
 
     public StatPageService(SeasonRepository seasonRepository,
                            TeamStatSnapshotRepository statSnapshotRepository,
                            SeasonPopulationStatRepository popStatRepository,
-                           GameRepository gameRepository,
-                           TeamGameStatsRepository teamGameStatsRepository) {
+                           GameRepository gameRepository) {
         this.seasonRepository = seasonRepository;
         this.statSnapshotRepository = statSnapshotRepository;
         this.popStatRepository = popStatRepository;
         this.gameRepository = gameRepository;
-        this.teamGameStatsRepository = teamGameStatsRepository;
     }
 
     @Transactional(readOnly = true)
@@ -141,42 +137,52 @@ public class StatPageService {
     private StatPageDto.Scatter buildScatter(Long seasonId, String statName, boolean higherIsBetter, LocalDate date) {
         List<Game> games = gameRepository.findBySeasonIdAndStatus(seasonId, Game.GameStatus.FINAL).stream()
                 .filter(g -> date == null || !g.getGameDate().toLocalDate().isAfter(date))
+                .sorted(Comparator.comparing(Game::getGameDate))
                 .toList();
         int gamesTotal = games.size();
 
-        Map<Long, List<TeamGameStats>> statsByGame = teamGameStatsRepository.findBySeasonId(seasonId).stream()
-                .collect(Collectors.groupingBy(s -> s.getGame().getId()));
+        // Each team's snapshot series, keyed by date for the entering-value lookup.
+        Map<Long, TreeMap<LocalDate, Double>> seriesByTeam = new HashMap<>();
+        if (date != null) {
+            for (TeamStatSnapshotRepository.SnapshotValue v :
+                    statSnapshotRepository.findValuesBySeasonStatUpTo(seasonId, statName, date)) {
+                if (v.getValue() == null) continue;
+                seriesByTeam.computeIfAbsent(v.getTeamId(), k -> new TreeMap<>())
+                        .put(v.getSnapshotDate(), v.getValue());
+            }
+        }
 
         List<StatPageDto.Point> points = new ArrayList<>();
         List<Double> diffs = new ArrayList<>();
         List<Boolean> wins = new ArrayList<>();
 
         for (Game game : games) {
-            List<TeamGameStats> rows = statsByGame.get(game.getId());
-            if (rows == null || rows.size() != 2) continue;
-
-            Long homeId = game.getHomeTeam().getId();
-            TeamGameStats homeStats = rows.stream().filter(r -> r.getTeam().getId().equals(homeId)).findFirst().orElse(null);
-            TeamGameStats awayStats = rows.stream().filter(r -> !r.getTeam().getId().equals(homeId)).findFirst().orElse(null);
-            if (homeStats == null || awayStats == null) continue;
-
-            BoxScoreStatCalculator.GamePoint gp =
-                    BoxScoreStatCalculator.perGame(game, homeStats, awayStats).get(statName);
-            if (gp == null || gp.homeValue() == null || gp.awayValue() == null) continue;
+            if (game.getHomeScore() == null || game.getAwayScore() == null) continue;
+            LocalDate gameDate = game.getGameDate().toLocalDate();
+            Double home = enteringValue(seriesByTeam.get(game.getHomeTeam().getId()), gameDate);
+            Double away = enteringValue(seriesByTeam.get(game.getAwayTeam().getId()), gameDate);
+            if (home == null || away == null) continue;
 
             boolean homeWin = game.getHomeScore() > game.getAwayScore();
-            points.add(new StatPageDto.Point(gp.homeValue(), gp.awayValue(), homeWin));
-
-            double d = higherIsBetter
-                    ? gp.homeValue() - gp.awayValue()
-                    : gp.awayValue() - gp.homeValue();
-            diffs.add(d);
+            points.add(new StatPageDto.Point(home, away, homeWin));
+            diffs.add(higherIsBetter ? home - away : away - home);
             wins.add(homeWin);
         }
 
         double[] axis = axisBounds(points);
         StatPageDto.Predictive predictive = buildPredictive(diffs, wins);
         return new StatPageDto.Scatter(points, axis[0], axis[1], gamesTotal, points.size(), predictive);
+    }
+
+    /**
+     * The team's season-to-date value entering the game: the latest snapshot
+     * strictly before the game date. Snapshots on date D include games played
+     * on D, so a same-day snapshot would leak the game's own box score.
+     */
+    private static Double enteringValue(TreeMap<LocalDate, Double> series, LocalDate gameDate) {
+        if (series == null) return null;
+        Map.Entry<LocalDate, Double> entry = series.lowerEntry(gameDate);
+        return entry != null ? entry.getValue() : null;
     }
 
     /** Shared, padded square domain covering both axes; defaults to [0,1] when empty. */

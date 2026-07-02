@@ -3817,6 +3817,26 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 
 .stat-detail__rankings { margin-top: 1.5rem; }
 .stat-detail__rankings .analytics-date-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.stat-detail__rankings .analytics-date-row .form-input { width: auto; }
+.stat-detail__find { margin-left: auto; flex: 0 1 220px; min-width: 150px; }
+
+/* The rankings scroll on their own so the charts stay put. The existing
+ * .schedule-table-wrap is already the horizontal scroller; making it the
+ * vertical one too keeps the sticky header inside a single scrollport. */
+.stat-detail__rankings .schedule-table-wrap {
+    max-height: 65vh;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+.stat-detail__rankings .schedule-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-bg-surface);
+}
+.stat-detail__rankings tr.stat-row--hit td { background: var(--color-bg-surface-hover); }
+.stat-detail__rankings tr.stat-row--hit td:first-child { box-shadow: inset 3px 0 var(--color-primary); }
 
 .stat-legend { margin-left: 0.6rem; font-size: 0.8rem; color: var(--color-text-muted); }
 .stat-legend__dot {
@@ -3873,4 +3893,7 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 
 @media (max-width: 768px) {
     .stat-detail__charts { grid-template-columns: 1fr; }
+    /* Find box gets its own full-width line under the title/date */
+    .stat-detail__find { flex: 1 1 100%; margin-left: 0; }
+    .stat-detail__rankings .schedule-table-wrap { max-height: 60vh; }
 }

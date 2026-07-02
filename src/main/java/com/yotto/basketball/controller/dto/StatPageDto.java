@@ -38,12 +38,13 @@ public record StatPageDto(
                           double axisMin,
                           double axisMax,
                           int gamesTotal,     // M — completed games up to the date
-                          int gamesPlotted,   // N — games with a usable box score on both sides
+                          int gamesPlotted,   // N — games where both teams had an entering value
                           Predictive predictive) {}
 
+    /** x/y are each team's season-to-date value entering the game (pregame snapshot). */
     public record Point(double x, double y, boolean homeWin) {}
 
-    /** AUC of the (direction-aware) home stat advantage predicting a home win. */
+    /** AUC of the (direction-aware) home entering-stat advantage predicting a home win. */
     public record Predictive(Double auc, Double naiveAccuracy, boolean show) {}
 
     public record RankRow(Integer rank,

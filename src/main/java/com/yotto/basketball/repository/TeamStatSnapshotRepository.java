@@ -40,6 +40,22 @@ public interface TeamStatSnapshotRepository extends JpaRepository<TeamStatSnapsh
             @Param("seasonId") Long seasonId,
             @Param("date") LocalDate date);
 
+    /** Slim (team, date, value) row for building in-memory per-team series. */
+    interface SnapshotValue {
+        Long getTeamId();
+        LocalDate getSnapshotDate();
+        Double getValue();
+    }
+
+    /** Scatter: every team's (date, value) series for one stat up to a date. */
+    @Query("SELECT s.team.id AS teamId, s.snapshotDate AS snapshotDate, s.value AS value " +
+           "FROM TeamStatSnapshot s " +
+           "WHERE s.season.id = :seasonId AND s.statName = :statName AND s.snapshotDate <= :maxDate")
+    List<SnapshotValue> findValuesBySeasonStatUpTo(
+            @Param("seasonId") Long seasonId,
+            @Param("statName") String statName,
+            @Param("maxDate") LocalDate maxDate);
+
     /** All stats for one team at the most recent snapshot date strictly before the given date. */
     @Query(value = "SELECT * FROM team_stat_snapshots " +
                    "WHERE team_id = :teamId AND season_id = :seasonId " +

@@ -1,6 +1,7 @@
-/* Per-statistic page charts: a per-game scatter and a team-distribution
- * histogram with a KDE overlay. All numbers are pre-computed server-side
- * (StatPageService) — this file only draws them with D3. */
+/* Per-statistic page charts: a game-outcome scatter (each team's entering
+ * season-to-date value) and a team-distribution histogram with a KDE overlay.
+ * All numbers are pre-computed server-side (StatPageService) — this file only
+ * draws them with D3. */
 (function () {
     "use strict";
 
@@ -49,7 +50,7 @@
 
     function clear(el) { el.innerHTML = ""; }
 
-    // ── per-game scatter ─────────────────────────────────────────────────────────
+    // ── entering-value scatter ───────────────────────────────────────────────────
     function renderScatter(el) {
         var s = data.scatter;
         if (!s || !s.points || s.points.length === 0) return;
@@ -77,7 +78,7 @@
             .call(d3.axisLeft(y).ticks(5).tickFormat(tf))
             .call(function (sel) { sel.selectAll("line,path").attr("stroke", GRID); sel.selectAll("text").attr("fill", AXIS); });
 
-        // y = x reference line (a game both teams matched)
+        // y = x reference line (both teams entered with the same value)
         g.append("line")
             .attr("x1", x(s.axisMin)).attr("y1", y(s.axisMin))
             .attr("x2", x(s.axisMax)).attr("y2", y(s.axisMax))
@@ -96,7 +97,7 @@
             .attr("fill", function (d) { return d.homeWin ? GREEN : RED; })
             .attr("fill-opacity", 0.55)
             .on("mouseenter", function (event, d) {
-                showTip("Home <strong>" + formatValue(d.x, format) + "</strong> · Away <strong>"
+                showTip("Entering: Home <strong>" + formatValue(d.x, format) + "</strong> · Away <strong>"
                     + formatValue(d.y, format) + "</strong><br>" + (d.homeWin ? "Home won" : "Home lost"), event);
             })
             .on("mousemove", function (event, d) {
@@ -179,6 +180,63 @@
         if (histEl) renderHistogram(histEl);
     }
 
+    // ── team finder: highlight matching rows and scroll the table to them ────────
+    function initTeamFinder() {
+        var input = document.getElementById("stat-team-find");
+        var container = document.getElementById("stat-rank-container");
+        if (!input || !container) return;
+
+        var cycleIndex = 0; // which match Enter jumps to next
+
+        function scrollToRow(row) {
+            var wrap = container.querySelector(".schedule-table-wrap");
+            if (!wrap) return;
+            // tr.offsetTop is relative to the table, which starts at the top of
+            // the scrollable wrap — center the row in view
+            var target = row.offsetTop - wrap.clientHeight / 2 + row.offsetHeight / 2;
+            wrap.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+        }
+
+        /** Toggle the hit class on every row; returns the matching rows in rank order. */
+        function applyQuery() {
+            var q = input.value.trim().toLowerCase();
+            var matches = [];
+            container.querySelectorAll("tbody tr").forEach(function (row) {
+                var link = row.querySelector(".schedule-table__opp-link");
+                var name = link ? link.textContent.trim().toLowerCase() : "";
+                var hit = q !== "" && name.indexOf(q) !== -1;
+                row.classList.toggle("stat-row--hit", hit);
+                if (hit) matches.push(row);
+            });
+            return matches;
+        }
+
+        input.addEventListener("input", function () {
+            cycleIndex = 0;
+            var matches = applyQuery();
+            if (matches.length > 0) scrollToRow(matches[0]);
+        });
+        // Enter jumps to the next match (wraps around)
+        input.addEventListener("keydown", function (event) {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            var matches = applyQuery();
+            if (matches.length === 0) return;
+            cycleIndex = (cycleIndex + 1) % matches.length;
+            scrollToRow(matches[cycleIndex]);
+        });
+
+        // The date picker swaps the table via HTMX — re-apply the current query
+        document.body.addEventListener("htmx:afterSwap", function (event) {
+            if (event.target === container && input.value.trim() !== "") {
+                cycleIndex = 0;
+                var matches = applyQuery();
+                if (matches.length > 0) scrollToRow(matches[0]);
+            }
+        });
+    }
+
+    initTeamFinder();
     renderAll();
 
     var resizeTimer;
