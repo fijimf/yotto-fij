@@ -79,7 +79,9 @@ services:
     environment:
       NETDATA_NTFY_TOPIC_URL: ${NETDATA_NTFY_TOPIC_URL}   # alert push channel (health_alarm_notify.conf)
     volumes:
-      - netdataconfig:/etc/netdata
+      # NOTE: no volume on /etc/netdata itself — the image entrypoint tries to copy stock
+      # config into it when it's a mountpoint, and dies on our read-only go.d/health.d
+      # submounts. Config is declarative via the ./netdata mounts below.
       - netdatalib:/var/lib/netdata
       - netdatacache:/var/cache/netdata
       - ./netdata/go.d:/etc/netdata/go.d:ro
@@ -115,6 +117,5 @@ volumes:
   model_data:
   nginx_logs:
   goaccess_report:
-  netdataconfig:
   netdatalib:
   netdatacache:
