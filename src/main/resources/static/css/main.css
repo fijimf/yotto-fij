@@ -3828,6 +3828,27 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     overflow-y: auto;
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
+    transition: opacity 0.15s;
+}
+
+/* Date-change loading state: spinner in the header row (house .htmx-indicator
+ * pattern) while the stale table dims. The container is listed as a second
+ * hx-indicator target so it gains .htmx-request during the swap. */
+.stat-detail__loading { color: var(--color-text-muted); font-size: 0.85rem; white-space: nowrap; }
+.stat-detail__loading-spin {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    vertical-align: -0.15em;
+    animation: stat-spin 0.7s linear infinite;
+}
+@keyframes stat-spin { to { transform: rotate(360deg); } }
+#stat-rank-container.htmx-request .schedule-table-wrap {
+    opacity: 0.45;
+    pointer-events: none;
 }
 .stat-detail__rankings .schedule-table thead th {
     position: sticky;

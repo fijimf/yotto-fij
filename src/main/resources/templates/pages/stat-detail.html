@@ -102,7 +102,11 @@
                    th:attr="hx-get=@{'/seasons/' + ${statPage.season().year()} + '/stats/' + ${statPage.meta().name()} + '/table'}"
                    hx-target="#stat-rank-container"
                    hx-trigger="change"
+                   hx-indicator="#stat-table-loading, #stat-rank-container"
                    name="date" />
+            <span id="stat-table-loading" class="htmx-indicator stat-detail__loading" role="status" aria-live="polite">
+                <span class="stat-detail__loading-spin"></span> Loading&hellip;
+            </span>
             <input type="search" id="stat-team-find" class="form-input form-input--sm stat-detail__find"
                    placeholder="Find team&hellip;" autocomplete="off" spellcheck="false"
                    aria-label="Find a team in the rankings" />
