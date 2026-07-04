@@ -47,7 +47,9 @@ class StatPageServiceTest extends BaseIntegrationTest {
         seasonRepo.save(season);
 
         a = mkTeam("Alabama", "TA");
-        b = mkTeam("Auburn", "TB");
+        a.setAbbreviation("BAMA");
+        teamRepo.save(a);
+        b = mkTeam("Auburn", "TB");   // no abbreviation → point labels fall back to the name
 
         mkSnapshot(a, SNAP1, 0.50, 1);
         mkSnapshot(b, SNAP1, 0.40, 2);
@@ -80,6 +82,8 @@ class StatPageServiceTest extends BaseIntegrationTest {
         assertThat(p1.x()).isCloseTo(0.50, within(1e-9));
         assertThat(p1.y()).isCloseTo(0.40, within(1e-9));
         assertThat(p1.homeWin()).isTrue();
+        assertThat(p1.homeAbbr()).isEqualTo("BAMA");
+        assertThat(p1.awayAbbr()).isEqualTo("Auburn");
 
         // Jan 20 (home B, away A): strictly-before → still the Jan 10 values,
         // never the same-day snapshot (which already includes this game)

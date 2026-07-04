@@ -50,6 +50,11 @@
 
     function clear(el) { el.innerHTML = ""; }
 
+    // Team abbreviations are data, not markup — escape before injecting into the tooltip.
+    function esc(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
     // ── entering-value scatter ───────────────────────────────────────────────────
     function renderScatter(el) {
         var s = data.scatter;
@@ -97,8 +102,11 @@
             .attr("fill", function (d) { return d.homeWin ? GREEN : RED; })
             .attr("fill-opacity", 0.55)
             .on("mouseenter", function (event, d) {
-                showTip("Entering: Home <strong>" + formatValue(d.x, format) + "</strong> · Away <strong>"
-                    + formatValue(d.y, format) + "</strong><br>" + (d.homeWin ? "Home won" : "Home lost"), event);
+                var home = esc(d.homeAbbr || "Home");
+                var away = esc(d.awayAbbr || "Away");
+                showTip("Entering: " + home + " <strong>" + formatValue(d.x, format) + "</strong> · " + away
+                    + " <strong>" + formatValue(d.y, format) + "</strong><br>"
+                    + (d.homeWin ? home + " won" : home + " lost") + " (home)", event);
             })
             .on("mousemove", function (event, d) {
                 tip.style("left", (event.pageX + 12) + "px").style("top", (event.pageY - 12) + "px");

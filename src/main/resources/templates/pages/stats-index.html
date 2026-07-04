@@ -25,6 +25,8 @@
                 <span class="stat-index__title" th:text="${stat.title()}">Stat Title</span>
                 <span class="stat-index__blurb" th:if="${stat.description() != null}"
                       th:text="${stat.description()}">Description.</span>
+                <span class="stat-index__mechanics" th:if="${stat.mechanics() != null}"
+                      th:text="${stat.mechanics()}">How it is calculated.</span>
                 <span class="stat-index__dir"
                       th:text="${stat.higherIsBetter()} ? 'Higher is better' : 'Lower is better'">Higher is better</span>
             </a>

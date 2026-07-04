@@ -57,7 +57,7 @@ public class StatPageService {
 
         StatPageDto.Meta meta = new StatPageDto.Meta(
                 info.name(), info.title(), info.category(), info.description(),
-                info.format().name(), info.higherIsBetter());
+                info.mechanics(), info.format().name(), info.higherIsBetter());
 
         List<Integer> availableSeasons = seasonRepository.findAll().stream()
                 .map(Season::getYear)
@@ -164,7 +164,8 @@ public class StatPageService {
             if (home == null || away == null) continue;
 
             boolean homeWin = game.getHomeScore() > game.getAwayScore();
-            points.add(new StatPageDto.Point(home, away, homeWin));
+            points.add(new StatPageDto.Point(home, away, homeWin,
+                    abbr(game.getHomeTeam()), abbr(game.getAwayTeam())));
             diffs.add(higherIsBetter ? home - away : away - home);
             wins.add(homeWin);
         }
@@ -172,6 +173,12 @@ public class StatPageService {
         double[] axis = axisBounds(points);
         StatPageDto.Predictive predictive = buildPredictive(diffs, wins);
         return new StatPageDto.Scatter(points, axis[0], axis[1], gamesTotal, points.size(), predictive);
+    }
+
+    /** Tooltip label for a scatter point: abbreviation when set, else team name. */
+    private static String abbr(Team team) {
+        String a = team.getAbbreviation();
+        return a != null && !a.isBlank() ? a : team.getName();
     }
 
     /**

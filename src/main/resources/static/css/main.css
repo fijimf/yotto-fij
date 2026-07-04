@@ -3780,6 +3780,12 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     color: var(--color-text);
     margin: 0.25rem 0 0.5rem;
 }
+.stat-detail__mechanics {
+    max-width: 72ch;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    margin: 0 0 0.5rem;
+}
 .stat-detail__context { color: var(--color-text-muted); font-size: 0.9rem; margin: 0; }
 
 .stat-detail__charts {
@@ -3910,6 +3916,7 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 .stat-index__item:hover { background: var(--color-bg-surface-hover); transform: translateY(-1px); }
 .stat-index__title { font-weight: 600; color: var(--color-text); }
 .stat-index__blurb { font-size: 0.82rem; color: var(--color-text-muted); }
+.stat-index__mechanics { font-size: 0.76rem; color: var(--color-text-muted); opacity: 0.85; }
 .stat-index__dir { font-size: 0.72rem; color: var(--color-primary); margin-top: 0.1rem; }
 
 @media (max-width: 768px) {

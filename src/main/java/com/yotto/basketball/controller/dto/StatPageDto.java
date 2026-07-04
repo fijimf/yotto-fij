@@ -19,6 +19,7 @@ public record StatPageDto(
                        String title,
                        String category,
                        String description,   // null = render no blurb
+                       String mechanics,     // longer how-it's-computed note; null = none
                        String format,        // PERCENT | RATE | RATING | PER_GAME | RATIO
                        boolean higherIsBetter) {}
 
@@ -41,8 +42,11 @@ public record StatPageDto(
                           int gamesPlotted,   // N — games where both teams had an entering value
                           Predictive predictive) {}
 
-    /** x/y are each team's season-to-date value entering the game (pregame snapshot). */
-    public record Point(double x, double y, boolean homeWin) {}
+    /**
+     * x/y are each team's season-to-date value entering the game (pregame snapshot);
+     * homeAbbr/awayAbbr label the tooltip (abbreviation, falling back to team name).
+     */
+    public record Point(double x, double y, boolean homeWin, String homeAbbr, String awayAbbr) {}
 
     /** AUC of the (direction-aware) home entering-stat advantage predicting a home win. */
     public record Predictive(Double auc, Double naiveAccuracy, boolean show) {}
