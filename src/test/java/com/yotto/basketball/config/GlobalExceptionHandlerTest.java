@@ -77,6 +77,22 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void unmatchedPath_returns404NotInternalServerError() throws Exception {
+        mockMvc.perform(get("/no/such/endpoint"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"));
+    }
+
+    @Test
+    void pathVariableTypeMismatch_returns400NotInternalServerError() throws Exception {
+        mockMvc.perform(get("/stub/typed/idaho-vandals"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"));
+    }
+
+    @Test
     void uncaughtException_returns500WithInternalServerErrorBody() throws Exception {
         mockMvc.perform(get("/stub/boom"))
                 .andExpect(status().isInternalServerError())
