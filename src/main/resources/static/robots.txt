@@ -1,3 +1,11 @@
 User-agent: *
 Disallow: /admin
 Disallow: /api/
+Disallow: /account
+Disallow: /login
+Disallow: /logout
+Disallow: /register
+Disallow: /verify
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /error
