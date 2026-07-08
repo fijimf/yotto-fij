@@ -158,8 +158,10 @@ a:hover {
 
 .nav__links {
     display: flex;
+    align-items: center;
     list-style: none;
     gap: 0.25rem;
+    flex: 1;
 }
 
 .nav__link {
@@ -179,13 +181,14 @@ a:hover {
     color: var(--color-nav-text-active);
 }
 
-/* First auth item is pushed to the far right of the nav */
-.nav__auth:first-of-type {
+/* Pushes the auth items (Admin/Account/Sign out or Sign in) to the far right */
+.nav__spacer {
     margin-left: auto;
 }
 
 .nav__logout-form {
-    display: inline;
+    display: flex;
+    align-items: center;
 }
 
 /* Logout is a POST (CSRF), so it's a button styled as a nav link */
@@ -195,7 +198,7 @@ a:hover {
     cursor: pointer;
     font: inherit;
     font-size: 0.9rem;
-    display: inline-block;
+    line-height: inherit;
 }
 
 .nav__toggle {
@@ -1100,6 +1103,17 @@ a.team-hero__conference:hover {
 
     .nav__link {
         padding: 0.75rem 1rem;
+    }
+
+    /* In the dropdown column the spacer has no job, and the sign-out button
+       should read like the other stacked links */
+    .nav__spacer {
+        display: none;
+    }
+
+    .nav__link--button {
+        width: 100%;
+        text-align: left;
     }
 
     main {

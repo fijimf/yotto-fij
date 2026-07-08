@@ -22,18 +22,21 @@
             </li>
             <li><a class="nav__link" th:href="@{/predictions}" th:classappend="${#strings.equals(currentPage, 'predictions')} ? 'nav__link--active'">Predictions</a></li>
             <li><a class="nav__link" th:href="@{/predictions/matchup}" th:classappend="${#strings.equals(currentPage, 'matchup')} ? 'nav__link--active'">Matchup</a></li>
-            <li class="nav__auth" sec:authorize="hasRole('ADMIN')">
+            <li class="nav__spacer" aria-hidden="true"></li>
+            <li sec:authorize="hasRole('ADMIN')">
                 <a class="nav__link" th:href="@{/admin}">Admin</a>
             </li>
-            <li class="nav__auth" sec:authorize="isAuthenticated()">
-                <a class="nav__link" th:href="@{/account}" sec:authentication="name">account</a>
+            <li sec:authorize="isAuthenticated()">
+                <a class="nav__link" th:href="@{/account}">Account</a>
             </li>
-            <li class="nav__auth" sec:authorize="isAuthenticated()">
-                <form th:action="@{/logout}" method="post" class="nav__logout-form">
+            <li sec:authorize="isAuthenticated()">
+                <!-- hx-boost off: boosted AJAX logout gets a 204 from Spring
+                     Security and the page never visibly changes -->
+                <form th:action="@{/logout}" method="post" class="nav__logout-form" hx-boost="false">
                     <button type="submit" class="nav__link nav__link--button">Sign out</button>
                 </form>
             </li>
-            <li class="nav__auth" sec:authorize="!isAuthenticated()">
+            <li sec:authorize="!isAuthenticated()">
                 <a class="nav__link" th:href="@{/login}">Sign in</a>
             </li>
         </ul>
