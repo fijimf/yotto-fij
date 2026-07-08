@@ -16,7 +16,9 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // Site-wide: any authenticated user flagged must-change is redirected
+        // to /account/password (the interceptor itself skips auth/static paths)
         registry.addInterceptor(passwordChangeInterceptor)
-                .addPathPatterns("/admin/**");
+                .addPathPatterns("/**");
     }
 }

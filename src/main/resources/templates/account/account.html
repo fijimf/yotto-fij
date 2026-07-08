@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>My Account</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <h1 class="page-title">My Account</h1>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Profile</h2>
+        </div>
+        <div class="card" style="font-size: 0.95rem;">
+            <p><strong>Username:</strong> <span th:text="${user.username}">user</span></p>
+            <p><strong>Email:</strong>
+                <span th:text="${user.email != null ? user.email : '—'}">email</span>
+                <span th:if="${user.emailVerifiedAt != null}" style="color: var(--color-text-muted); font-size: 0.85rem;">(verified)</span>
+                <span th:if="${user.email != null and user.emailVerifiedAt == null}" style="color: var(--color-text-muted); font-size: 0.85rem;">(unverified)</span>
+            </p>
+            <p><strong>Member since:</strong> <span th:text="${memberSince}">date</span></p>
+            <p style="margin-bottom: 0;"><strong>Last sign-in:</strong> <span th:text="${lastLogin}">date</span></p>
+        </div>
+    </section>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Password</h2>
+        </div>
+        <div class="card">
+            <a th:href="@{/account/password}" class="btn btn--outline btn--sm">Change password</a>
+            <form th:action="@{/account/logout-everywhere}" method="post" class="inline-form" style="display: inline-block; margin-left: 0.5rem;">
+                <button type="submit" class="btn btn--outline btn--sm">Sign out everywhere</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Change Email</h2>
+        </div>
+        <div class="card">
+            <form th:action="@{/account/email}" method="post" style="max-width: 420px;">
+                <div class="form-group">
+                    <label for="newEmail" class="form-label">New email address</label>
+                    <input type="email" id="newEmail" name="newEmail" class="form-input" required maxlength="254"/>
+                </div>
+                <div class="form-group">
+                    <label for="emailCurrentPassword" class="form-label">Current password</label>
+                    <input type="password" id="emailCurrentPassword" name="currentPassword"
+                           class="form-input" required autocomplete="current-password"/>
+                </div>
+                <button type="submit" class="btn btn--primary btn--sm">Send confirmation link</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Preferences</h2>
+        </div>
+        <div class="card">
+            <form th:action="@{/account/preferences}" method="post">
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="dailyUpdateEmail" name="dailyUpdateEmail" value="true"
+                           th:checked="${dailyUpdateEmail}"/>
+                    <label for="dailyUpdateEmail" class="form-label" style="margin-bottom: 0;">
+                        Send me the daily update email
+                    </label>
+                </div>
+                <button type="submit" class="btn btn--primary btn--sm">Save preferences</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Delete Account</h2>
+        </div>
+        <div class="card">
+            <p style="color: var(--color-text-muted); font-size: 0.9rem;">
+                Deletes your account and preferences permanently. This cannot be undone.
+            </p>
+            <form th:action="@{/account/delete}" method="post" style="max-width: 420px;"
+                  onsubmit="return confirm('Permanently delete your account? This cannot be undone.');">
+                <div class="form-group">
+                    <label for="deletePassword" class="form-label">Confirm with your password</label>
+                    <input type="password" id="deletePassword" name="password"
+                           class="form-input" required autocomplete="current-password"/>
+                </div>
+                <button type="submit" class="btn btn--danger btn--sm">Delete my account</button>
+            </form>
+        </div>
+    </section>
+</main>
+</body>
+</html>

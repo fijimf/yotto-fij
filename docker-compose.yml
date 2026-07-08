@@ -27,6 +27,15 @@ services:
       NETDATA_DB_PASSWORD: ${NETDATA_DB_PASSWORD}   # Flyway V21 creates the netdata monitoring role
       ML_MODEL_DIR: /models
       ML_ENABLED: ${ML_ENABLED:-false}
+      # User account system: transactional email (Mailgun SMTP) + emailed-link base URL
+      APP_MAIL_ENABLED: ${APP_MAIL_ENABLED:-true}
+      SMTP_HOST: ${SMTP_HOST:-smtp.mailgun.org}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      APP_BASE_URL: ${APP_BASE_URL}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
     volumes:
       - model_data:/models:ro
     depends_on:

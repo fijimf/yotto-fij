@@ -19,7 +19,6 @@ final class SharedPostgresContainer {
 
     /** Comma-separated list of every application table — Flyway-managed. */
     static final String TABLES_TO_TRUNCATE = String.join(", ",
-            "admin_users",
             "betting_odds",
             "conference_memberships",
             "conferences",
@@ -36,7 +35,12 @@ final class SharedPostgresContainer {
             "team_power_rating_snapshots",
             "team_season_stat_snapshots",
             "team_stat_snapshots",
-            "teams");
+            "teams",
+            "persistent_logins",
+            "user_audit_events",
+            "user_preferences",
+            "user_tokens",
+            "users");
 
     private SharedPostgresContainer() {}
 }

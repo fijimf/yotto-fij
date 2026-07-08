@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Access Denied</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Access denied</h1>
+            <p>You don't have permission to view this page.</p>
+            <p style="margin-top: 1rem; text-align: center;">
+                <a th:href="@{/}" class="btn btn--outline btn--sm">Back to home</a>
+            </p>
+        </div>
+    </div>
+</main>
+</body>
+</html>

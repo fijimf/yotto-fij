@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <body>
 
 <header class="site-header" th:fragment="nav">
@@ -21,6 +22,20 @@
             </li>
             <li><a class="nav__link" th:href="@{/predictions}" th:classappend="${#strings.equals(currentPage, 'predictions')} ? 'nav__link--active'">Predictions</a></li>
             <li><a class="nav__link" th:href="@{/predictions/matchup}" th:classappend="${#strings.equals(currentPage, 'matchup')} ? 'nav__link--active'">Matchup</a></li>
+            <li class="nav__auth" sec:authorize="hasRole('ADMIN')">
+                <a class="nav__link" th:href="@{/admin}">Admin</a>
+            </li>
+            <li class="nav__auth" sec:authorize="isAuthenticated()">
+                <a class="nav__link" th:href="@{/account}" sec:authentication="name">account</a>
+            </li>
+            <li class="nav__auth" sec:authorize="isAuthenticated()">
+                <form th:action="@{/logout}" method="post" class="nav__logout-form">
+                    <button type="submit" class="nav__link nav__link--button">Sign out</button>
+                </form>
+            </li>
+            <li class="nav__auth" sec:authorize="!isAuthenticated()">
+                <a class="nav__link" th:href="@{/login}">Sign in</a>
+            </li>
         </ul>
     </nav>
 </header>

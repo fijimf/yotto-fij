@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Confirm New Email</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Confirm your new email</h1>
+            <p>Click below to switch your account to this email address.</p>
+            <form th:action="@{/account/confirm-email}" method="post">
+                <input type="hidden" name="token" th:value="${token}"/>
+                <button type="submit" class="btn btn--primary btn--full">Confirm new email</button>
+            </form>
+        </div>
+    </div>
+</main>
+</body>
+</html>

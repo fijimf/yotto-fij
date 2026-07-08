@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Create Account</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Create Account</h1>
+
+            <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+            <form th:action="@{/register}" th:object="${form}" method="post" class="auth-form">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" id="username" th:field="*{username}"
+                           class="form-input" required minlength="3" maxlength="30"
+                           autocomplete="username"/>
+                    <div th:if="${#fields.hasErrors('username')}" class="alert alert--danger"
+                         th:errors="*{username}"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" id="email" th:field="*{email}"
+                           class="form-input" required maxlength="254" autocomplete="email"/>
+                    <div th:if="${#fields.hasErrors('email')}" class="alert alert--danger"
+                         th:errors="*{email}"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" th:field="*{password}"
+                           class="form-input" required minlength="8" maxlength="64"
+                           autocomplete="new-password"/>
+                    <div th:if="${#fields.hasErrors('password')}" class="alert alert--danger"
+                         th:errors="*{password}"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword" class="form-label">Confirm password</label>
+                    <input type="password" id="confirmPassword" th:field="*{confirmPassword}"
+                           class="form-input" required autocomplete="new-password"/>
+                    <div th:if="${#fields.hasErrors('confirmPassword')}" class="alert alert--danger"
+                         th:errors="*{confirmPassword}"></div>
+                </div>
+
+                <!-- Honeypot: humans never see or fill this -->
+                <div style="position: absolute; left: -9999px;" aria-hidden="true">
+                    <label for="website">Website</label>
+                    <input type="text" id="website" th:field="*{website}" tabindex="-1" autocomplete="off"/>
+                </div>
+
+                <button type="submit" class="btn btn--primary btn--full">Create Account</button>
+            </form>
+
+            <p style="margin-top: 1rem; text-align: center; font-size: 0.9rem;">
+                Already have an account? <a th:href="@{/login}">Sign in</a>
+            </p>
+        </div>
+    </div>
+</main>
+</body>
+</html>

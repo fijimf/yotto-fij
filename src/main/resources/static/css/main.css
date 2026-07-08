@@ -179,6 +179,25 @@ a:hover {
     color: var(--color-nav-text-active);
 }
 
+/* First auth item is pushed to the far right of the nav */
+.nav__auth:first-of-type {
+    margin-left: auto;
+}
+
+.nav__logout-form {
+    display: inline;
+}
+
+/* Logout is a POST (CSRF), so it's a button styled as a nav link */
+.nav__link--button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.9rem;
+    display: inline-block;
+}
+
 .nav__toggle {
     display: none;
     background: none;

@@ -1,17 +1,16 @@
 package com.yotto.basketball.security;
 
 import com.yotto.basketball.BaseIntegrationTest;
-import com.yotto.basketball.entity.AdminUser;
-import com.yotto.basketball.repository.AdminUserRepository;
-import org.junit.jupiter.api.BeforeEach;
+import com.yotto.basketball.entity.Role;
+import com.yotto.basketball.entity.User;
+import com.yotto.basketball.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-
-import org.springframework.http.MediaType;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -21,21 +20,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PasswordChangeInterceptorTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
-    @Autowired AdminUserRepository adminUserRepository;
+    @Autowired UserRepository userRepository;
 
     static final String TEST_USERNAME = "pc-test-user";
 
-    @BeforeEach
-    void setUp() {
-        adminUserRepository.findByUsername(TEST_USERNAME).ifPresent(adminUserRepository::delete);
-    }
-
     private void saveUser(boolean mustChange) {
-        AdminUser u = new AdminUser();
+        User u = new User();
         u.setUsername(TEST_USERNAME);
-        u.setPasswordHash("$2a$10$dummyDummyDummyDummyDummy.dummyDummyDummyDummyDummyDummyDum");
+        u.setPasswordHash("{bcrypt}$2a$10$dummyDummyDummyDummyDummy.dummyDummyDummyDummyDummyDummyDum");
+        u.setRole(Role.ADMIN);
+        u.setEnabled(true);
         u.setPasswordMustChange(mustChange);
-        adminUserRepository.save(u);
+        userRepository.save(u);
     }
 
     // ── The behavior that matters ────────────────────────────────────────────
@@ -47,7 +43,18 @@ class PasswordChangeInterceptorTest extends BaseIntegrationTest {
 
         mockMvc.perform(get("/admin"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/change-password"));
+                .andExpect(redirectedUrl("/account/password"));
+    }
+
+    @Test
+    @WithMockUser(username = TEST_USERNAME, roles = "USER")
+    void publicPage_redirectsToChangePassword_whenPasswordMustChange() throws Exception {
+        // Interceptor now covers the whole site, not just /admin/**
+        saveUser(true);
+
+        mockMvc.perform(get("/teams"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/account/password"));
     }
 
     @Test
@@ -64,7 +71,7 @@ class PasswordChangeInterceptorTest extends BaseIntegrationTest {
     void changePasswordPage_isNotIntercepted_evenWhenMustChange() throws Exception {
         saveUser(true);
 
-        mockMvc.perform(get("/admin/change-password"))
+        mockMvc.perform(get("/account/password"))
                 .andExpect(status().isOk());
     }
 
@@ -73,14 +80,14 @@ class PasswordChangeInterceptorTest extends BaseIntegrationTest {
     void loginPage_isNotIntercepted_evenWhenMustChange() throws Exception {
         saveUser(true);
 
-        mockMvc.perform(get("/admin/login"))
+        mockMvc.perform(get("/login"))
                 .andExpect(status().isOk());
     }
 
     @Test
     @WithMockUser(username = TEST_USERNAME, roles = "ADMIN")
     void unknownUserInDb_passesThrough() throws Exception {
-        // No AdminUser row → interceptor finds nothing → returns true (no redirect)
+        // No users row → interceptor finds nothing → returns true (no redirect)
         mockMvc.perform(get("/admin"))
                 .andExpect(status().isOk());
     }
@@ -88,11 +95,11 @@ class PasswordChangeInterceptorTest extends BaseIntegrationTest {
     @Test
     @WithAnonymousUser
     void anonymousUser_isNotIntercepted() throws Exception {
-        // Anonymous user hitting /admin gets caught by Spring Security → 302 to /admin/login
+        // Anonymous user hitting /admin gets caught by Spring Security → 302 to /login
         // (when the request looks like a browser), NOT by the password-change interceptor
-        // (whose redirect would be to /admin/change-password).
+        // (whose redirect would be to /account/password).
         mockMvc.perform(get("/admin").accept(MediaType.TEXT_HTML))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("http://localhost/admin/login"));
+                .andExpect(redirectedUrl("http://localhost/login"));
     }
 }

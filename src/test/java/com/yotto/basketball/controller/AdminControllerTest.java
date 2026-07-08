@@ -309,7 +309,7 @@ class AdminControllerTest extends BaseIntegrationTest {
     void unauthenticatedDashboard_redirectsToLogin() throws Exception {
         mockMvc.perform(get("/admin").accept(org.springframework.http.MediaType.TEXT_HTML))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("http://localhost/admin/login"));
+                .andExpect(redirectedUrl("http://localhost/login"));
     }
 
     private Season mkSeason(int year) {

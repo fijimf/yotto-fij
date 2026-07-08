@@ -1,7 +1,7 @@
 package com.yotto.basketball.security;
 
-import com.yotto.basketball.entity.AdminUser;
-import com.yotto.basketball.repository.AdminUserRepository;
+import com.yotto.basketball.entity.User;
+import com.yotto.basketball.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
@@ -9,31 +9,40 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+/**
+ * Forces any authenticated user flagged password_must_change to the change
+ * form before they can do anything else (bootstrap admin, admin-triggered resets).
+ */
 @Component
 public class PasswordChangeInterceptor implements HandlerInterceptor {
 
-    private final AdminUserRepository adminUserRepository;
+    private static final String[] SKIP_PREFIXES = {
+            "/login", "/logout", "/account/password",
+            "/css/", "/js/", "/img/", "/api/", "/error",
+            "/verify", "/register", "/forgot-password", "/reset-password",
+            "/favicon"
+    };
 
-    public PasswordChangeInterceptor(AdminUserRepository adminUserRepository) {
-        this.adminUserRepository = adminUserRepository;
+    private final UserRepository userRepository;
+
+    public PasswordChangeInterceptor(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String uri = request.getRequestURI();
-
-        // Don't intercept login, change-password, logout, or static resources
-        if (uri.startsWith("/admin/login") || uri.startsWith("/admin/change-password")
-                || uri.startsWith("/admin/logout") || uri.startsWith("/css/")
-                || uri.startsWith("/js/") || uri.startsWith("/api/")) {
-            return true;
+        for (String prefix : SKIP_PREFIXES) {
+            if (uri.startsWith(prefix)) {
+                return true;
+            }
         }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
-            AdminUser user = adminUserRepository.findByUsername(auth.getName()).orElse(null);
-            if (user != null && Boolean.TRUE.equals(user.getPasswordMustChange())) {
-                response.sendRedirect("/admin/change-password");
+            User user = userRepository.findByUsernameIgnoreCase(auth.getName()).orElse(null);
+            if (user != null && user.isPasswordMustChange()) {
+                response.sendRedirect("/account/password");
                 return false;
             }
         }

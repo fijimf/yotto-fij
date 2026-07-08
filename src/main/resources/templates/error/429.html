@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Too Many Requests</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Slow down</h1>
+            <p>Too many requests — please wait a little while and try again.</p>
+            <p style="margin-top: 1rem; text-align: center;">
+                <a th:href="@{/}" class="btn btn--outline btn--sm">Back to home</a>
+            </p>
+        </div>
+    </div>
+</main>
+</body>
+</html>

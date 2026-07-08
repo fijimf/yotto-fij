@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Check Your Email</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Check your email</h1>
+            <p th:text="${message}">If that address needs anything from us, we've sent an email with the next step.</p>
+            <p style="color: var(--color-text-muted); font-size: 0.9rem;">
+                Nothing after a few minutes? Check your spam folder, or
+                <a th:href="@{/verify/resend}" onclick="event.preventDefault(); document.getElementById('resend-form').style.display='block';">resend the confirmation email</a>.
+            </p>
+            <form id="resend-form" th:action="@{/verify/resend}" method="post" style="display: none;">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email address</label>
+                    <input type="email" id="email" name="email" class="form-input" required/>
+                </div>
+                <button type="submit" class="btn btn--outline btn--sm">Resend</button>
+            </form>
+            <p style="margin-top: 1rem; text-align: center; font-size: 0.9rem;">
+                <a th:href="@{/login}">Back to sign in</a>
+            </p>
+        </div>
+    </div>
+</main>
+</body>
+</html>

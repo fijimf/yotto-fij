@@ -30,9 +30,15 @@ public abstract class BaseIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private com.yotto.basketball.security.RateLimitService rateLimitService;
+
     @BeforeEach
     void wipeDatabase() {
         jdbcTemplate.execute("TRUNCATE TABLE " + SharedPostgresContainer.TABLES_TO_TRUNCATE
                 + " RESTART IDENTITY CASCADE");
+        // In-memory auth rate limiter is context-scoped; without a reset,
+        // login-heavy test classes would trip it for everyone after them
+        rateLimitService.clear();
     }
 }

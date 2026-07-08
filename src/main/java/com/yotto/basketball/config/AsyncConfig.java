@@ -21,4 +21,18 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    // Dedicated pool for account emails — must never queue behind (or reject
+    // because of) long-running scrapes. Generous queue: a stuck SMTP retry
+    // holds a thread for 30s.
+    @Bean(name = "mailExecutor")
+    public Executor mailExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("mail-");
+        executor.initialize();
+        return executor;
+    }
 }

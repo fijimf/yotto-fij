@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Sign In</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Sign In</h1>
+
+            <div th:if="${param.error != null and param.error[0] == 'bad'}" class="alert alert--danger">
+                Invalid username or password.
+            </div>
+            <div th:if="${param.error != null and param.error[0] == 'unverified'}" class="alert alert--warning">
+                Your account isn't confirmed yet — check your email.
+                <form th:action="@{/verify/resend}" method="post" style="margin-top: 0.5rem;">
+                    <div class="form-group">
+                        <input type="email" name="email" class="form-input form-input--sm"
+                               placeholder="Your email address" required/>
+                    </div>
+                    <button type="submit" class="btn btn--outline btn--sm">Resend confirmation link</button>
+                </form>
+            </div>
+            <div th:if="${param.error != null and param.error[0] == 'locked'}" class="alert alert--danger">
+                Account temporarily locked. Try again later or
+                <a th:href="@{/forgot-password}">reset your password</a>.
+            </div>
+            <div th:if="${param.error != null and param.error[0] == 'rate'}" class="alert alert--danger">
+                Too many sign-in attempts. Please wait a few minutes and try again.
+            </div>
+
+            <div th:if="${param.logout}" class="alert alert--success">You have been signed out.</div>
+            <div th:if="${param.verified}" class="alert alert--success">Account confirmed — you can sign in now.</div>
+            <div th:if="${param.reset}" class="alert alert--success">Password reset — sign in with your new password.</div>
+            <div th:if="${param.expired}" class="alert alert--warning">Your session was signed out. Please sign in again.</div>
+
+            <form th:action="@{/login}" method="post" class="auth-form">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username or email</label>
+                    <input type="text" id="username" name="username"
+                           class="form-input" required autofocus autocomplete="username"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" name="password"
+                           class="form-input" required autocomplete="current-password"/>
+                </div>
+
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="remember-me" name="remember-me"/>
+                    <label for="remember-me" class="form-label" style="margin-bottom: 0;">Remember me for 30 days</label>
+                </div>
+
+                <button type="submit" class="btn btn--primary btn--full">Sign In</button>
+            </form>
+
+            <p style="margin-top: 1rem; text-align: center; font-size: 0.9rem;">
+                <a th:href="@{/forgot-password}">Forgot password?</a>
+                &nbsp;·&nbsp;
+                <a th:href="@{/register}">Create an account</a>
+            </p>
+        </div>
+    </div>
+</main>
+</body>
+</html>

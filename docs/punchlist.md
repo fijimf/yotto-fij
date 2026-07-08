@@ -10,5 +10,52 @@
 6) ~~NCAA Bracket~~ 
 7) ~~Calc more stats off game data~~
 8) ~~Improve stats on team page~~
-
+9) Create Users
+    * create user/password
+    * reset password
+    * login/logout
+    * disable user
+    * profile
+10) Simple model creation
+11) 
+11) 
     
+
+
+# Random thoughts
+## Revised Menu
+* Home - OK for now
+* Teams - OK
+* Conferences - OK
+* Games
+  * By date
+  * Bracket (only after teams are availible)
+* Statistics
+  * Predictor
+  * Correlation
+  * Results
+    * WP
+  * Scoring
+    * PPG
+    * OPPG
+  * Shooting
+    * ...
+  * ...
+* Power Rankings
+  * RPI
+  * BT
+  * BTW
+  * Massey
+* Advance models
+  * Model X
+    * About
+    * Schedule
+    * Bracket
+    * Matchup
+  * Model Y
+    * About
+    * Schedule
+    * Bracket
+    * Matchup
+* User
+  * Profile

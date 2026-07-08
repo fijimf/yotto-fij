@@ -53,7 +53,10 @@ See [UI.md](UI.md) for more details and guidelines.
 - **TeamGameStats** - per-game per-team box score: FG/3PT/FT made-attempted, rebounds (off/def/total), assists, steals, blocks, turnovers, fouls, plus optional pointsInPaint/fastBreak/turnoverPts (unique per game+team)
 - **ScrapeBatch** - tracks scraping operations: type, status (RUNNING/COMPLETED/FAILED/PARTIAL), record counts, date tracking
 - **SeasonStatistics** - aggregate stats per team per season: wins, losses, conference/home/road splits, points, streak, conferenceStanding
-- **AdminUser** - username, passwordHash, passwordMustChange
+- **User** - username + email (both unique, case-insensitive via lower() indexes), passwordHash, role (ADMIN/USER), enabled (email verified), locked (admin lock) + failed_login_attempts/lockout_expires_at (auto lockout), passwordMustChange
+- **UserToken** - one-time tokens (EMAIL_VERIFICATION/PASSWORD_RESET/EMAIL_CHANGE); stores SHA-256 of the token, consumed atomically
+- **UserPreference** - skinny user/key/value store (unique per user+key); keys in `PreferenceKeys`
+- **UserAuditEvent** - security audit trail (login/lockout/reset/etc.), 90-day retention
 - **Snapshot entities** - TeamSeasonStatSnapshot (wide per-team daily stats), TeamPowerRatingSnapshot + PowerModelParamSnapshot (power models), SeasonPopulationStat (long-format population distributions, shared across services via stat-name-scoped deletes), TeamStatSnapshot (long-format derived stats, e.g. four factors — new stats are registry entries in BoxScoreStatCalculator, not migrations)
 - **StatCalcWatermark** - per-season record of the last stats calc run; drives skip/incremental recalculation via Game.updatedAt change detection
 
@@ -72,6 +75,7 @@ All REST controllers are at `/api/{resource}` with standard CRUD. Notable custom
 - `POST /admin/scrape/current/{year}` - trigger current season re-scrape (async)
 - `POST /admin/scrape/odds/{year}` - trigger odds backfill (async)
 - `GET /admin/scrape-history` - HTMX fragment for live scrape status
+- `GET /admin/users` - user management (search, lock/unlock, role, resend verification, trigger reset, delete)
 
 ### Error Handling
 `GlobalExceptionHandler` returns consistent JSON with timestamp, status, error, message:
@@ -104,12 +108,18 @@ Data is sourced from ESPN's public JSON APIs. See [SCRAPING.md](SCRAPING.md) for
 
 ## Security
 
-- Spring Security with form-based login for `/admin/**` routes only
-- Public pages and `/api/**` endpoints do not require authentication
-- CSRF disabled for `/api/**` (REST API), enabled for admin pages
-- Admin user auto-created on first startup with random password (logged at WARN level)
-- `PasswordChangeInterceptor` forces password change on first login
-- Passwords must be >= 8 characters
+Full user account system — see [docs/USER_SYSTEM_SPEC.md](docs/USER_SYSTEM_SPEC.md) for the complete design.
+
+- Roles: **ADMIN > USER** (RoleHierarchy) + implicit anonymous. `/admin/**` needs ADMIN, `/account/**` needs authentication, everything else (incl. `/api/**`) is public
+- Shared form login at `/login` (accepts username **or** email); HTTP Basic stays enabled for scripts (`retrain.sh`); persistent remember-me (30 days, `persistent_logins` table)
+- Self-service: register → email verification → login, forgot/reset password, change password/email, self-delete, preferences — all on `/account`; admin user management at `/admin/users`
+- Email-enumeration resistance: the app never confirms whether an email has an account (identical responses; the real owner gets an email instead). Usernames ARE revealed as taken
+- One-time tokens: DB stores SHA-256 only; consumed atomically (single-use); GET shows a confirm page, POST consumes (mail-scanner safety); links built from `APP_BASE_URL` config, never request headers
+- Lockout: 10 failed logins → 15-min temp lock (DB-backed) + separate admin `locked` flag; in-memory per-IP rate limits on login/register/forgot (see `RateLimitService`)
+- Transactional email via Mailgun SMTP (`app.mail.enabled=true`); dev/test default logs emails instead of sending. Sends are async + post-commit (`MailEventListener`)
+- Admin user auto-created on first startup with random password (logged at WARN); `ADMIN_EMAIL` env backfills its email; `PasswordChangeInterceptor` (site-wide) forces password change when flagged
+- Passwords 8-64 chars, must not equal username/email; `DelegatingPasswordEncoder` ({bcrypt}-prefixed hashes)
+- CSRF enabled everywhere except `/api/**`; nightly `UserMaintenanceJob` purges expired tokens, 7-day-old unverified accounts, 90-day-old audit rows, stale remember-me tokens
 
 ## Database
 

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>User Management</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">User Management</h1>
+        <a href="/admin" class="btn btn--outline btn--sm">Dashboard</a>
+    </div>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Users</h2>
+            <form th:action="@{/admin/users}" method="get" style="display: flex; gap: 0.5rem;">
+                <input type="text" name="q" th:value="${q}" class="form-input form-input--sm"
+                       placeholder="Search username or email"/>
+                <button type="submit" class="btn btn--outline btn--sm">Search</button>
+            </form>
+        </div>
+
+        <div class="card" style="overflow-x: auto;">
+            <table style="width: 100%;">
+                <thead>
+                <tr>
+                    <th style="text-align: left;">Username</th>
+                    <th style="text-align: left;">Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Failed</th>
+                    <th style="text-align: left;">Last sign-in</th>
+                    <th style="text-align: left;">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="u : ${users.content}">
+                    <td th:text="${u.username}">user</td>
+                    <td th:text="${u.email != null ? u.email : '—'}">email</td>
+                    <td style="text-align: center;" th:text="${u.role}">USER</td>
+                    <td style="text-align: center;">
+                        <span th:if="${u.locked}" style="color: var(--color-danger, #c00);">locked</span>
+                        <span th:if="${!u.locked and u.temporarilyLockedOut}" style="color: var(--color-danger, #c00);">temp-locked</span>
+                        <span th:if="${!u.locked and !u.temporarilyLockedOut and u.enabled}">active</span>
+                        <span th:if="${!u.locked and !u.temporarilyLockedOut and !u.enabled}" style="color: var(--color-text-muted);">unverified</span>
+                    </td>
+                    <td style="text-align: center;" th:text="${u.failedLoginAttempts}">0</td>
+                    <td th:text="${u.lastLoginAt != null ? #temporals.format(u.lastLoginAt.atZone(T(java.time.ZoneOffset).UTC).toLocalDateTime(), 'MMM d HH:mm') : '—'}">—</td>
+                    <td>
+                        <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                            <form th:if="${!u.locked}" th:action="@{/admin/users/{id}/lock(id=${u.id})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Lock</button>
+                            </form>
+                            <form th:if="${u.locked}" th:action="@{/admin/users/{id}/unlock(id=${u.id})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Unlock</button>
+                            </form>
+                            <form th:if="${u.role.name() == 'USER'}" th:action="@{/admin/users/{id}/role(id=${u.id})}" method="post" class="inline-form"
+                                  onsubmit="return confirm('Promote this user to ADMIN?');">
+                                <input type="hidden" name="role" value="ADMIN"/>
+                                <button type="submit" class="btn btn--outline btn--sm">Make admin</button>
+                            </form>
+                            <form th:if="${u.role.name() == 'ADMIN'}" th:action="@{/admin/users/{id}/role(id=${u.id})}" method="post" class="inline-form"
+                                  onsubmit="return confirm('Demote this admin to USER?');">
+                                <input type="hidden" name="role" value="USER"/>
+                                <button type="submit" class="btn btn--outline btn--sm">Demote</button>
+                            </form>
+                            <form th:if="${!u.enabled and u.email != null}" th:action="@{/admin/users/{id}/resend-verification(id=${u.id})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Resend verify</button>
+                            </form>
+                            <form th:if="${u.email != null}" th:action="@{/admin/users/{id}/reset-password(id=${u.id})}" method="post" class="inline-form">
+                                <button type="submit" class="btn btn--outline btn--sm">Send reset</button>
+                            </form>
+                            <form th:action="@{/admin/users/{id}/delete(id=${u.id})}" method="post" class="inline-form"
+                                  onsubmit="return confirm('Permanently delete this user? This cannot be undone.');">
+                                <button type="submit" class="btn btn--danger btn--sm">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${users.totalElements == 0}">
+                    <td colspan="7" style="text-align: center; color: var(--color-text-muted);">No users found</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div th:if="${users.totalPages > 1}" style="display: flex; gap: 0.5rem; margin-top: 0.75rem; align-items: center;">
+            <a th:if="${users.hasPrevious()}" class="btn btn--outline btn--sm"
+               th:href="@{/admin/users(q=${q}, page=${users.number - 1})}">Previous</a>
+            <span style="font-size: 0.9rem;" th:text="|Page ${users.number + 1} of ${users.totalPages}|">Page 1</span>
+            <a th:if="${users.hasNext()}" class="btn btn--outline btn--sm"
+               th:href="@{/admin/users(q=${q}, page=${users.number + 1})}">Next</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

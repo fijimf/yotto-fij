@@ -1,6 +1,6 @@
 package com.yotto.basketball.config;
 
-import com.yotto.basketball.repository.AdminUserRepository;
+import com.yotto.basketball.repository.UserRepository;
 import com.yotto.basketball.service.QuoteService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,10 +34,12 @@ class GlobalExceptionHandlerTest {
     @Autowired MockMvc mockMvc;
 
     // WebConfig (loaded by @WebMvcTest) instantiates PasswordChangeInterceptor,
-    // which needs AdminUserRepository. The QuoteModelAdvice @ControllerAdvice
-    // needs QuoteService. We don't exercise either here, so stub them out.
-    @MockBean AdminUserRepository adminUserRepository;
+    // which needs UserRepository. The QuoteModelAdvice @ControllerAdvice needs
+    // QuoteService, and the slice's Filter scan pulls in LoginRateLimitFilter,
+    // which needs RateLimitService. We don't exercise any of them — stub them out.
+    @MockBean UserRepository userRepository;
     @MockBean QuoteService quoteService;
+    @MockBean com.yotto.basketball.security.RateLimitService rateLimitService;
 
     @Test
     void entityNotFoundException_returns404WithFullErrorBody() throws Exception {
