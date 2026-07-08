@@ -49,6 +49,33 @@ function initApp() {
     }
 }
 
+// User menu (username → Profile / Sign out). Delegated on document so it
+// keeps working after HTMX body swaps without stacking listeners.
+document.addEventListener("click", function (e) {
+    var dropdown = document.querySelector(".nav__dropdown");
+    if (!dropdown) return;
+    var toggle = e.target.closest(".nav__dropdown-toggle");
+    if (toggle) {
+        var open = dropdown.classList.toggle("nav__dropdown--open");
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    } else if (!e.target.closest(".nav__dropdown")) {
+        dropdown.classList.remove("nav__dropdown--open");
+        var t = dropdown.querySelector(".nav__dropdown-toggle");
+        if (t) t.setAttribute("aria-expanded", "false");
+    }
+});
+
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+        var open = document.querySelector(".nav__dropdown--open");
+        if (open) {
+            open.classList.remove("nav__dropdown--open");
+            var t = open.querySelector(".nav__dropdown-toggle");
+            if (t) t.setAttribute("aria-expanded", "false");
+        }
+    }
+});
+
 // Season tab active state — driven by HTMX requests (team detail page)
 document.addEventListener('htmx:beforeRequest', function(evt) {
     if (evt.detail.elt.classList.contains('season-tabs__tab')) {

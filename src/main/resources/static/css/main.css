@@ -181,17 +181,12 @@ a:hover {
     color: var(--color-nav-text-active);
 }
 
-/* Pushes the auth items (Admin/Account/Sign out or Sign in) to the far right */
+/* Pushes the auth items (Admin + user menu, or Sign in) to the far right */
 .nav__spacer {
     margin-left: auto;
 }
 
-.nav__logout-form {
-    display: flex;
-    align-items: center;
-}
-
-/* Logout is a POST (CSRF), so it's a button styled as a nav link */
+/* Buttons that must look like nav links (dropdown toggle) */
 .nav__link--button {
     background: none;
     border: none;
@@ -199,6 +194,54 @@ a:hover {
     font: inherit;
     font-size: 0.9rem;
     line-height: inherit;
+}
+
+/* User menu: username tab opening Profile / Sign out */
+.nav__dropdown {
+    position: relative;
+}
+
+.nav__dropdown-caret {
+    font-size: 0.7em;
+    margin-left: 0.35rem;
+}
+
+.nav__dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.25rem);
+    min-width: 9rem;
+    background: var(--color-nav-bg);
+    border: 1px solid var(--color-nav-border);
+    border-radius: var(--radius);
+    padding: 0.25rem;
+    list-style: none;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.nav__dropdown--open .nav__dropdown-menu {
+    display: block;
+}
+
+.nav__dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    color: var(--color-nav-text);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.nav__dropdown-item:hover {
+    color: var(--color-nav-text-active);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .nav__toggle {
@@ -1105,8 +1148,8 @@ a.team-hero__conference:hover {
         padding: 0.75rem 1rem;
     }
 
-    /* In the dropdown column the spacer has no job, and the sign-out button
-       should read like the other stacked links */
+    /* In the dropdown column the spacer has no job, and the user menu
+       expands in place instead of floating */
     .nav__spacer {
         display: none;
     }
@@ -1114,6 +1157,13 @@ a.team-hero__conference:hover {
     .nav__link--button {
         width: 100%;
         text-align: left;
+    }
+
+    .nav__dropdown-menu {
+        position: static;
+        border: none;
+        box-shadow: none;
+        padding-left: 1rem;
     }
 
     main {

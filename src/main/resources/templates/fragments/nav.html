@@ -26,15 +26,21 @@
             <li sec:authorize="hasRole('ADMIN')">
                 <a class="nav__link" th:href="@{/admin}">Admin</a>
             </li>
-            <li sec:authorize="isAuthenticated()">
-                <a class="nav__link" th:href="@{/account}">Account</a>
-            </li>
-            <li sec:authorize="isAuthenticated()">
-                <!-- hx-boost off: boosted AJAX logout gets a 204 from Spring
-                     Security and the page never visibly changes -->
-                <form th:action="@{/logout}" method="post" class="nav__logout-form" hx-boost="false">
-                    <button type="submit" class="nav__link nav__link--button">Sign out</button>
-                </form>
+            <li class="nav__dropdown" sec:authorize="isAuthenticated()">
+                <button type="button" class="nav__link nav__link--button nav__dropdown-toggle"
+                        aria-haspopup="true" aria-expanded="false">
+                    <span sec:authentication="name">user</span><span class="nav__dropdown-caret">&#9662;</span>
+                </button>
+                <ul class="nav__dropdown-menu">
+                    <li><a class="nav__dropdown-item" th:href="@{/account}">Profile</a></li>
+                    <li>
+                        <!-- hx-boost off: boosted AJAX logout gets a 204 from Spring
+                             Security and the page never visibly changes -->
+                        <form th:action="@{/logout}" method="post" hx-boost="false">
+                            <button type="submit" class="nav__dropdown-item">Sign out</button>
+                        </form>
+                    </li>
+                </ul>
             </li>
             <li sec:authorize="!isAuthenticated()">
                 <a class="nav__link" th:href="@{/login}">Sign in</a>
