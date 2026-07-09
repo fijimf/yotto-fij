@@ -7,6 +7,7 @@ import com.yotto.basketball.controller.dto.LastMeetingDto;
 import com.yotto.basketball.controller.dto.SeasonGameMarkerDto;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
+import com.yotto.basketball.service.ConferenceNamingService;
 import com.yotto.basketball.service.PredictionResult;
 import com.yotto.basketball.service.PredictionService;
 import jakarta.persistence.EntityNotFoundException;
@@ -34,6 +35,7 @@ public class GameDetailController {
     private final TeamStatSnapshotRepository derivedStatRepository;
     private final ObjectMapper objectMapper;
     private final TournamentBadgeFormatter tournamentBadgeFormatter;
+    private final ConferenceNamingService namingService;
 
     public GameDetailController(GameRepository gameRepository,
                                 PredictionService predictionService,
@@ -42,7 +44,8 @@ public class GameDetailController {
                                 TeamSeasonStatSnapshotRepository statSnapshotRepository,
                                 TeamStatSnapshotRepository derivedStatRepository,
                                 ObjectMapper objectMapper,
-                                TournamentBadgeFormatter tournamentBadgeFormatter) {
+                                TournamentBadgeFormatter tournamentBadgeFormatter,
+                                ConferenceNamingService namingService) {
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
         this.seasonStatsRepository = seasonStatsRepository;
@@ -51,6 +54,7 @@ public class GameDetailController {
         this.derivedStatRepository = derivedStatRepository;
         this.objectMapper = objectMapper;
         this.tournamentBadgeFormatter = tournamentBadgeFormatter;
+        this.namingService = namingService;
     }
 
     @GetMapping("/games/{id}")
@@ -110,7 +114,7 @@ public class GameDetailController {
 
         String conferenceName = null;
         if (Boolean.TRUE.equals(game.getConferenceGame()) && homeStats != null) {
-            conferenceName = homeStats.getConference().getName();
+            conferenceName = namingService.resolve(homeStats.getConference(), season.getYear()).name();
         }
         model.addAttribute("conferenceName", conferenceName);
         model.addAttribute("homeStats", homeStats);

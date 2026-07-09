@@ -3,6 +3,18 @@
 <body>
 <div th:fragment="panel">
 
+    <!-- Out-of-band hero updates: the conference's branding is season-scoped
+         (e.g. WAC through 2026, UAC from 2027). Only emitted on HTMX season
+         swaps — inline on the full page these would render as duplicate text. -->
+    <th:block th:if="${oobHero}">
+        <h1 id="conf-hero-name" class="conf-hero__name" hx-swap-oob="true"
+            th:text="${identity.name}">Big Ten Conference</h1>
+        <p id="conf-hero-abbr" class="conf-hero__abbr" hx-swap-oob="true"
+           th:text="${identity.abbreviation}">B1G</p>
+        <img th:if="${identity.logoUrl}" id="conf-hero-logo" class="conf-hero__logo"
+             hx-swap-oob="true" th:src="${identity.logoUrl}" th:alt="${identity.name}" />
+    </th:block>
+
     <!-- Summary stat strip -->
     <div class="conf-summary">
         <div class="conf-summary__stat">

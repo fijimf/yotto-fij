@@ -57,6 +57,15 @@ public class ConferenceScraper {
 
                 Conference existing = conferenceRepository.findByEspnId(groupId).orElse(null);
                 if (existing != null) {
+                    if (!name.equals(existing.getName())) {
+                        // ESPN relabeled this group. The update below applies the new
+                        // branding to ALL seasons; if this is a real rebrand (not a label
+                        // tweak), preserve the old branding for historical seasons with a
+                        // conference_name_history row (see docs/CONFERENCE_RENAME_PROPOSAL.md).
+                        log.warn("Conference espnId {} renamed '{}' -> '{}'. If this is a rebrand, "
+                                        + "add a conference_name_history row so past seasons keep the old name.",
+                                groupId, existing.getName(), name);
+                    }
                     existing.setName(name);
                     existing.setAbbreviation(shortName);
                     existing.setDivision("Division I");

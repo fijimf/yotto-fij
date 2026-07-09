@@ -9,6 +9,9 @@ import com.yotto.basketball.repository.TeamRepository;
 import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
 import com.yotto.basketball.repository.TeamStatSnapshotRepository;
 import com.yotto.basketball.service.BoxScoreStatCalculator;
+import com.yotto.basketball.service.ConferenceNamingService;
+import com.yotto.basketball.service.ConferenceNamingService.ConferenceIdentity;
+import com.yotto.basketball.service.ConferenceNamingService.ConferenceNames;
 import com.yotto.basketball.service.DailyStatCalculator;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Controller;
@@ -36,6 +39,7 @@ public class TeamWebController {
     private final TeamStatSnapshotRepository teamStatSnapshotRepository;
     private final TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository;
     private final SeasonPopulationStatRepository popStatRepository;
+    private final ConferenceNamingService namingService;
 
     public TeamWebController(TeamRepository teamRepository,
                              SeasonRepository seasonRepository,
@@ -44,7 +48,8 @@ public class TeamWebController {
                              TournamentBadgeFormatter tournamentBadgeFormatter,
                              TeamStatSnapshotRepository teamStatSnapshotRepository,
                              TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
-                             SeasonPopulationStatRepository popStatRepository) {
+                             SeasonPopulationStatRepository popStatRepository,
+                             ConferenceNamingService namingService) {
         this.teamRepository = teamRepository;
         this.seasonRepository = seasonRepository;
         this.gameRepository = gameRepository;
@@ -53,6 +58,7 @@ public class TeamWebController {
         this.teamStatSnapshotRepository = teamStatSnapshotRepository;
         this.teamSeasonStatSnapshotRepository = teamSeasonStatSnapshotRepository;
         this.popStatRepository = popStatRepository;
+        this.namingService = namingService;
     }
 
     // ── Teams listing ──
@@ -74,11 +80,14 @@ public class TeamWebController {
                     .collect(Collectors.toMap(ss -> ss.getTeam().getId(), ss -> ss));
 
             List<Team> allTeams = teamRepository.findAll();
+            ConferenceNames names = namingService.load();
+            int year = season.getYear();
 
             teamSummaries = allTeams.stream()
                     .map(team -> {
                         SeasonStatistics ss = statsByTeamId.get(team.getId());
                         Conference conf = ss != null ? ss.getConference() : null;
+                        ConferenceIdentity identity = conf != null ? names.identity(conf, year) : null;
                         return new TeamSummary(
                                 team.getId(),
                                 team.getName(),
@@ -86,9 +95,9 @@ public class TeamWebController {
                                 team.getMascot(),
                                 team.getLogoUrl(),
                                 team.getColor(),
-                                conf != null ? conf.getName() : null,
-                                conf != null ? conf.getAbbreviation() : null,
-                                conf != null ? conf.getLogoUrl() : null,
+                                identity != null ? identity.name() : null,
+                                identity != null ? identity.abbreviation() : null,
+                                identity != null ? identity.logoUrl() : null,
                                 resolveInt(ss != null ? ss.getCalcWins() : null, ss != null ? ss.getWins() : null),
                                 resolveInt(ss != null ? ss.getCalcLosses() : null, ss != null ? ss.getLosses() : null),
                                 resolveInt(ss != null ? ss.getCalcConferenceWins() : null, ss != null ? ss.getConferenceWins() : null),
@@ -142,8 +151,12 @@ public class TeamWebController {
         Map<Integer, SeasonStatistics> statsByYear = teamStats.stream()
                 .collect(Collectors.toMap(ss -> ss.getSeason().getYear(), ss -> ss));
 
-        // Current conference from most recent stats row
+        // Current conference from most recent stats row, named per that row's season
+        ConferenceNames names = namingService.load();
         Conference currentConference = teamStats.isEmpty() ? null : teamStats.get(0).getConference();
+        String currentConferenceName = currentConference != null
+                ? names.name(currentConference, teamStats.get(0).getSeason().getYear())
+                : null;
 
         // Only load current season (lazy-load historical seasons via HTMX)
         SeasonSchedule currentSeasonSchedule = null;
@@ -157,7 +170,7 @@ public class TeamWebController {
             Conference seasonConf = ss != null ? ss.getConference() : null;
             currentSeasonSchedule = new SeasonSchedule(
                     currentSeason.getYear(),
-                    seasonConf != null ? seasonConf.getName() : null,
+                    seasonConf != null ? names.name(seasonConf, currentSeason.getYear()) : null,
                     wins, losses, confWins, confLosses,
                     games.stream().map(g -> toGameRow(g, id)).toList(),
                     computeRegularSeasonRecord(games, id),
@@ -169,6 +182,7 @@ public class TeamWebController {
         model.addAttribute("team", team);
         model.addAttribute("teamId", id);
         model.addAttribute("currentConference", currentConference);
+        model.addAttribute("currentConferenceName", currentConferenceName);
         model.addAttribute("seasons", seasons);
         model.addAttribute("schedule", currentSeasonSchedule);
         model.addAttribute("currentSeasonYear", currentSeason != null ? currentSeason.getYear() : null);
@@ -195,7 +209,7 @@ public class TeamWebController {
 
         model.addAttribute("schedule", new SeasonSchedule(
                 year,
-                seasonConf != null ? seasonConf.getName() : null,
+                seasonConf != null ? namingService.resolve(seasonConf, year).name() : null,
                 wins, losses, confWins, confLosses,
                 games.stream().map(g -> toGameRow(g, id)).toList(),
                 computeRegularSeasonRecord(games, id),

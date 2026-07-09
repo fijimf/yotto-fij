@@ -2,6 +2,7 @@ package com.yotto.basketball.controller;
 
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.Conference;
+import com.yotto.basketball.entity.ConferenceNameHistory;
 import com.yotto.basketball.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ class ConferenceControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ConferenceRepository conferenceRepo;
+    @Autowired ConferenceNameHistoryRepository nameHistoryRepo;
     @Autowired ConferenceMembershipRepository membershipRepo;
     @Autowired SeasonPopulationStatRepository popStatRepo;
     @Autowired TeamSeasonStatSnapshotRepository snapshotRepo;
@@ -112,7 +114,25 @@ class ConferenceControllerTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.espnId").value("sec1"))
                 .andExpect(jsonPath("$.abbreviation").value("SEC"))
                 .andExpect(jsonPath("$.division").value("Division I"))
-                .andExpect(jsonPath("$.logoUrl").value("https://example.com/sec1.png"));
+                .andExpect(jsonPath("$.logoUrl").value("https://example.com/sec1.png"))
+                .andExpect(jsonPath("$.nameHistory").isArray())
+                .andExpect(jsonPath("$.nameHistory.length()").value(0));
+    }
+
+    @Test
+    void getById_includesNameHistory() throws Exception {
+        Conference c = mkConference("United Athletic Conference", "30");
+        nameHistoryRepo.save(new ConferenceNameHistory(
+                c, "Western Athletic Conference", "WAC", "https://example.com/wac.gif", 2026));
+
+        mockMvc.perform(get("/api/conferences/{id}", c.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("United Athletic Conference"))
+                .andExpect(jsonPath("$.nameHistory.length()").value(1))
+                .andExpect(jsonPath("$.nameHistory[0].name").value("Western Athletic Conference"))
+                .andExpect(jsonPath("$.nameHistory[0].abbreviation").value("WAC"))
+                .andExpect(jsonPath("$.nameHistory[0].logoUrl").value("https://example.com/wac.gif"))
+                .andExpect(jsonPath("$.nameHistory[0].lastSeasonYear").value(2026));
     }
 
     @Test

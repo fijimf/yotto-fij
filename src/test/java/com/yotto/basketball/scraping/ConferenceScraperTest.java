@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.Conference;
 import com.yotto.basketball.entity.ScrapeBatch;
+import com.yotto.basketball.repository.ConferenceNameHistoryRepository;
 import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.ScrapeBatchRepository;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,9 @@ class ConferenceScraperTest extends BaseIntegrationTest {
 
     @Autowired
     private ScrapeBatchRepository scrapeBatchRepository;
+
+    @Autowired
+    private ConferenceNameHistoryRepository nameHistoryRepository;
 
     @MockBean
     private EspnApiClient espnApiClient;
@@ -111,5 +115,9 @@ class ConferenceScraperTest extends BaseIntegrationTest {
 
         Conference updated = conferenceRepository.findByEspnId("2").get();
         assertThat(updated.getName()).isEqualTo("Atlantic Coast Conference");
+
+        // A rename is applied (with a WARN) but never auto-creates a name-history
+        // era — trivial ESPN label tweaks must not mint fake historical brandings.
+        assertThat(nameHistoryRepository.count()).isZero();
     }
 }

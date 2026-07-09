@@ -3,6 +3,7 @@ package com.yotto.basketball.controller;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
+import com.yotto.basketball.service.ConferenceNamingService;
 import com.yotto.basketball.service.MasseyRatingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ class ConferenceWebControllerTest extends BaseIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired SeasonRepository seasonRepo;
     @Autowired ConferenceRepository conferenceRepo;
+    @Autowired ConferenceNameHistoryRepository nameHistoryRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired ConferenceMembershipRepository membershipRepo;
     @Autowired SeasonStatisticsRepository statsRepo;
@@ -166,6 +168,55 @@ class ConferenceWebControllerTest extends BaseIntegrationTest {
     void seasonFragment_unknownYear_returns404() throws Exception {
         mockMvc.perform(get("/conferences/{id}/season/{year}", sec.getId(), 9999))
                 .andExpect(status().isNotFound());
+    }
+
+    // ── Season-scoped conference naming (rebrands, e.g. WAC -> UAC) ──
+
+    @Test
+    void conferencePages_useHistoricalBrandingForCoveredSeasons() throws Exception {
+        // "Big Ten" is the CURRENT branding; through 2025 it was "Old Big Ten"/"OBT"
+        nameHistoryRepo.save(new ConferenceNameHistory(big, "Old Big Ten", "OBT", null, 2025));
+
+        // Index renders 2025 (the only season) -> historical name
+        MvcResult idx = mockMvc.perform(get("/conferences")).andExpect(status().isOk()).andReturn();
+        @SuppressWarnings("unchecked")
+        List<ConferenceWebController.ConferenceSummary> rows =
+                (List<ConferenceWebController.ConferenceSummary>)
+                        idx.getModelAndView().getModel().get("conferences");
+        assertThat(rows).extracting(ConferenceWebController.ConferenceSummary::name)
+                .containsExactlyInAnyOrder("Old Big Ten", "SEC");
+
+        // Detail hero identity + summary resolve to the historical branding
+        MvcResult res = mockMvc.perform(get("/conferences/{id}", big.getId()))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeExists("identity"))
+                .andReturn();
+        ConferenceNamingService.ConferenceIdentity identity =
+                (ConferenceNamingService.ConferenceIdentity) res.getModelAndView().getModel().get("identity");
+        assertThat(identity.name()).isEqualTo("Old Big Ten");
+        assertThat(identity.abbreviation()).isEqualTo("OBT");
+        ConferenceWebController.ConferenceDetail detail = (ConferenceWebController.ConferenceDetail)
+                res.getModelAndView().getModel().get("detail");
+        assertThat(detail.summary().name()).isEqualTo("Old Big Ten");
+
+        // Season fragment carries the identity and flags the out-of-band hero swap
+        mockMvc.perform(get("/conferences/{id}/season/{year}", big.getId(), 2025))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("oobHero", true))
+                .andExpect(model().attributeExists("identity"));
+    }
+
+    @Test
+    void conferencePages_seasonAfterRename_useCurrentBranding() throws Exception {
+        // History covers only seasons through 2024; the 2025 season shows the current name
+        nameHistoryRepo.save(new ConferenceNameHistory(big, "Old Big Ten", "OBT", null, 2024));
+
+        MvcResult res = mockMvc.perform(get("/conferences/{id}", big.getId()))
+                .andExpect(status().isOk())
+                .andReturn();
+        ConferenceNamingService.ConferenceIdentity identity =
+                (ConferenceNamingService.ConferenceIdentity) res.getModelAndView().getModel().get("identity");
+        assertThat(identity.name()).isEqualTo("Big Ten");
     }
 
     // ── helpers ──

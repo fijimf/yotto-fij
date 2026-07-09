@@ -13,6 +13,9 @@ import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.SeasonStatisticsRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
+import com.yotto.basketball.service.ConferenceNamingService;
+import com.yotto.basketball.service.ConferenceNamingService.ConferenceIdentity;
+import com.yotto.basketball.service.ConferenceNamingService.ConferenceNames;
 import com.yotto.basketball.service.ConferenceRankingService;
 import com.yotto.basketball.service.ConferenceRankingService.ConferenceAggregate;
 import com.yotto.basketball.service.MasseyRatingService;
@@ -44,6 +47,7 @@ public class ConferenceWebController {
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final GameRepository gameRepository;
     private final ConferenceRankingService rankingService;
+    private final ConferenceNamingService namingService;
 
     public ConferenceWebController(ConferenceRepository conferenceRepository,
                                   ConferenceMembershipRepository membershipRepository,
@@ -51,7 +55,8 @@ public class ConferenceWebController {
                                   SeasonStatisticsRepository seasonStatisticsRepository,
                                   TeamPowerRatingSnapshotRepository ratingRepository,
                                   GameRepository gameRepository,
-                                  ConferenceRankingService rankingService) {
+                                  ConferenceRankingService rankingService,
+                                  ConferenceNamingService namingService) {
         this.conferenceRepository = conferenceRepository;
         this.membershipRepository = membershipRepository;
         this.seasonRepository = seasonRepository;
@@ -59,6 +64,7 @@ public class ConferenceWebController {
         this.ratingRepository = ratingRepository;
         this.gameRepository = gameRepository;
         this.rankingService = rankingService;
+        this.namingService = namingService;
     }
 
     // ── Conference index ──
@@ -76,13 +82,16 @@ public class ConferenceWebController {
                     .collect(Collectors.toMap(Conference::getId, c -> c));
             int rankedCount = (int) aggregates.values().stream()
                     .filter(a -> a.conferenceRank() != null).count();
+            ConferenceNames names = namingService.load();
+            int seasonYear = season.getYear();
 
             summaries = aggregates.values().stream()
                     .map(a -> {
                         Conference c = confById.get(a.conferenceId());
                         if (c == null) return null;
+                        ConferenceIdentity identity = names.identity(c, seasonYear);
                         return new ConferenceSummary(
-                                c.getId(), c.getName(), c.getAbbreviation(), c.getLogoUrl(),
+                                c.getId(), identity.name(), identity.abbreviation(), identity.logoUrl(),
                                 a.teamCount(), a.avgMasseyRating(), a.conferenceRank(), rankedCount,
                                 a.wins(), a.losses(), a.nonConfWins(), a.nonConfLosses());
                     })
@@ -110,13 +119,17 @@ public class ConferenceWebController {
 
         List<Season> seasons = membershipRepository.findSeasonsByConferenceId(id);
         Season season = seasons.isEmpty() ? null : seasons.get(0);
+        ConferenceIdentity identity = season != null
+                ? namingService.resolve(conference, season.getYear())
+                : new ConferenceIdentity(conference.getName(), conference.getAbbreviation(), conference.getLogoUrl());
 
         model.addAttribute("currentPage", "conferences");
         model.addAttribute("conference", conference);
         model.addAttribute("conferenceId", id);
+        model.addAttribute("identity", identity);
         model.addAttribute("seasons", seasons);
         model.addAttribute("currentSeasonYear", season != null ? season.getYear() : null);
-        model.addAttribute("detail", season != null ? buildDetail(conference, season) : null);
+        model.addAttribute("detail", season != null ? buildDetail(conference, season, identity) : null);
         return "pages/conference-detail";
     }
 
@@ -127,13 +140,18 @@ public class ConferenceWebController {
         Season season = seasonRepository.findByYear(year)
                 .orElseThrow(() -> new EntityNotFoundException("Season not found: " + year));
 
-        model.addAttribute("detail", buildDetail(conference, season));
+        ConferenceIdentity identity = namingService.resolve(conference, year);
+        model.addAttribute("identity", identity);
+        // Signals the fragment to emit hx-swap-oob hero updates (name/abbr/logo can
+        // differ per season); must stay off for the inline render on the full page.
+        model.addAttribute("oobHero", true);
+        model.addAttribute("detail", buildDetail(conference, season, identity));
         return "fragments/conference-season :: panel";
     }
 
     // ── Detail assembly ──
 
-    private ConferenceDetail buildDetail(Conference conference, Season season) {
+    private ConferenceDetail buildDetail(Conference conference, Season season, ConferenceIdentity identity) {
         Long seasonId = season.getId();
 
         List<Team> members = membershipRepository
@@ -196,12 +214,12 @@ public class ConferenceWebController {
         int rankedCount = (int) aggregates.values().stream()
                 .filter(a -> a.conferenceRank() != null).count();
         ConferenceSummary summary = agg != null
-                ? new ConferenceSummary(conference.getId(), conference.getName(),
-                        conference.getAbbreviation(), conference.getLogoUrl(),
+                ? new ConferenceSummary(conference.getId(), identity.name(),
+                        identity.abbreviation(), identity.logoUrl(),
                         agg.teamCount(), agg.avgMasseyRating(), agg.conferenceRank(), rankedCount,
                         agg.wins(), agg.losses(), agg.nonConfWins(), agg.nonConfLosses())
-                : new ConferenceSummary(conference.getId(), conference.getName(),
-                        conference.getAbbreviation(), conference.getLogoUrl(),
+                : new ConferenceSummary(conference.getId(), identity.name(),
+                        identity.abbreviation(), identity.logoUrl(),
                         members.size(), null, null, rankedCount, 0, 0, 0, 0);
 
         return new ConferenceDetail(season.getYear(), conference, summary, ranked, tournament, ncaa);

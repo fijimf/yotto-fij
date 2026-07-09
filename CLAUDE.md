@@ -44,7 +44,8 @@ Additional layers:
 See [UI.md](UI.md) for more details and guidelines.
 
 ### Entities (9)
-- **Conference** - name (unique), abbreviation, division, espnId (unique), logoUrl
+- **Conference** - name (unique), abbreviation, division, espnId (unique), logoUrl — always the CURRENT branding
+- **ConferenceNameHistory** - superseded conference brandings (name/abbr/logo) + lastSeasonYear (inclusive), e.g. WAC through 2026 before the UAC rebrand; display code resolves per-season names via `ConferenceNamingService` (see docs/CONFERENCE_RENAME_PROPOSAL.md)
 - **Season** - year (unique), startDate, endDate
 - **Team** - name, mascot, abbreviation, slug, espnId (unique), color, alternateColor, active, logoUrl
 - **ConferenceMembership** - links Team+Conference+Season (unique per team+season)

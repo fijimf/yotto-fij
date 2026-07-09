@@ -4,6 +4,8 @@ import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.SeasonStatistics;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.SeasonStatisticsRepository;
+import com.yotto.basketball.service.ConferenceNamingService;
+import com.yotto.basketball.service.ConferenceNamingService.ConferenceNames;
 import com.yotto.basketball.service.SeasonHealthService;
 import com.yotto.basketball.service.TeamSeasonTieOut;
 import org.springframework.stereotype.Controller;
@@ -22,13 +24,16 @@ public class AdminQaController {
     private final SeasonRepository seasonRepository;
     private final SeasonStatisticsRepository statsRepository;
     private final SeasonHealthService seasonHealthService;
+    private final ConferenceNamingService namingService;
 
     public AdminQaController(SeasonRepository seasonRepository,
                              SeasonStatisticsRepository statsRepository,
-                             SeasonHealthService seasonHealthService) {
+                             SeasonHealthService seasonHealthService,
+                             ConferenceNamingService namingService) {
         this.seasonRepository = seasonRepository;
         this.statsRepository = statsRepository;
         this.seasonHealthService = seasonHealthService;
+        this.namingService = namingService;
     }
 
     @GetMapping("/admin/qa")
@@ -58,6 +63,7 @@ public class AdminQaController {
             tieOutByTeam.put(t.teamId(), t);
         }
 
+        ConferenceNames names = namingService.load();
         List<SeasonStatistics> matching = new ArrayList<>();
         List<StatDiscrepancy> discrepancies = new ArrayList<>();
         int noCalcCount = 0;
@@ -80,7 +86,7 @@ public class AdminQaController {
                 discrepancies.add(new StatDiscrepancy(
                         ss.getTeam().getId(),
                         ss.getTeam().getName(),
-                        ss.getConference().getName(),
+                        names.name(ss.getConference(), selectedSeason.getYear()),
                         diffs
                 ));
             }

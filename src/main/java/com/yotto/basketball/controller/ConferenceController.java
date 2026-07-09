@@ -1,6 +1,8 @@
 package com.yotto.basketball.controller;
 
+import com.yotto.basketball.dto.ConferenceResponse;
 import com.yotto.basketball.entity.Conference;
+import com.yotto.basketball.repository.ConferenceNameHistoryRepository;
 import com.yotto.basketball.service.ConferenceService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -14,9 +16,12 @@ import java.util.List;
 public class ConferenceController {
 
     private final ConferenceService conferenceService;
+    private final ConferenceNameHistoryRepository nameHistoryRepository;
 
-    public ConferenceController(ConferenceService conferenceService) {
+    public ConferenceController(ConferenceService conferenceService,
+                                ConferenceNameHistoryRepository nameHistoryRepository) {
         this.conferenceService = conferenceService;
+        this.nameHistoryRepository = nameHistoryRepository;
     }
 
     @PostMapping
@@ -25,8 +30,10 @@ public class ConferenceController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Conference> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(conferenceService.findById(id));
+    public ResponseEntity<ConferenceResponse> findById(@PathVariable Long id) {
+        Conference conference = conferenceService.findById(id);
+        return ResponseEntity.ok(ConferenceResponse.of(conference,
+                nameHistoryRepository.findByConferenceIdOrderByLastSeasonYearAsc(id)));
     }
 
     @GetMapping

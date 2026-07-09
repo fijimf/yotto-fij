@@ -12,6 +12,9 @@ import com.yotto.basketball.repository.SeasonStatisticsRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
 import com.yotto.basketball.service.BradleyTerryRatingService;
+import com.yotto.basketball.service.ConferenceNamingService;
+import com.yotto.basketball.service.ConferenceNamingService.ConferenceIdentity;
+import com.yotto.basketball.service.ConferenceNamingService.ConferenceNames;
 import com.yotto.basketball.service.MasseyRatingService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
@@ -38,17 +41,20 @@ public class ComprehensiveRankingsController {
     private final TeamSeasonStatSnapshotRepository statSnapshotRepository;
     private final SeasonStatisticsRepository seasonStatisticsRepository;
     private final ObjectMapper objectMapper;
+    private final ConferenceNamingService namingService;
 
     public ComprehensiveRankingsController(SeasonRepository seasonRepository,
                                            TeamPowerRatingSnapshotRepository ratingRepository,
                                            TeamSeasonStatSnapshotRepository statSnapshotRepository,
                                            SeasonStatisticsRepository seasonStatisticsRepository,
-                                           ObjectMapper objectMapper) {
+                                           ObjectMapper objectMapper,
+                                           ConferenceNamingService namingService) {
         this.seasonRepository = seasonRepository;
         this.ratingRepository = ratingRepository;
         this.statSnapshotRepository = statSnapshotRepository;
         this.seasonStatisticsRepository = seasonStatisticsRepository;
         this.objectMapper = objectMapper;
+        this.namingService = namingService;
     }
 
 
@@ -182,12 +188,16 @@ public class ComprehensiveRankingsController {
         Map<Long, Double> btwByTeam = btw.stream()
                 .collect(Collectors.toMap(r -> r.getTeam().getId(), TeamPowerRatingSnapshot::getRating, (a, b) -> a));
 
+        ConferenceNames names = namingService.load();
+        int seasonYear = season.getYear();
+
         return stats.stream().map(s -> {
             long teamId = s.getTeam().getId();
             SeasonStatistics ss = confByTeam.get(teamId);
-            String confName = ss != null ? ss.getConference().getName() : "—";
-            String confAbbr = (ss != null && ss.getConference().getAbbreviation() != null)
-                    ? ss.getConference().getAbbreviation() : confName;
+            ConferenceIdentity conf = ss != null ? names.identity(ss.getConference(), seasonYear) : null;
+            String confName = conf != null ? conf.name() : "—";
+            String confAbbr = (conf != null && conf.abbreviation() != null)
+                    ? conf.abbreviation() : confName;
             return new ComprehensiveRankingRow(
                     s.getTeam(), confName, confAbbr,
                     s.getWins(), s.getLosses(), s.getWinPct(),

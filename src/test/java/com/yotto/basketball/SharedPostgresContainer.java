@@ -21,6 +21,7 @@ final class SharedPostgresContainer {
     static final String TABLES_TO_TRUNCATE = String.join(", ",
             "betting_odds",
             "conference_memberships",
+            "conference_name_history",
             "conferences",
             "games",
             "non_d1_game_observations",

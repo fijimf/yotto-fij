@@ -4,21 +4,21 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}">
 <head>
-    <title th:text="${conference.name}">Conference</title>
+    <title th:text="${identity.name}">Conference</title>
 </head>
 <body>
 
 <main layout:fragment="content">
 
-    <!-- Conference header -->
+    <!-- Conference header (name/abbr/logo are season-scoped; the season fragment
+         swaps them out-of-band when a different season is selected) -->
     <div class="conf-hero">
-        <div class="conf-hero__logo-wrap" th:if="${conference.logoUrl}">
-            <img th:src="${conference.logoUrl}" th:alt="${conference.name}" class="conf-hero__logo" />
+        <div class="conf-hero__logo-wrap" th:if="${identity.logoUrl}">
+            <img id="conf-hero-logo" th:src="${identity.logoUrl}" th:alt="${identity.name}" class="conf-hero__logo" />
         </div>
         <div class="conf-hero__info">
-            <h1 class="conf-hero__name" th:text="${conference.name}">Big Ten Conference</h1>
-            <p class="conf-hero__abbr" th:if="${conference.abbreviation}"
-               th:text="${conference.abbreviation}">B1G</p>
+            <h1 id="conf-hero-name" class="conf-hero__name" th:text="${identity.name}">Big Ten Conference</h1>
+            <p id="conf-hero-abbr" class="conf-hero__abbr" th:text="${identity.abbreviation}">B1G</p>
         </div>
     </div>
 
