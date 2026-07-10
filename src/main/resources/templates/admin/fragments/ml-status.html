@@ -40,6 +40,36 @@
                     <td style="color: var(--color-text-muted);">Feature count</td>
                     <td th:text="${mlStatus.featureCount() > 0 ? mlStatus.featureCount() : '—'}">—</td>
                 </tr>
+                <th:block th:if="${mlStatus.metrics() != null}" th:with="m=${mlStatus.metrics()}">
+                    <tr>
+                        <td style="color: var(--color-text-muted);">Spread error</td>
+                        <td>
+                            <span th:text="${m.spreadRmse() != null ? #numbers.formatDecimal(m.spreadRmse(), 1, 2) + ' RMSE' : '—'}">—</span>
+                            <span th:if="${m.spreadMae() != null}" style="color: var(--color-text-muted);"
+                                  th:text="'· ' + ${#numbers.formatDecimal(m.spreadMae(), 1, 2)} + ' MAE'"></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--color-text-muted);">Total error</td>
+                        <td>
+                            <span th:text="${m.totalRmse() != null ? #numbers.formatDecimal(m.totalRmse(), 1, 2) + ' RMSE' : '—'}">—</span>
+                            <span th:if="${m.totalMae() != null}" style="color: var(--color-text-muted);"
+                                  th:text="'· ' + ${#numbers.formatDecimal(m.totalMae(), 1, 2)} + ' MAE'"></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--color-text-muted);">Win probability</td>
+                        <td>
+                            <span th:text="${m.brierScore() != null ? #numbers.formatDecimal(m.brierScore(), 1, 4) + ' Brier' : '—'}">—</span>
+                            <span th:if="${m.winAccuracy() != null}" style="color: var(--color-text-muted);"
+                                  th:text="'· ' + ${#numbers.formatDecimal(m.winAccuracy(), 1, 1)} + '% winners'"></span>
+                        </td>
+                    </tr>
+                    <tr th:if="${m.inSample()}">
+                        <td style="color: var(--color-text-muted);">Evaluation</td>
+                        <td style="color: #b45309;">In-sample — metrics are optimistic</td>
+                    </tr>
+                </th:block>
             </tbody>
         </table>
 

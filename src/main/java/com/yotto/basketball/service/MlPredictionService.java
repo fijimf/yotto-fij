@@ -55,6 +55,7 @@ public class MlPredictionService {
     private String modelVersion;
     private Instant trainedAt;
     private int featureCount;
+    private MlModelStatus.Metrics metrics;
 
     public MlPredictionService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -127,7 +128,7 @@ public class MlPredictionService {
     public MlModelStatus getStatus() {
         lock.readLock().lock();
         try {
-            return new MlModelStatus(enabled, modelVersion, trainedAt, featureCount);
+            return new MlModelStatus(enabled, modelVersion, trainedAt, featureCount, metrics);
         } finally {
             lock.readLock().unlock();
         }
@@ -151,6 +152,7 @@ public class MlPredictionService {
         modelVersion = null;
         trainedAt = null;
         featureCount = 0;
+        metrics = null;
 
         try {
             File dir           = new File(modelDir);
@@ -185,6 +187,7 @@ public class MlPredictionService {
             modelVersion = features.path("version").asText(null);
             trainedAt    = Instant.ofEpochMilli(featuresFile.lastModified());
             featureCount = count;
+            metrics      = parseMetrics(features.path("metrics"));
             enabled      = true;
 
             log.info("ML models loaded — version={}, featureCount={}, spreadOut={}, totalOut={}, winprobOut={}",
@@ -241,6 +244,21 @@ public class MlPredictionService {
                     .getValue();
             return probs[0][1];
         }
+    }
+
+    /** Parses the training-script "metrics" block; returns null when absent. */
+    private static MlModelStatus.Metrics parseMetrics(JsonNode node) {
+        if (node == null || node.isMissingNode() || !node.isObject()) return null;
+        return new MlModelStatus.Metrics(
+                doubleOrNull(node, "spread_rmse"), doubleOrNull(node, "spread_mae"),
+                doubleOrNull(node, "total_rmse"),  doubleOrNull(node, "total_mae"),
+                doubleOrNull(node, "brier_score"), doubleOrNull(node, "win_accuracy"),
+                node.path("in_sample").asBoolean(false));
+    }
+
+    private static Double doubleOrNull(JsonNode node, String field) {
+        JsonNode v = node.path(field);
+        return v.isNumber() ? v.asDouble() : null;
     }
 
     /** Returns the name of the first (and for regressors, only) output of the session. */

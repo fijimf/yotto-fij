@@ -119,7 +119,7 @@ def load_games(conn, season_years):
 
 
 def load_massey_snapshots(conn, season_years):
-    """Load MASSEY and MASSEY_TOTAL snapshots for the given seasons."""
+    """Load MASSEY and MASSEY_TOTALS snapshots for the given seasons."""
     placeholders = ",".join(["%s"] * len(season_years))
     sql = f"""
         SELECT
@@ -131,7 +131,7 @@ def load_massey_snapshots(conn, season_years):
             r.games_played
         FROM team_power_rating_snapshots r
         JOIN seasons s ON r.season_id = s.id
-        WHERE r.model_type IN ('MASSEY', 'MASSEY_TOTAL')
+        WHERE r.model_type IN ('MASSEY', 'MASSEY_TOTALS')
           AND s.year IN ({placeholders})
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -161,7 +161,7 @@ def load_bt_snapshots(conn, season_years):
 
 
 def load_hca_params(conn, season_years):
-    """Load HCA params for MASSEY, MASSEY_TOTAL, BRADLEY_TERRY."""
+    """Load HCA params for MASSEY, MASSEY_TOTALS, BRADLEY_TERRY."""
     placeholders = ",".join(["%s"] * len(season_years))
     sql = f"""
         SELECT
@@ -333,8 +333,8 @@ def build_feature_row(row, team_game_index, snapshot_index, param_index):
     massey_hca = 0.0 if neutral else lookup_param(param_index, season_id, "MASSEY", "hca", game_date)
 
     # ── Massey total ratings ───────────────────────────────────────────────────
-    snap_th = lookup_snapshot(snapshot_index, home_id, season_id, "MASSEY_TOTAL", game_date)
-    snap_ta = lookup_snapshot(snapshot_index, away_id, season_id, "MASSEY_TOTAL", game_date)
+    snap_th = lookup_snapshot(snapshot_index, home_id, season_id, "MASSEY_TOTALS", game_date)
+    snap_ta = lookup_snapshot(snapshot_index, away_id, season_id, "MASSEY_TOTALS", game_date)
     if snap_th is None or snap_ta is None:
         return None
     gamma_home = snap_th[0]
@@ -545,9 +545,21 @@ def main():
 
     feat_elapsed = time.time() - t0
     kept_total = len(rows_X)
+    skip_pct = 100 * skipped / len(games_df)
     print(f"[train] Feature build complete: {kept_total:,} rows kept, "
-          f"{skipped:,} skipped ({100*skipped/len(games_df):.1f}%) "
+          f"{skipped:,} skipped ({skip_pct:.1f}%) "
           f"in {_fmt_seconds(feat_elapsed)}")
+
+    # Early-season games are legitimately skipped (no pre-game snapshot yet), which is
+    # normally well under 15%. A high skip rate means snapshots are missing wholesale —
+    # e.g. power ratings never computed for a season, or a model_type string mismatch.
+    MAX_SKIP_PCT = 30.0
+    if skip_pct > MAX_SKIP_PCT:
+        print(f"[train] ERROR: {skip_pct:.1f}% of games were skipped (limit {MAX_SKIP_PCT:.0f}%).")
+        print(f"[train]        Check that Power Ratings have been calculated for all requested")
+        print(f"[train]        seasons and that snapshot model_type values match "
+              f"(MASSEY, MASSEY_TOTALS, BRADLEY_TERRY, BRADLEY_TERRY_W).")
+        sys.exit(1)
 
     X        = np.array(rows_X, dtype=np.float32)
     y_spread = np.array(rows_y_spread, dtype=np.float32)

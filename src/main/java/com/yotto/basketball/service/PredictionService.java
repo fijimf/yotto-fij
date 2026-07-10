@@ -307,8 +307,8 @@ public class PredictionService {
         double gammaAway  = r.masseyTotalAway().getRating();
         double thetaHome  = r.btHome().getRating();
         double thetaAway  = r.btAway().getRating();
-        double thetaWHome = r.btWeightedHome() != null ? r.btWeightedHome().getRating() : 0.0;
-        double thetaWAway = r.btWeightedAway() != null ? r.btWeightedAway().getRating() : 0.0;
+        double thetaWHome = r.btWeightedHome().getRating();
+        double thetaWAway = r.btWeightedAway().getRating();
 
         return new MlFeatureVector(
                 betaHome, betaAway, betaHome - betaAway,
@@ -378,7 +378,9 @@ public class PredictionService {
         boolean hasMasseyTotal() { return masseyTotalHome != null && masseyTotalAway != null; }
         boolean hasBt()          { return btHome != null && btAway != null; }
         boolean hasBtWeighted()  { return btWeightedHome != null && btWeightedAway != null; }
-        boolean hasAll()         { return hasMassey() && hasMasseyTotal() && hasBt(); }
+        // The ML models are trained only on games where all four rating models have
+        // snapshots — the feature vector must never be built with imputed ratings.
+        boolean hasAll()         { return hasMassey() && hasMasseyTotal() && hasBt() && hasBtWeighted(); }
     }
 
     /** Rolling aggregate stats for a team over their last N games. Nullable when window is empty. */
