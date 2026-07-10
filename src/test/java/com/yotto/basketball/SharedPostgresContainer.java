@@ -26,6 +26,7 @@ final class SharedPostgresContainer {
             "games",
             "non_d1_game_observations",
             "power_model_param_snapshots",
+            "prediction_evaluations",
             "quotes",
             "scrape_batches",
             "season_population_stats",

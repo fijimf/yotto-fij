@@ -2,6 +2,7 @@ package com.yotto.basketball.scraping;
 
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.service.ConferenceGameFlagService;
+import com.yotto.basketball.service.PredictionEvaluationService;
 import com.yotto.basketball.service.PowerRatingService;
 import com.yotto.basketball.service.SeasonGameData;
 import com.yotto.basketball.service.SeasonGameDataLoader;
@@ -33,6 +34,7 @@ public class ScrapeOrchestrator {
     private final StatisticsTimeSeriesService timeSeriesService;
     private final PowerRatingService powerRatingService;
     private final TeamStatTimeSeriesService teamStatTimeSeriesService;
+    private final PredictionEvaluationService predictionEvaluationService;
 
     public ScrapeOrchestrator(ConferenceScraper conferenceScraper, TeamScraper teamScraper,
                               StandingsScraper standingsScraper, GameScraper gameScraper,
@@ -44,7 +46,8 @@ public class ScrapeOrchestrator {
                               StatsCalculationService statsCalculationService,
                               StatisticsTimeSeriesService timeSeriesService,
                               PowerRatingService powerRatingService,
-                              TeamStatTimeSeriesService teamStatTimeSeriesService) {
+                              TeamStatTimeSeriesService teamStatTimeSeriesService,
+                              PredictionEvaluationService predictionEvaluationService) {
         this.conferenceScraper = conferenceScraper;
         this.teamScraper = teamScraper;
         this.standingsScraper = standingsScraper;
@@ -58,6 +61,7 @@ public class ScrapeOrchestrator {
         this.timeSeriesService = timeSeriesService;
         this.powerRatingService = powerRatingService;
         this.teamStatTimeSeriesService = teamStatTimeSeriesService;
+        this.predictionEvaluationService = predictionEvaluationService;
     }
 
     public void scrapeFullSeason(int seasonYear) {
@@ -162,6 +166,22 @@ public class ScrapeOrchestrator {
         powerRatingService.calculateAndStoreForSeason(data, scope.fromDate());
         teamStatTimeSeriesService.calculateAndStoreForSeason(data, scope.fromDate());
         statCalcGateService.recordRun(seasonYear, scope);
+
+        // Fresh snapshots were just written — evaluate any newly-FINAL games against them.
+        // Failure here must not fail the scrape batch; evaluation can be re-run from /admin.
+        try {
+            predictionEvaluationService.evaluateSeason(seasonYear);
+        } catch (Exception e) {
+            log.error("Prediction evaluation failed for season {}", seasonYear, e);
+        }
+    }
+
+    public void evaluatePredictions(int seasonYear) {
+        predictionEvaluationService.evaluateSeason(seasonYear);
+    }
+
+    public void rebuildPredictionEvaluations(int seasonYear) {
+        predictionEvaluationService.rebuildSeason(seasonYear);
     }
 
     public void calculateStats(int seasonYear) {

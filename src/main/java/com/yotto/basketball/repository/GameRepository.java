@@ -102,6 +102,12 @@ public interface GameRepository extends JpaRepository<Game, Long> {
            "WHERE g.id = :id")
     Optional<Game> findByIdWithDetails(@Param("id") Long id);
 
+    /** All FINAL games with recorded scores for a season year, oldest first (prediction evaluation). */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam JOIN FETCH g.season s LEFT JOIN FETCH g.bettingOdds " +
+           "WHERE s.year = :seasonYear AND g.status = 'FINAL' " +
+           "  AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL ORDER BY g.gameDate, g.id")
+    List<Game> findFinalGamesForEvaluation(@Param("seasonYear") int seasonYear);
+
     @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
            "WHERE (g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId) " +
            "  AND g.status = 'FINAL' AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL " +

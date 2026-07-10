@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Model Performance</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="predictions-header">
+        <h1 class="page-title">Model Performance</h1>
+        <form method="get" th:action="@{/predictions/performance}"
+              class="predictions-controls" style="display: flex; gap: 0.5rem; align-items: center;">
+            <select name="year" class="form-input form-input--sm" style="width: auto;"
+                    onchange="this.form.submit()">
+                <option th:each="y : ${years}" th:value="${y}" th:text="${y}"
+                        th:selected="${y == selectedYear}">2026</option>
+            </select>
+            <select name="window" class="form-input form-input--sm" style="width: auto;"
+                    onchange="this.form.submit()">
+                <option value="season" th:selected="${window == 'season'}">Full season</option>
+                <option value="30" th:selected="${window == '30'}">Last 30 days</option>
+            </select>
+        </form>
+    </div>
+
+    <p class="predictions-disclaimer">
+        Every FINAL game is scored against each model's pre-game prediction, built only from
+        rating snapshots dated before tip-off. The Book Closing Line row is the sportsbook
+        benchmark. Model predictions are for analytical purposes only and do not constitute
+        betting advice.
+    </p>
+
+    <!-- Empty state -->
+    <div th:if="${selectedYear == null}" class="card">
+        <p style="color: var(--color-text-muted); margin: 0;">
+            No prediction evaluations yet. They are generated automatically after scrapes,
+            or an admin can run them from the Admin dashboard.
+        </p>
+    </div>
+
+    <th:block th:if="${selectedYear != null}">
+
+        <!-- Spread accuracy -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h2 style="margin-top: 0;">Spread <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">predicted home margin vs. actual</span></h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">Model</th>
+                        <th style="text-align: right;">Games</th>
+                        <th style="text-align: right;" title="Mean absolute error in points">MAE</th>
+                        <th style="text-align: right;" title="Root mean squared error in points">RMSE</th>
+                        <th style="text-align: right;" title="How often the predicted winner actually won">Winner&nbsp;%</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${spreadRows}"
+                        th:style="${r.modelType == 'BOOK'} ? 'color: var(--color-text-muted);'">
+                        <td th:text="${displayNames[r.modelType] ?: r.modelType}">Massey</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">5,500</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.mae, 1, 2)}">8.90</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.rmse, 1, 2)}">11.30</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.sideAccuracy * 100, 1, 1)} + '%'">71.2%</td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(spreadRows)}">
+                        <td colspan="5" style="color: var(--color-text-muted);">No spread evaluations in this window.</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Total accuracy -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h2 style="margin-top: 0;">Total <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">predicted combined score vs. actual</span></h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">Model</th>
+                        <th style="text-align: right;">Games</th>
+                        <th style="text-align: right;" title="Mean absolute error in points">MAE</th>
+                        <th style="text-align: right;" title="Root mean squared error in points">RMSE</th>
+                        <th style="text-align: right;" title="Mean (actual − predicted): positive means the model under-predicts totals">Bias</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${totalRows}"
+                        th:style="${r.modelType == 'BOOK'} ? 'color: var(--color-text-muted);'">
+                        <td th:text="${displayNames[r.modelType] ?: r.modelType}">Massey Totals</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">5,500</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.mae, 1, 2)}">13.10</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.rmse, 1, 2)}">16.60</td>
+                        <td style="text-align: right;" th:text="${(r.bias >= 0 ? '+' : '') + #numbers.formatDecimal(r.bias, 1, 2)}">+0.40</td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(totalRows)}">
+                        <td colspan="5" style="color: var(--color-text-muted);">No total evaluations in this window.</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Win probability -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h2 style="margin-top: 0;">Win Probability <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">predicted home-win chance vs. outcome</span></h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">Model</th>
+                        <th style="text-align: right;">Games</th>
+                        <th style="text-align: right;" title="Mean squared error of the probability — lower is better; 0.25 is coin-flip guessing">Brier</th>
+                        <th style="text-align: right;" title="How often the more-likely side won">Accuracy</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${probRows}"
+                        th:style="${r.modelType == 'BOOK'} ? 'color: var(--color-text-muted);'">
+                        <td th:text="${displayNames[r.modelType] ?: r.modelType}">Bradley-Terry</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">5,500</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.brier, 1, 4)}">0.1900</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.accuracy * 100, 1, 1)} + '%'">72.0%</td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(probRows)}">
+                        <td colspan="4" style="color: var(--color-text-muted);">No win-probability evaluations in this window.</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Calibration -->
+        <div class="card" th:if="${!#lists.isEmpty(calibration)}">
+            <h2 style="margin-top: 0;">Calibration <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">when a model says 70%, does the home team win 70% of the time?</span></h2>
+            <div style="max-width: 560px; margin: 0 auto;">
+                <canvas id="chart-calibration"></canvas>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0;">
+                Predictions are grouped into deciles of predicted home-win probability; each point
+                compares the decile's average prediction (x) with the actual home-win rate (y).
+                A perfectly calibrated model follows the dashed diagonal.
+            </p>
+        </div>
+
+        <script th:inline="javascript" th:if="${!#lists.isEmpty(calibration)}">
+            document.addEventListener('DOMContentLoaded', () => {
+                const points = /*[[${calibration}]]*/ [];
+
+                const MODEL_COLORS = {
+                    'ML':              '#22c55e',
+                    'BRADLEY_TERRY':   '#3b82f6',
+                    'BRADLEY_TERRY_W': '#8b5cf6',
+                    'BOOK':            '#f59e0b'
+                };
+
+                const byModel = new Map();
+                for (const p of points) {
+                    if (p.avgPredicted == null || p.actualRate == null) continue;
+                    if (!byModel.has(p.modelType)) {
+                        byModel.set(p.modelType, { label: p.displayName, data: [] });
+                    }
+                    byModel.get(p.modelType).data.push({ x: p.avgPredicted, y: p.actualRate, n: p.n });
+                }
+
+                const datasets = [...byModel.entries()].map(([type, d]) => ({
+                    label: d.label,
+                    data: d.data.sort((a, b) => a.x - b.x),
+                    borderColor: MODEL_COLORS[type] || '#94a3b8',
+                    backgroundColor: MODEL_COLORS[type] || '#94a3b8',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    fill: false,
+                    tension: 0
+                }));
+
+                datasets.push({
+                    label: 'Perfect calibration',
+                    data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+                    borderColor: 'rgba(255,255,255,0.3)',
+                    borderWidth: 1,
+                    borderDash: [6, 4],
+                    pointRadius: 0,
+                    fill: false
+                });
+
+                const pct = v => (v * 100).toFixed(0) + '%';
+                new Chart(document.getElementById('chart-calibration'), {
+                    type: 'line',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        aspectRatio: 1,
+                        parsing: false,
+                        scales: {
+                            x: { type: 'linear', min: 0, max: 1, ticks: { callback: pct },
+                                 title: { display: true, text: 'Predicted home-win probability' } },
+                            y: { min: 0, max: 1, ticks: { callback: pct },
+                                 title: { display: true, text: 'Actual home-win rate' } }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => `${ctx.dataset.label}: predicted ${pct(ctx.parsed.x)}, actual ${pct(ctx.parsed.y)}`
+                                            + (ctx.raw.n != null ? ` (n=${ctx.raw.n.toLocaleString()})` : '')
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        </script>
+
+    </th:block>
+
+</main>
+</body>
+</html>

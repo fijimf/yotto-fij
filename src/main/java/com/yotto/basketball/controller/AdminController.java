@@ -250,4 +250,32 @@ public class AdminController {
                 "ML models reloaded — enabled=" + status.enabled() + ", version=" + status.version());
         return "redirect:/admin";
     }
+
+    /** Incrementally evaluates model predictions vs. results for all seasons (async). */
+    @PostMapping("/ml/evaluate")
+    public String evaluatePredictions(RedirectAttributes redirectAttributes) {
+        return kickOffEvaluation(false, redirectAttributes);
+    }
+
+    /** Deletes and fully recomputes prediction evaluations for all seasons (async). */
+    @PostMapping("/ml/evaluate/rebuild")
+    public String rebuildPredictionEvaluations(RedirectAttributes redirectAttributes) {
+        return kickOffEvaluation(true, redirectAttributes);
+    }
+
+    private String kickOffEvaluation(boolean rebuild, RedirectAttributes redirectAttributes) {
+        List<Integer> years = seasonRepository.findAll().stream()
+                .map(Season::getYear)
+                .sorted()
+                .toList();
+        if (years.isEmpty()) {
+            redirectAttributes.addFlashAttribute("error", "No seasons configured");
+            return "redirect:/admin";
+        }
+        asyncScrapeService.evaluatePredictionsAsync(years, rebuild);
+        redirectAttributes.addFlashAttribute("success",
+                (rebuild ? "Prediction evaluation rebuild" : "Prediction evaluation")
+                        + " started for " + years.size() + " season(s)");
+        return "redirect:/admin";
+    }
 }

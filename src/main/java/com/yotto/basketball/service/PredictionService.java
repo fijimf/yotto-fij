@@ -121,7 +121,8 @@ public class PredictionService {
 
     // ── Core prediction logic ─────────────────────────────────────────────────
 
-    private PredictionResult buildPrediction(Game game) {
+    /** Package-private for {@link PredictionEvaluationService}, which evaluates pre-loaded games in bulk. */
+    PredictionResult buildPrediction(Game game) {
         PredictionResult.TeamSummary homeTeam = toTeamSummary(game.getHomeTeam());
         PredictionResult.TeamSummary awayTeam = toTeamSummary(game.getAwayTeam());
 

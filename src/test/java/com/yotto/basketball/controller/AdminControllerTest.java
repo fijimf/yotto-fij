@@ -303,6 +303,43 @@ class AdminControllerTest extends BaseIntegrationTest {
                 .andExpect(model().attributeExists("mlStatus"));
     }
 
+    // ── POST /admin/ml/evaluate ───────────────────────────────────────────────
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void evaluatePredictions_kicksOffAsyncForAllSeasons() throws Exception {
+        mkSeason(2024);
+        mkSeason(2025);
+
+        mockMvc.perform(post("/admin/ml/evaluate").with(csrf()))
+                .andExpect(redirectedUrl("/admin"))
+                .andExpect(flash().attributeExists("success"));
+
+        verify(asyncScrapeService).evaluatePredictionsAsync(java.util.List.of(2024, 2025), false);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void rebuildEvaluations_kicksOffAsyncRebuild() throws Exception {
+        mkSeason(2025);
+
+        mockMvc.perform(post("/admin/ml/evaluate/rebuild").with(csrf()))
+                .andExpect(redirectedUrl("/admin"))
+                .andExpect(flash().attributeExists("success"));
+
+        verify(asyncScrapeService).evaluatePredictionsAsync(java.util.List.of(2025), true);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void evaluatePredictions_noSeasons_flashesError() throws Exception {
+        mockMvc.perform(post("/admin/ml/evaluate").with(csrf()))
+                .andExpect(redirectedUrl("/admin"))
+                .andExpect(flash().attributeExists("error"));
+
+        verifyNoInteractions(asyncScrapeService);
+    }
+
     // ── Authorization ─────────────────────────────────────────────────────────
 
     @Test

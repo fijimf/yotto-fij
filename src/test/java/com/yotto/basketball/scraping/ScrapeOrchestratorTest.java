@@ -50,6 +50,7 @@ class ScrapeOrchestratorTest {
     @Mock private StatisticsTimeSeriesService timeSeriesService;
     @Mock private PowerRatingService powerRatingService;
     @Mock private TeamStatTimeSeriesService teamStatTimeSeriesService;
+    @Mock private com.yotto.basketball.service.PredictionEvaluationService predictionEvaluationService;
 
     private ScrapeOrchestrator orchestrator;
     private SeasonGameData gameData;
@@ -61,7 +62,7 @@ class ScrapeOrchestratorTest {
                 oddsBackfillScraper, gameStatsScraper,
                 conferenceGameFlagService, statCalcGateService, seasonGameDataLoader,
                 statsCalculationService, timeSeriesService, powerRatingService,
-                teamStatTimeSeriesService);
+                teamStatTimeSeriesService, predictionEvaluationService);
 
         Season season = new Season();
         season.setYear(2025);
@@ -106,7 +107,7 @@ class ScrapeOrchestratorTest {
                 gameScraper, oddsBackfillScraper, gameStatsScraper,
                 conferenceGameFlagService, statCalcGateService,
                 statsCalculationService, timeSeriesService, powerRatingService,
-                teamStatTimeSeriesService);
+                teamStatTimeSeriesService, predictionEvaluationService);
         order.verify(conferenceScraper).scrape(eq(2025), any());
         order.verify(teamScraper).scrape(eq(2025), any());
         order.verify(standingsScraper).scrape(eq(2025), any());

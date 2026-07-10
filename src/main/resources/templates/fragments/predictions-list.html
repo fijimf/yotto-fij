@@ -112,8 +112,10 @@
                     <span th:if="${p.bookSpread != null}"
                           th:with="modelSpread=${p.massey != null ? p.massey.spread : null}">
                         Spread <strong th:text="${p.bookSpread}">-2.5</strong>
+                        <!-- Book spread is a handicap (negative = home favored); model spread is a home
+                             margin — the book's implied margin is −bookSpread, so edge = model + book -->
                         <th:block th:if="${modelSpread != null}"
-                                  th:with="edge=${modelSpread - p.bookSpread.doubleValue()}">
+                                  th:with="edge=${modelSpread + p.bookSpread.doubleValue()}">
                             <span th:if="${edge >= 2.5 or edge <= -2.5}"
                                   class="edge-chip edge-chip--high"
                                   th:text="${edge > 0 ? '▲' : '▼'}"></span>

@@ -73,8 +73,25 @@
             </tbody>
         </table>
 
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <form th:action="@{/admin/ml/evaluate}" method="post">
+                <button type="submit" class="btn btn--outline btn--sm"
+                        title="Score every model against results for FINAL games not yet evaluated (runs in background)">
+                    Evaluate Predictions
+                </button>
+            </form>
+            <form th:action="@{/admin/ml/evaluate/rebuild}" method="post"
+                  onsubmit="return confirm('Delete all evaluation rows and recompute from scratch?');">
+                <button type="submit" class="btn btn--outline btn--sm"
+                        title="Delete all evaluation rows and recompute every season from scratch">
+                    Rebuild Evaluations
+                </button>
+            </form>
+        </div>
+
         <p style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--color-text-muted);">
             To retrain models, run <code>./scripts/retrain.sh</code> on the server after a full season scrape.
+            After a retrain + reload, run Evaluate Predictions so the performance page reflects the new model.
         </p>
     </div>
 </div>

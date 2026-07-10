@@ -188,7 +188,82 @@ class GameDetailPageTest extends BaseIntegrationTest {
                 .andExpect(content().string(containsString("<summary")));
     }
 
+    // ── Model Predictions section (predicted vs. actual with signed error) ───
+
+    @Test
+    void predictionSection_rendersMasseyRowWithSignedError() throws Exception {
+        addRating(homeTeamId, "MASSEY", 10.0);
+        addRating(awayTeamId, "MASSEY", 4.0);
+        addParam("MASSEY", "hca", 3.0);   // predicted spread = 10 − 4 + 3 = 9; actual margin +7 → error −2.0
+
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Model Predictions</summary>")))
+                .andExpect(content().string(containsString("DUKE -9.0")))
+                .andExpect(content().string(containsString("(-2.0)")));
+    }
+
+    @Test
+    void predictionSection_hiddenWhenNoSnapshotsExist() throws Exception {
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Model Predictions</summary>"))));
+    }
+
+    // ── Spread cover check uses handicap orientation ─────────────────────────
+
+    @Test
+    void bettingSpread_coverCheckUsesHandicapOrientation() throws Exception {
+        // Home favored by 10.5 (stored −10.5) but won by only 7 → the AWAY side covered
+        Game game = gameRepo.findById(gameId).orElseThrow();
+        BettingOdds odds = new BettingOdds();
+        odds.setGame(game);
+        odds.setSpread(new java.math.BigDecimal("-10.5"));
+        oddsRepo.save(odds);
+
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Away covered")));
+    }
+
+    @Test
+    void bettingSpread_homeCoversWhenMarginBeatsHandicap() throws Exception {
+        // Home favored by 3.5 (stored −3.5) and won by 7 → home covered
+        Game game = gameRepo.findById(gameId).orElseThrow();
+        BettingOdds odds = new BettingOdds();
+        odds.setGame(game);
+        odds.setSpread(new java.math.BigDecimal("-3.5"));
+        oddsRepo.save(odds);
+
+        mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Home covered")));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void addRating(Long teamId, String modelType, double rating) {
+        TeamPowerRatingSnapshot s = new TeamPowerRatingSnapshot();
+        s.setTeam(teamRepo.findById(teamId).orElseThrow());
+        s.setSeason(seasonRepo.findById(seasonDbId).orElseThrow());
+        s.setModelType(modelType);
+        s.setSnapshotDate(LocalDate.of(2025, 2, 14)); // day before game
+        s.setRating(rating);
+        s.setGamesPlayed(10);
+        s.setCalculatedAt(LocalDateTime.now());
+        ratingRepo.save(s);
+    }
+
+    private void addParam(String modelType, String paramName, double value) {
+        PowerModelParamSnapshot p = new PowerModelParamSnapshot();
+        p.setSeason(seasonRepo.findById(seasonDbId).orElseThrow());
+        p.setModelType(modelType);
+        p.setSnapshotDate(LocalDate.of(2025, 2, 14));
+        p.setParamName(paramName);
+        p.setParamValue(value);
+        p.setCalculatedAt(LocalDateTime.now());
+        paramRepo.save(p);
+    }
 
     private void setStreaks(int homeStreak, int awayStreak) {
         SeasonStatistics home = statsRepo.findByTeamAndSeasonWithConference(homeTeamId, seasonDbId).orElseThrow();

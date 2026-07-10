@@ -135,4 +135,24 @@ public class AsyncScrapeService {
             log.error("Async power ratings calculation failed for {}", seasonYear, e);
         }
     }
+
+    /**
+     * Evaluates model predictions against results for each given season (one
+     * transaction per season). {@code rebuild} deletes existing rows first.
+     */
+    @Async("scrapeExecutor")
+    public void evaluatePredictionsAsync(java.util.List<Integer> seasonYears, boolean rebuild) {
+        log.info("Async prediction evaluation started for seasons {} (rebuild={})", seasonYears, rebuild);
+        for (int year : seasonYears) {
+            try {
+                if (rebuild) {
+                    orchestrator.rebuildPredictionEvaluations(year);
+                } else {
+                    orchestrator.evaluatePredictions(year);
+                }
+            } catch (Exception e) {
+                log.error("Async prediction evaluation failed for {}", year, e);
+            }
+        }
+    }
 }
