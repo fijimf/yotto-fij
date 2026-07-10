@@ -13,26 +13,32 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.nio.FloatBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Loads three ONNX models (spread, total, win-probability) from a filesystem directory
- * and scores them for a given {@link MlFeatureVector}.
+ * Loads and scores ML model bundles. Each bundle is a directory under the model volume
+ * ({@code /models/<slug>/}) holding {@code spread_model.onnx}, {@code total_model.onnx},
+ * {@code winprob_model.onnx} and a {@code features.json} manifest whose ordered feature
+ * list drives input-vector assembly via {@link MlFeatureRegistry} — bundles may use
+ * different feature subsets. A legacy flat layout (files directly in the model dir) is
+ * loaded as slug {@code baseline}.
  *
- * <p>Enabled only when {@code prediction.ml.enabled=true} AND the model directory
- * contains {@code spread_model.onnx}, {@code total_model.onnx},
- * {@code winprob_model.onnx}, and {@code features.json}. If any file is missing the
- * service initialises in a disabled state — Phase 1 predictions continue unaffected.
+ * <p>This service owns ONNX session lifecycle only. Which bundles are served publicly
+ * vs. shadow-evaluated is decided by {@link MlModelRegistryService} (DB-backed).
  *
- * <p>A {@link ReentrantReadWriteLock} guards the three sessions: {@link #predict}
- * holds a read lock (concurrent predictions allowed); {@link #reload} holds a write
- * lock (blocks until in-flight predictions finish, then swaps sessions).
+ * <p>A {@link ReentrantReadWriteLock} guards the bundle map: {@link #predict} holds a
+ * read lock; {@link #reload} holds a write lock (waits for in-flight predictions).
  */
 @Service
 public class MlPredictionService {
 
     private static final Logger log = LoggerFactory.getLogger(MlPredictionService.class);
-    private static final int EXPECTED_FEATURES = 27;
+    static final String LEGACY_SLUG = "baseline";
 
     @Value("${prediction.ml.model-dir:/models}")
     private String modelDir;
@@ -45,17 +51,7 @@ public class MlPredictionService {
 
     // Guarded by lock
     private OrtEnvironment env;
-    private OrtSession spreadSession;
-    private OrtSession totalSession;
-    private OrtSession winprobSession;
-    private String spreadOutputName;
-    private String totalOutputName;
-    private String winprobProbOutputName;
-    private boolean enabled = false;
-    private String modelVersion;
-    private Instant trainedAt;
-    private int featureCount;
-    private MlModelStatus.Metrics metrics;
+    private final Map<String, Bundle> bundles = new LinkedHashMap<>();
 
     public MlPredictionService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -67,68 +63,94 @@ public class MlPredictionService {
             log.info("ML predictions disabled via configuration (prediction.ml.enabled=false)");
             return;
         }
-        loadModels();
+        lock.writeLock().lock();
+        try {
+            loadAllBundles();
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
-    /** Scores all three models for the given feature vector. Returns null if disabled or features incomplete. */
-    public PredictionResult.MlPrediction predict(MlFeatureVector v) {
-        if (v == null) return null;
-        if (hasNullRollingFeature(v)) return null;
-
+    /**
+     * Scores one bundle for the given context. Returns null when the bundle is not
+     * loaded or any of its features is unavailable for this game.
+     */
+    public PredictionResult.MlPrediction predict(String slug, PredictionContext context) {
+        if (context == null) return null;
         lock.readLock().lock();
         try {
-            if (!enabled) return null;
+            Bundle bundle = bundles.get(slug);
+            if (bundle == null) return null;
 
-            float[] input = toFloatArray(v);
-            long[] shape = {1, EXPECTED_FEATURES};
+            float[] input = MlFeatureRegistry.buildVector(bundle.featureNames, context);
+            if (input == null) return null;
 
+            long[] shape = {1, input.length};
             try (OnnxTensor tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(input), shape)) {
-                var inputs = java.util.Map.of("float_input", tensor);
-
-                double spread   = runRegressor(spreadSession,   inputs, spreadOutputName);
-                double total    = runRegressor(totalSession,    inputs, totalOutputName);
-                double pHome    = runClassifier(winprobSession, inputs, winprobProbOutputName);
-                double pAway    = 1.0 - pHome;
-
+                Map<String, OnnxTensor> inputs = Map.of("float_input", tensor);
+                double spread = runRegressor(bundle.spreadSession, inputs, bundle.spreadOutputName);
+                double total  = runRegressor(bundle.totalSession,  inputs, bundle.totalOutputName);
+                double pHome  = runClassifier(bundle.winprobSession, inputs, bundle.winprobProbOutputName);
+                double pAway  = 1.0 - pHome;
                 return new PredictionResult.MlPrediction(
-                        spread, total,
-                        pHome, pAway,
+                        spread, total, pHome, pAway,
                         impliedMoneyline(pHome), impliedMoneyline(pAway),
-                        modelVersion, true);
+                        bundle.status.version(), slug, bundle.status.displayName(), true);
             }
         } catch (Exception e) {
-            log.warn("ML prediction failed: {}", e.getMessage());
+            log.warn("ML prediction failed for bundle {}: {}", slug, e.getMessage());
             return null;
         } finally {
             lock.readLock().unlock();
         }
     }
 
-    /**
-     * Closes all existing sessions and re-initialises from {@code modelDir}.
-     * Acquires a write lock — waits for in-flight predictions to complete first.
-     */
-    public MlModelStatus reload() {
+    /** Closes all bundles and re-scans the model directory. Returns the loaded statuses. */
+    public List<MlBundleStatus> reload() {
         lock.writeLock().lock();
         try {
-            closeSessionsUnderLock();
-            loadModels();
+            closeAllUnderLock();
+            loadAllBundles();
         } finally {
             lock.writeLock().unlock();
         }
-        log.info("ML models reloaded — enabled={}, version={}", enabled, modelVersion);
-        return getStatus();
+        List<MlBundleStatus> statuses = getStatuses();
+        log.info("ML bundles reloaded — {} loaded: {}", statuses.size(),
+                statuses.stream().map(MlBundleStatus::slug).toList());
+        return statuses;
     }
 
+    /** True when at least one bundle is loaded. */
     public boolean isEnabled() {
         lock.readLock().lock();
-        try { return enabled; } finally { lock.readLock().unlock(); }
+        try { return !bundles.isEmpty(); } finally { lock.readLock().unlock(); }
     }
 
-    public MlModelStatus getStatus() {
+    public boolean isLoaded(String slug) {
+        lock.readLock().lock();
+        try { return bundles.containsKey(slug); } finally { lock.readLock().unlock(); }
+    }
+
+    public Set<String> loadedSlugs() {
+        lock.readLock().lock();
+        try { return Set.copyOf(bundles.keySet()); } finally { lock.readLock().unlock(); }
+    }
+
+    public List<MlBundleStatus> getStatuses() {
         lock.readLock().lock();
         try {
-            return new MlModelStatus(enabled, modelVersion, trainedAt, featureCount, metrics);
+            return bundles.values().stream().map(b -> b.status).toList();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /** The ordered feature names of a loaded bundle, or null when not loaded. */
+    public List<String> featureNames(String slug) {
+        lock.readLock().lock();
+        try {
+            Bundle bundle = bundles.get(slug);
+            return bundle != null ? bundle.featureNames : null;
         } finally {
             lock.readLock().unlock();
         }
@@ -138,80 +160,118 @@ public class MlPredictionService {
     public void close() {
         lock.writeLock().lock();
         try {
-            closeSessionsUnderLock();
+            closeAllUnderLock();
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ── Loading (write lock held) ─────────────────────────────────────────────
 
-    /** Must be called with the write lock held (or during @PostConstruct before any readers). */
-    private void loadModels() {
-        enabled = false;
-        modelVersion = null;
-        trainedAt = null;
-        featureCount = 0;
-        metrics = null;
+    private void loadAllBundles() {
+        File root = new File(modelDir);
+        if (!root.isDirectory()) {
+            log.warn("ML model directory {} not found — no bundles loaded", modelDir);
+            return;
+        }
+        env = OrtEnvironment.getEnvironment();
 
-        try {
-            File dir           = new File(modelDir);
-            File featuresFile  = new File(dir, "features.json");
-            File spreadFile    = new File(dir, "spread_model.onnx");
-            File totalFile     = new File(dir, "total_model.onnx");
-            File winprobFile   = new File(dir, "winprob_model.onnx");
-
-            if (!featuresFile.exists() || !spreadFile.exists()
-                    || !totalFile.exists() || !winprobFile.exists()) {
-                log.warn("ML model files not found in {} — running in Phase 1-only mode", modelDir);
-                return;
+        File[] subdirs = root.listFiles(File::isDirectory);
+        if (subdirs != null) {
+            for (File dir : subdirs) {
+                if (new File(dir, "features.json").exists() && !dir.getName().startsWith(".")) {
+                    loadBundle(dir, dir.getName());
+                }
             }
-
-            JsonNode features = objectMapper.readTree(featuresFile);
-            int count = features.path("features").size();
-            if (count != EXPECTED_FEATURES) {
-                log.warn("features.json has {} features, expected {} — skipping ML load", count, EXPECTED_FEATURES);
-                return;
-            }
-
-            env            = OrtEnvironment.getEnvironment();
-            spreadSession  = env.createSession(spreadFile.getAbsolutePath());
-            totalSession   = env.createSession(totalFile.getAbsolutePath());
-            winprobSession = env.createSession(winprobFile.getAbsolutePath());
-
-            // Discover output names from the session metadata rather than hardcoding them.
-            spreadOutputName      = firstOutputName(spreadSession);
-            totalOutputName       = firstOutputName(totalSession);
-            winprobProbOutputName = probOutputName(winprobSession);
-
-            modelVersion = features.path("version").asText(null);
-            trainedAt    = Instant.ofEpochMilli(featuresFile.lastModified());
-            featureCount = count;
-            metrics      = parseMetrics(features.path("metrics"));
-            enabled      = true;
-
-            log.info("ML models loaded — version={}, featureCount={}, spreadOut={}, totalOut={}, winprobOut={}",
-                    modelVersion, featureCount, spreadOutputName, totalOutputName, winprobProbOutputName);
-        } catch (Exception e) {
-            log.warn("Failed to load ML models from {}: {} — running in Phase 1-only mode",
-                    modelDir, e.getMessage());
-            closeSessionsUnderLock();
+        }
+        // Legacy flat layout: files directly in the root, loaded as "baseline"
+        if (!bundles.containsKey(LEGACY_SLUG) && new File(root, "features.json").exists()) {
+            loadBundle(root, LEGACY_SLUG);
+        }
+        if (bundles.isEmpty()) {
+            log.warn("No ML model bundles found in {} — running in Phase 1-only mode", modelDir);
         }
     }
 
-    private void closeSessionsUnderLock() {
-        closeQuietly(spreadSession);
-        closeQuietly(totalSession);
-        closeQuietly(winprobSession);
+    private void loadBundle(File dir, String dirSlug) {
+        try {
+            File featuresFile = new File(dir, "features.json");
+            File spreadFile   = new File(dir, "spread_model.onnx");
+            File totalFile    = new File(dir, "total_model.onnx");
+            File winprobFile  = new File(dir, "winprob_model.onnx");
+            if (!spreadFile.exists() || !totalFile.exists() || !winprobFile.exists()) {
+                log.warn("ML bundle {} is missing ONNX files — skipped", dirSlug);
+                return;
+            }
+
+            JsonNode manifest = objectMapper.readTree(featuresFile);
+            List<String> featureNames = new ArrayList<>();
+            for (JsonNode f : manifest.path("features")) {
+                featureNames.add(f.asText());
+            }
+            if (featureNames.isEmpty()) {
+                log.warn("ML bundle {} has an empty feature list — skipped", dirSlug);
+                return;
+            }
+            List<String> unknown = featureNames.stream()
+                    .filter(n -> !MlFeatureRegistry.supports(n)).toList();
+            if (!unknown.isEmpty()) {
+                log.warn("ML bundle {} uses unknown features {} — skipped (is the app older than the model?)",
+                        dirSlug, unknown);
+                return;
+            }
+
+            String slug = manifest.path("slug").asText(dirSlug);
+            Bundle bundle = new Bundle();
+            bundle.featureNames          = List.copyOf(featureNames);
+            bundle.spreadSession         = env.createSession(spreadFile.getAbsolutePath());
+            bundle.totalSession          = env.createSession(totalFile.getAbsolutePath());
+            bundle.winprobSession        = env.createSession(winprobFile.getAbsolutePath());
+            bundle.spreadOutputName      = firstOutputName(bundle.spreadSession);
+            bundle.totalOutputName       = firstOutputName(bundle.totalSession);
+            bundle.winprobProbOutputName = probOutputName(bundle.winprobSession);
+            bundle.status = new MlBundleStatus(
+                    slug,
+                    manifest.path("display_name").asText(slug),
+                    manifest.path("feature_set").asText(null),
+                    manifest.path("version").asText(null),
+                    Instant.ofEpochMilli(featuresFile.lastModified()),
+                    featureNames.size(),
+                    parseMetrics(manifest.path("metrics")));
+
+            bundles.put(slug, bundle);
+            log.info("ML bundle loaded — slug={}, version={}, features={}",
+                    slug, bundle.status.version(), featureNames.size());
+        } catch (Exception e) {
+            log.warn("Failed to load ML bundle {}: {} — skipped", dirSlug, e.getMessage());
+        }
+    }
+
+    private void closeAllUnderLock() {
+        for (Bundle bundle : bundles.values()) {
+            closeQuietly(bundle.spreadSession);
+            closeQuietly(bundle.totalSession);
+            closeQuietly(bundle.winprobSession);
+        }
+        bundles.clear();
         closeQuietly(env);
-        spreadSession         = null;
-        totalSession          = null;
-        winprobSession        = null;
-        spreadOutputName      = null;
-        totalOutputName       = null;
-        winprobProbOutputName = null;
-        env                   = null;
-        enabled               = false;
+        env = null;
+    }
+
+    // ── Static helpers ────────────────────────────────────────────────────────
+
+    private static MlBundleStatus.Metrics parseMetrics(JsonNode node) {
+        if (node == null || node.isMissingNode() || !node.isObject()) return null;
+        return new MlBundleStatus.Metrics(
+                doubleOrNull(node, "spread_rmse"), doubleOrNull(node, "spread_mae"),
+                doubleOrNull(node, "total_rmse"),  doubleOrNull(node, "total_mae"),
+                doubleOrNull(node, "brier_score"), doubleOrNull(node, "win_accuracy"),
+                node.path("in_sample").asBoolean(false));
+    }
+
+    private static Double doubleOrNull(JsonNode node, String field) {
+        JsonNode v = node.path(field);
+        return v.isNumber() ? v.asDouble() : null;
     }
 
     private static void closeQuietly(AutoCloseable c) {
@@ -219,7 +279,7 @@ public class MlPredictionService {
     }
 
     /** Runs a regressor session and returns output[0] (single-batch float). */
-    private static double runRegressor(OrtSession session, java.util.Map<String, OnnxTensor> inputs,
+    private static double runRegressor(OrtSession session, Map<String, OnnxTensor> inputs,
                                        String outputName) throws OrtException {
         try (OrtSession.Result result = session.run(inputs)) {
             Object raw = result.get(outputName)
@@ -236,7 +296,7 @@ public class MlPredictionService {
      * <p>The Python training script exports with {@code zipmap=False}, so the probability
      * output is a float tensor of shape [1, 2]. Column 1 is P(class 1) = P(home wins).
      */
-    private static double runClassifier(OrtSession session, java.util.Map<String, OnnxTensor> inputs,
+    private static double runClassifier(OrtSession session, Map<String, OnnxTensor> inputs,
                                         String probOutputName) throws OrtException {
         try (OrtSession.Result result = session.run(inputs)) {
             float[][] probs = (float[][]) result.get(probOutputName)
@@ -244,21 +304,6 @@ public class MlPredictionService {
                     .getValue();
             return probs[0][1];
         }
-    }
-
-    /** Parses the training-script "metrics" block; returns null when absent. */
-    private static MlModelStatus.Metrics parseMetrics(JsonNode node) {
-        if (node == null || node.isMissingNode() || !node.isObject()) return null;
-        return new MlModelStatus.Metrics(
-                doubleOrNull(node, "spread_rmse"), doubleOrNull(node, "spread_mae"),
-                doubleOrNull(node, "total_rmse"),  doubleOrNull(node, "total_mae"),
-                doubleOrNull(node, "brier_score"), doubleOrNull(node, "win_accuracy"),
-                node.path("in_sample").asBoolean(false));
-    }
-
-    private static Double doubleOrNull(JsonNode node, String field) {
-        JsonNode v = node.path(field);
-        return v.isNumber() ? v.asDouble() : null;
     }
 
     /** Returns the name of the first (and for regressors, only) output of the session. */
@@ -280,36 +325,20 @@ public class MlPredictionService {
         return last;
     }
 
-    /** Converts the feature record to a float array in canonical feature order. */
-    private static float[] toFloatArray(MlFeatureVector v) {
-        return new float[]{
-                (float) v.masseyBetaHome(),    (float) v.masseyBetaAway(),    (float) v.masseyBetaDiff(),
-                (float) v.masseyGammaHome(),   (float) v.masseyGammaAway(),   (float) v.masseyGammaSum(),
-                (float) v.btThetaHome(),       (float) v.btThetaAway(),       (float) v.btLogodds(),
-                (float) v.btThetaWeightedHome(), (float) v.btThetaWeightedAway(), (float) v.btLogoddsWeighted(),
-                v.homeWinPctL5().floatValue(), v.homeAvgMarginL5().floatValue(),
-                v.homeAvgTotalL5().floatValue(), v.homeMarginStddevL5().floatValue(),
-                v.awayWinPctL5().floatValue(), v.awayAvgMarginL5().floatValue(),
-                v.awayAvgTotalL5().floatValue(), v.awayMarginStddevL5().floatValue(),
-                (float) v.homeGamesPlayed(),   (float) v.awayGamesPlayed(),
-                v.homeDaysRest() == null ? -1f : v.homeDaysRest().floatValue(),
-                v.awayDaysRest() == null ? -1f : v.awayDaysRest().floatValue(),
-                (float) v.seasonWeek(),
-                v.isNeutralSite()    ? 1f : 0f,
-                v.isConferenceGame() ? 1f : 0f
-        };
-    }
-
-    /** Returns true if any rolling Double feature is null (signals incomplete window). */
-    private static boolean hasNullRollingFeature(MlFeatureVector v) {
-        return v.homeWinPctL5()       == null || v.homeAvgMarginL5()   == null
-            || v.homeAvgTotalL5()     == null || v.homeMarginStddevL5() == null
-            || v.awayWinPctL5()       == null || v.awayAvgMarginL5()   == null
-            || v.awayAvgTotalL5()     == null || v.awayMarginStddevL5() == null;
-    }
-
     private static int impliedMoneyline(double p) {
         if (p >= 0.5) return -(int) Math.round(p / (1.0 - p) * 100);
         return (int) Math.round((1.0 - p) / p * 100);
+    }
+
+    /** One loaded bundle: three ONNX sessions + manifest-derived metadata. */
+    private static final class Bundle {
+        List<String> featureNames;
+        OrtSession spreadSession;
+        OrtSession totalSession;
+        OrtSession winprobSession;
+        String spreadOutputName;
+        String totalOutputName;
+        String winprobProbOutputName;
+        MlBundleStatus status;
     }
 }

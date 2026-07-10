@@ -4,6 +4,7 @@ import com.yotto.basketball.entity.Game.GameStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 
 /**
  * Immutable prediction result for a single game. All model sub-blocks are nullable:
@@ -31,7 +32,8 @@ public record PredictionResult(
         MasseyTotalPrediction masseyTotal,
         BradleyTerryPrediction bradleyTerry,
         BradleyTerryPrediction bradleyTerryWeighted,
-        MlPrediction ml,
+        MlPrediction ml,                    // the default ACTIVE model (back-compat)
+        Map<String, MlPrediction> mlModels, // slug → prediction for every ACTIVE model
 
         // Book lines from BettingOdds (null if no odds recorded)
         BigDecimal bookSpread,      // home team perspective (negative = home favored)
@@ -78,9 +80,9 @@ public record PredictionResult(
     ) {}
 
     /**
-     * ML (gradient-boosted) enhancement predictions. Present only when ML is enabled,
-     * all three Phase 1 model snapshots are available, and both teams have ≥ 5 games played
-     * (rolling feature window is complete).
+     * One ML model bundle's predictions. Present only when the bundle is loaded, all
+     * four rating-model snapshots are available, and every feature in the bundle's
+     * manifest could be computed for this game.
      */
     public record MlPrediction(
             double spread,
@@ -90,6 +92,8 @@ public record PredictionResult(
             int homeImpliedMoneyline,
             int awayImpliedMoneyline,
             String modelVersion,
+            String modelSlug,
+            String displayName,
             boolean featuresComplete   // false if any rolling feature was imputed
     ) {}
 }

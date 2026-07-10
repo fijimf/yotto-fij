@@ -7,8 +7,7 @@ import com.yotto.basketball.scraping.AsyncScrapeService;
 import com.yotto.basketball.scraping.TournamentReclassifier;
 import com.yotto.basketball.service.AutomationService;
 import com.yotto.basketball.service.AutomationStatus;
-import com.yotto.basketball.service.MlModelStatus;
-import com.yotto.basketball.service.MlPredictionService;
+import com.yotto.basketball.service.MlModelRegistryService;
 import com.yotto.basketball.service.MlTrainingService;
 import com.yotto.basketball.service.ScrapeHistoryEntry;
 import com.yotto.basketball.service.ScrapeHistoryService;
@@ -30,7 +29,7 @@ public class AdminController {
 
     private final SeasonRepository seasonRepository;
     private final AsyncScrapeService asyncScrapeService;
-    private final MlPredictionService mlPredictionService;
+    private final MlModelRegistryService mlModelRegistryService;
     private final MlTrainingService mlTrainingService;
     private final SeasonHealthService seasonHealthService;
     private final ScrapeHistoryService scrapeHistoryService;
@@ -38,7 +37,8 @@ public class AdminController {
     private final TournamentReclassifier tournamentReclassifier;
 
     public AdminController(SeasonRepository seasonRepository,
-                           AsyncScrapeService asyncScrapeService, MlPredictionService mlPredictionService,
+                           AsyncScrapeService asyncScrapeService,
+                           MlModelRegistryService mlModelRegistryService,
                            MlTrainingService mlTrainingService,
                            SeasonHealthService seasonHealthService,
                            ScrapeHistoryService scrapeHistoryService,
@@ -46,7 +46,7 @@ public class AdminController {
                            TournamentReclassifier tournamentReclassifier) {
         this.seasonRepository    = seasonRepository;
         this.asyncScrapeService  = asyncScrapeService;
-        this.mlPredictionService = mlPredictionService;
+        this.mlModelRegistryService = mlModelRegistryService;
         this.mlTrainingService   = mlTrainingService;
         this.seasonHealthService = seasonHealthService;
         this.scrapeHistoryService = scrapeHistoryService;
@@ -71,7 +71,7 @@ public class AdminController {
         model.addAttribute("healthByYear", healthByYear);
         model.addAttribute("entries", historyEntries);
         model.addAttribute("automation", automation);
-        model.addAttribute("mlStatus", mlPredictionService.getStatus());
+        model.addAttribute("mlModels", mlModelRegistryService.modelViews());
         mlTrainingService.pollActiveRuns();
         model.addAttribute("trainingRuns", mlTrainingService.recentRuns());
         model.addAttribute("trainingInProgress", mlTrainingService.isTrainingInProgress());
@@ -233,28 +233,28 @@ public class AdminController {
         return "redirect:/admin";
     }
 
-    /** Returns the ML status card fragment (HTMX). */
+    /** Returns the ML models card fragment (HTMX). */
     @GetMapping("/ml/status")
     public String mlStatus(Model model) {
-        model.addAttribute("mlStatus", mlPredictionService.getStatus());
+        model.addAttribute("mlModels", mlModelRegistryService.modelViews());
         return "admin/fragments/ml-status :: ml-status-card";
     }
 
     /**
-     * Reloads ML models from disk without restarting the app.
+     * Rescans the model directory, reloads all bundles, and reconciles the registry.
      * Requires admin authentication (form login or HTTP Basic for script access).
      */
     @PostMapping("/ml/reload")
     public String mlReload(Model model,
                            @RequestHeader(value = "HX-Request", required = false) String htmxRequest,
                            RedirectAttributes redirectAttributes) {
-        MlModelStatus status = mlPredictionService.reload();
+        var statuses = mlModelRegistryService.reloadAndReconcile();
         if (htmxRequest != null) {
-            model.addAttribute("mlStatus", status);
+            model.addAttribute("mlModels", mlModelRegistryService.modelViews());
             return "admin/fragments/ml-status :: ml-status-card";
         }
         redirectAttributes.addFlashAttribute("success",
-                "ML models reloaded — enabled=" + status.enabled() + ", version=" + status.version());
+                "ML bundles reloaded — " + statuses.size() + " loaded");
         return "redirect:/admin";
     }
 
@@ -263,15 +263,49 @@ public class AdminController {
      * polled status fragment) models are hot-reloaded and evaluation re-runs.
      */
     @PostMapping("/ml/train")
-    public String mlTrain(RedirectAttributes redirectAttributes) {
+    public String mlTrain(@RequestParam(defaultValue = "baseline") String modelSlug,
+                          @RequestParam(required = false) String featureSet,
+                          RedirectAttributes redirectAttributes) {
         try {
-            var run = mlTrainingService.startTraining();
+            var run = mlTrainingService.startTraining(modelSlug.trim(), featureSet);
             redirectAttributes.addFlashAttribute("success",
-                    "Training started (seasons " + run.getTrainSeasons() + ") — models reload and "
-                            + "evaluations refresh automatically when it finishes");
+                    "Training '" + run.getModelSlug() + "' (seasons " + run.getTrainSeasons()
+                            + ") — models reload and evaluations refresh automatically when it finishes");
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }
+        return "redirect:/admin";
+    }
+
+    /** Makes a model ACTIVE and the site default (fills the main prediction fields). */
+    @PostMapping("/ml/models/{slug}/promote")
+    public String mlPromote(@PathVariable String slug, RedirectAttributes redirectAttributes) {
+        mlModelRegistryService.promote(slug);
+        redirectAttributes.addFlashAttribute("success", "Model '" + slug + "' is now the default");
+        return "redirect:/admin";
+    }
+
+    /** Makes a model ACTIVE (publicly served) without changing the default. */
+    @PostMapping("/ml/models/{slug}/activate")
+    public String mlActivate(@PathVariable String slug, RedirectAttributes redirectAttributes) {
+        mlModelRegistryService.activate(slug);
+        redirectAttributes.addFlashAttribute("success", "Model '" + slug + "' activated");
+        return "redirect:/admin";
+    }
+
+    /** Retires a model (not served, not evaluated; files and history kept). */
+    @PostMapping("/ml/models/{slug}/retire")
+    public String mlRetire(@PathVariable String slug, RedirectAttributes redirectAttributes) {
+        mlModelRegistryService.retire(slug);
+        redirectAttributes.addFlashAttribute("success", "Model '" + slug + "' retired");
+        return "redirect:/admin";
+    }
+
+    /** Moves a retired model back to shadow (CANDIDATE) evaluation. */
+    @PostMapping("/ml/models/{slug}/reinstate")
+    public String mlReinstate(@PathVariable String slug, RedirectAttributes redirectAttributes) {
+        mlModelRegistryService.reinstate(slug);
+        redirectAttributes.addFlashAttribute("success", "Model '" + slug + "' reinstated as candidate");
         return "redirect:/admin";
     }
 

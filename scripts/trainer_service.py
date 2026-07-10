@@ -6,9 +6,13 @@ instead of requiring a shell on the server.
 Endpoints (internal Docker network only — never exposed through nginx):
     GET  /health            → {"status": "ok"}
     POST /train             → starts a training run; body (all optional):
-                              {"train_seasons": [2024, 2025], "test_season": 2025}
+                              {"train_seasons": [2024, 2025], "test_season": 2025,
+                               "model_name": "pace-v2", "feature_set": "pace-v2"}
                               Seasons are auto-discovered from the DB when omitted
-                              (same query as retrain.sh). 409 if a run is in progress.
+                              (same query as retrain.sh). model_name defaults to
+                              "baseline"; feature_set defaults inside train_models.py
+                              (model_name when it names a feature set, else baseline).
+                              409 if a run is in progress.
     GET  /status/{run_id}   → run state: RUNNING / COMPLETED / FAILED, log tail, and
                               (when completed) the metrics from features.json.
 
@@ -19,6 +23,7 @@ persists run history in ml_training_runs).
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -37,8 +42,12 @@ app = FastAPI(title="yotto-fij trainer", docs_url=None, redoc_url=None)
 MODELS_DIR = os.environ.get("ML_MODEL_DIR", "/models")
 LOG_TAIL_LINES = 80
 
+# Must stay in sync with MODEL_NAME_RE in train_models.py
+MODEL_NAME_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+DEFAULT_MODEL_NAME = "baseline"
+
 # Override for smoke tests: a shell-style command string run instead of the real
-# trainer, e.g. TRAINER_CMD="python fake_train.py". Season args are appended.
+# trainer, e.g. TRAINER_CMD="python fake_train.py". Season/model args are appended.
 TRAINER_CMD = os.environ.get("TRAINER_CMD", f"{sys.executable} train_models.py")
 
 _lock = threading.Lock()
@@ -49,6 +58,8 @@ _current_run_id: Optional[str] = None
 class TrainRequest(BaseModel):
     train_seasons: Optional[list] = None
     test_season: Optional[int] = None
+    model_name: Optional[str] = None   # slug; defaults to "baseline"
+    feature_set: Optional[str] = None  # defaults inside train_models.py
 
 
 def _db_url() -> str:
@@ -76,9 +87,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _read_metrics() -> Optional[dict]:
+def _read_metrics(model_name: str) -> Optional[dict]:
     try:
-        with open(os.path.join(MODELS_DIR, "features.json")) as f:
+        with open(os.path.join(MODELS_DIR, model_name, "features.json")) as f:
             meta = json.load(f)
         metrics = meta.get("metrics")
         if isinstance(metrics, dict):
@@ -89,13 +100,17 @@ def _read_metrics() -> Optional[dict]:
         return None
 
 
-def _run_training(run_id: str, train_seasons: list, test_season: int) -> None:
+def _run_training(run_id: str, train_seasons: list, test_season: int,
+                  model_name: str, feature_set: Optional[str]) -> None:
     global _current_run_id
     run = _runs[run_id]
     cmd = shlex.split(TRAINER_CMD) + [
         "--train-seasons", ",".join(str(y) for y in train_seasons),
         "--test-season", str(test_season),
+        "--model-name", model_name,
     ]
+    if feature_set:
+        cmd += ["--feature-set", feature_set]
     log = deque(maxlen=LOG_TAIL_LINES)
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -111,7 +126,7 @@ def _run_training(run_id: str, train_seasons: list, test_season: int) -> None:
         run["finished_at"] = _now()
         if exit_code == 0:
             run["status"] = "COMPLETED"
-            run["metrics"] = _read_metrics()
+            run["metrics"] = _read_metrics(model_name)
         else:
             run["status"] = "FAILED"
             run["error"] = f"training exited with code {exit_code}"
@@ -141,6 +156,13 @@ def train(req: Optional[TrainRequest] = None):
             raise HTTPException(status_code=409,
                                 detail=f"training run {_current_run_id} already in progress")
 
+    model_name = req.model_name or DEFAULT_MODEL_NAME
+    if not MODEL_NAME_RE.match(model_name):
+        raise HTTPException(status_code=400,
+                            detail=f"invalid model_name '{model_name}': "
+                                   f"must match {MODEL_NAME_RE.pattern}")
+    feature_set = req.feature_set
+
     train_seasons = req.train_seasons
     test_season = req.test_season
     if not train_seasons:
@@ -165,6 +187,8 @@ def train(req: Optional[TrainRequest] = None):
             "status": "RUNNING",
             "train_seasons": train_seasons,
             "test_season": test_season,
+            "model_name": model_name,
+            "feature_set": feature_set,
             "started_at": _now(),
             "finished_at": None,
             "exit_code": None,
@@ -172,9 +196,11 @@ def train(req: Optional[TrainRequest] = None):
             "metrics": None,
             "error": None,
         }
-    threading.Thread(target=_run_training, args=(run_id, train_seasons, test_season),
+    threading.Thread(target=_run_training,
+                     args=(run_id, train_seasons, test_season, model_name, feature_set),
                      daemon=True).start()
-    return {"run_id": run_id, "train_seasons": train_seasons, "test_season": test_season}
+    return {"run_id": run_id, "train_seasons": train_seasons, "test_season": test_season,
+            "model_name": model_name, "feature_set": feature_set}
 
 
 @app.get("/status/{run_id}")

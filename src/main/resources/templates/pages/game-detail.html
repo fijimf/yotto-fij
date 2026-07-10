@@ -146,7 +146,7 @@
     <details class="game-detail-col card game-detail-accordion" open
              th:if="${prediction != null and (prediction.massey != null or prediction.masseyTotal != null
                      or prediction.bradleyTerry != null or prediction.bradleyTerryWeighted != null
-                     or prediction.ml != null)}"
+                     or !#maps.isEmpty(prediction.mlModels))}"
              th:with="isFinal=${status.name() == 'FINAL' and prediction.actualMargin != null}">
         <summary class="game-detail-section__title game-detail-accordion__summary">Model Predictions</summary>
         <table class="game-detail-odds-table">
@@ -225,23 +225,28 @@
                     </td>
                 </tr>
 
-                <!-- ML model (all three) -->
-                <tr th:if="${prediction.ml != null}">
-                    <td class="game-detail-odds-table__label">ML <span class="ml-badge">ML</span></td>
-                    <td style="text-align: right;" th:with="sp=${prediction.ml.spread}">
+                <!-- ML models (one row per ACTIVE bundle; default marked ★) -->
+                <tr th:each="mlp : ${prediction.mlModels.values()}">
+                    <td class="game-detail-odds-table__label">
+                        <span th:text="${mlp.displayName}">Baseline</span>
+                        <span class="ml-badge">ML</span>
+                        <span th:if="${prediction.ml != null and prediction.ml.modelSlug == mlp.modelSlug}"
+                              title="Site default model" style="color: #b45309;">★</span>
+                    </td>
+                    <td style="text-align: right;" th:with="sp=${mlp.spread}">
                         <span th:with="absSp=${sp >= 0 ? sp : -sp}"
                               th:text="${(sp >= 0 ? homeTeamAbbr : awayTeamAbbr) + ' -' + #numbers.formatDecimal(absSp, 1, 1)}">DUKE -3.8</span>
                         <span th:if="${isFinal}" style="color: var(--color-text-muted); font-size: 0.8em;"
                               th:with="err=${prediction.actualMargin - sp}"
                               th:text="${'(' + (err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1) + ')'}">(+10.8)</span>
                     </td>
-                    <td style="text-align: right;" th:with="tot=${prediction.ml.total}">
+                    <td style="text-align: right;" th:with="tot=${mlp.total}">
                         <span th:text="${#numbers.formatDecimal(tot, 1, 1)}">149.1</span>
                         <span th:if="${isFinal}" style="color: var(--color-text-muted); font-size: 0.8em;"
                               th:with="err=${prediction.actualTotal - tot}"
                               th:text="${'(' + (err >= 0 ? '+' : '') + #numbers.formatDecimal(err, 1, 1) + ')'}">(−7.1)</span>
                     </td>
-                    <td style="text-align: right;" th:with="p=${prediction.ml.homeWinProbability}">
+                    <td style="text-align: right;" th:with="p=${mlp.homeWinProbability}">
                         <span th:text="${#numbers.formatDecimal(p * 100, 1, 0) + '%'}">64%</span>
                         <span th:if="${isFinal}" class="game-detail-outcome"
                               th:with="correct=${(p >= 0.5) == (prediction.actualMargin > 0)}"

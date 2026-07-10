@@ -3,17 +3,19 @@
 <body>
 <div th:fragment="ml-status-card" id="ml-status-card">
     <div class="card" style="margin-top: 0;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;"
+             th:with="loadedCount=${#lists.size(mlModels.?[loaded])}">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <span th:if="${mlStatus.enabled()}"
+                <span th:if="${loadedCount > 0}"
                       style="display: inline-block; padding: 2px 10px; border-radius: 12px;
-                             background: #d1fae5; color: #065f46; font-size: 0.75rem; font-weight: 600;">
-                    Enabled
+                             background: #d1fae5; color: #065f46; font-size: 0.75rem; font-weight: 600;"
+                      th:text="${loadedCount} + ' model' + (${loadedCount} == 1 ? '' : 's') + ' loaded'">
+                    2 models loaded
                 </span>
-                <span th:unless="${mlStatus.enabled()}"
+                <span th:if="${loadedCount == 0}"
                       style="display: inline-block; padding: 2px 10px; border-radius: 12px;
                              background: #f3f4f6; color: #6b7280; font-size: 0.75rem; font-weight: 600;">
-                    Disabled
+                    No models loaded
                 </span>
             </div>
             <form th:action="@{/admin/ml/reload}" method="post">
@@ -26,58 +28,88 @@
             </form>
         </div>
 
-        <table>
-            <tbody>
+        <!-- Model registry table -->
+        <p th:if="${#lists.isEmpty(mlModels)}"
+           style="font-size: 0.85rem; color: var(--color-text-muted);">
+            No models registered yet — train one below. The first model becomes the site
+            default; later models arrive as shadow candidates you can promote.
+        </p>
+        <div th:if="${!#lists.isEmpty(mlModels)}" style="overflow-x: auto;">
+            <table>
+                <thead>
                 <tr>
-                    <td style="color: var(--color-text-muted); width: 140px;">Version</td>
-                    <td th:text="${mlStatus.version() != null ? mlStatus.version() : '—'}">—</td>
+                    <th style="text-align: left;">Model</th>
+                    <th style="text-align: left;">Status</th>
+                    <th style="text-align: left;">Version</th>
+                    <th style="text-align: right;" title="Test-set spread RMSE from training">Spread RMSE</th>
+                    <th style="text-align: right;" title="Test-set Brier score from training">Brier</th>
+                    <th style="text-align: left;">Actions</th>
                 </tr>
-                <tr>
-                    <td style="color: var(--color-text-muted);">Trained at</td>
-                    <td th:text="${mlStatus.trainedAt() != null ? #temporals.format(mlStatus.trainedAt(), 'MMM d yyyy HH:mm') : '—'}">—</td>
+                </thead>
+                <tbody>
+                <tr th:each="m : ${mlModels}">
+                    <td>
+                        <strong th:text="${m.displayName}">Baseline</strong>
+                        <span style="color: var(--color-text-muted); font-size: 0.75rem;"
+                              th:text="'(' + ${m.slug} + (${m.featureSet != null} ? ' · ' + ${m.featureSet} : '') + ')'"></span>
+                        <span th:if="${m.isDefault}" title="Site default — fills the main prediction fields"
+                              style="color: #b45309;">★</span>
+                    </td>
+                    <td>
+                        <span th:if="${m.status.name() == 'ACTIVE'}"
+                              style="display: inline-block; padding: 1px 8px; border-radius: 10px; background: #d1fae5; color: #065f46; font-size: 0.7rem; font-weight: 600;">Active</span>
+                        <span th:if="${m.status.name() == 'CANDIDATE'}"
+                              style="display: inline-block; padding: 1px 8px; border-radius: 10px; background: #e0e7ff; color: #3730a3; font-size: 0.7rem; font-weight: 600;"
+                              title="Shadow mode: evaluated on the performance page, not shown publicly">Candidate</span>
+                        <span th:if="${m.status.name() == 'RETIRED'}"
+                              style="display: inline-block; padding: 1px 8px; border-radius: 10px; background: #f3f4f6; color: #6b7280; font-size: 0.7rem; font-weight: 600;">Retired</span>
+                        <span th:unless="${m.loaded}" title="No bundle files on disk for this model"
+                              style="color: #991b1b; font-size: 0.7rem;">not loaded</span>
+                    </td>
+                    <td style="font-size: 0.8rem;" th:text="${m.version ?: '—'}">2026-07-10T14:03:22Z</td>
+                    <td style="text-align: right;"
+                        th:text="${m.spreadRmse != null ? #numbers.formatDecimal(m.spreadRmse, 1, 2) : '—'}">10.50</td>
+                    <td style="text-align: right;"
+                        th:text="${m.brierScore != null ? #numbers.formatDecimal(m.brierScore, 1, 4) : '—'}">0.1900</td>
+                    <td style="white-space: nowrap;">
+                        <form th:if="${!m.isDefault and m.status.name() != 'RETIRED' and m.loaded}"
+                              th:action="@{'/admin/ml/models/' + ${m.slug} + '/promote'}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn--outline btn--sm">Make default</button>
+                        </form>
+                        <form th:if="${m.status.name() == 'CANDIDATE' and m.loaded}"
+                              th:action="@{'/admin/ml/models/' + ${m.slug} + '/activate'}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn--outline btn--sm">Activate</button>
+                        </form>
+                        <form th:if="${m.status.name() != 'RETIRED'}"
+                              th:action="@{'/admin/ml/models/' + ${m.slug} + '/retire'}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn--outline btn--sm">Retire</button>
+                        </form>
+                        <form th:if="${m.status.name() == 'RETIRED'}"
+                              th:action="@{'/admin/ml/models/' + ${m.slug} + '/reinstate'}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn--outline btn--sm">Reinstate</button>
+                        </form>
+                    </td>
                 </tr>
-                <tr>
-                    <td style="color: var(--color-text-muted);">Feature count</td>
-                    <td th:text="${mlStatus.featureCount() > 0 ? mlStatus.featureCount() : '—'}">—</td>
-                </tr>
-                <th:block th:if="${mlStatus.metrics() != null}" th:with="m=${mlStatus.metrics()}">
-                    <tr>
-                        <td style="color: var(--color-text-muted);">Spread error</td>
-                        <td>
-                            <span th:text="${m.spreadRmse() != null ? #numbers.formatDecimal(m.spreadRmse(), 1, 2) + ' RMSE' : '—'}">—</span>
-                            <span th:if="${m.spreadMae() != null}" style="color: var(--color-text-muted);"
-                                  th:text="'· ' + ${#numbers.formatDecimal(m.spreadMae(), 1, 2)} + ' MAE'"></span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="color: var(--color-text-muted);">Total error</td>
-                        <td>
-                            <span th:text="${m.totalRmse() != null ? #numbers.formatDecimal(m.totalRmse(), 1, 2) + ' RMSE' : '—'}">—</span>
-                            <span th:if="${m.totalMae() != null}" style="color: var(--color-text-muted);"
-                                  th:text="'· ' + ${#numbers.formatDecimal(m.totalMae(), 1, 2)} + ' MAE'"></span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="color: var(--color-text-muted);">Win probability</td>
-                        <td>
-                            <span th:text="${m.brierScore() != null ? #numbers.formatDecimal(m.brierScore(), 1, 4) + ' Brier' : '—'}">—</span>
-                            <span th:if="${m.winAccuracy() != null}" style="color: var(--color-text-muted);"
-                                  th:text="'· ' + ${#numbers.formatDecimal(m.winAccuracy(), 1, 1)} + '% winners'"></span>
-                        </td>
-                    </tr>
-                    <tr th:if="${m.inSample()}">
-                        <td style="color: var(--color-text-muted);">Evaluation</td>
-                        <td style="color: #b45309;">In-sample — metrics are optimistic</td>
-                    </tr>
-                </th:block>
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
 
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            <form th:action="@{/admin/ml/train}" method="post">
+        <!-- Train + evaluation controls -->
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; align-items: center;">
+            <form th:action="@{/admin/ml/train}" method="post"
+                  style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" name="modelSlug" value="baseline" class="form-input form-input--sm"
+                       style="width: 10rem;" pattern="[a-z0-9-]{1,40}"
+                       title="1-40 chars: lowercase letters, digits, hyphens"/>
+                <select name="featureSet" class="form-input form-input--sm" style="width: auto;"
+                        title="Feature set — auto picks the set matching the model name, else baseline">
+                    <option value="">auto</option>
+                    <option value="baseline">baseline (27 features)</option>
+                    <option value="pace-v2">pace-v2 (41 features)</option>
+                </select>
                 <button type="submit" class="btn btn--sm"
-                        title="Train new models on the trainer service; on success the models hot-reload and evaluations refresh automatically">
-                    Train Models
+                        title="Train this model on the trainer service; on success it reloads and evaluations refresh automatically">
+                    Train
                 </button>
             </form>
             <form th:action="@{/admin/ml/evaluate}" method="post">
@@ -96,7 +128,8 @@
         </div>
 
         <p style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--color-text-muted);">
-            Train Models runs on the trainer container and auto-reloads + re-evaluates on success.
+            New models train as shadow candidates: compare them on the
+            <a th:href="@{/predictions/performance}">performance page</a>, then promote.
             Shell fallback: <code>./scripts/retrain.sh</code> on the server.
         </p>
     </div>

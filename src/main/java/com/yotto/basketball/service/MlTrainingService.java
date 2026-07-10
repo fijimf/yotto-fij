@@ -42,9 +42,13 @@ public class MlTrainingService {
     /** A RUNNING row older than this with an unreachable/unaware trainer is marked FAILED. */
     static final Duration STALE_RUN_TIMEOUT = Duration.ofHours(2);
 
+    /** Slug rule shared with the trainer service and train_models.py. */
+    private static final java.util.regex.Pattern SLUG_RE = java.util.regex.Pattern.compile("^[a-z0-9-]{1,40}$");
+
     private final MlTrainingRunRepository runRepository;
     private final SeasonRepository seasonRepository;
     private final MlPredictionService mlPredictionService;
+    private final MlModelRegistryService mlModelRegistryService;
     private final AsyncScrapeService asyncScrapeService;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
@@ -52,6 +56,7 @@ public class MlTrainingService {
     public MlTrainingService(MlTrainingRunRepository runRepository,
                              SeasonRepository seasonRepository,
                              MlPredictionService mlPredictionService,
+                             MlModelRegistryService mlModelRegistryService,
                              AsyncScrapeService asyncScrapeService,
                              ObjectMapper objectMapper,
                              RestClient.Builder restClientBuilder,
@@ -59,25 +64,38 @@ public class MlTrainingService {
         this.runRepository       = runRepository;
         this.seasonRepository    = seasonRepository;
         this.mlPredictionService = mlPredictionService;
+        this.mlModelRegistryService = mlModelRegistryService;
         this.asyncScrapeService  = asyncScrapeService;
         this.objectMapper        = objectMapper;
         this.restClient          = restClientBuilder.baseUrl(trainerUrl).build();
     }
 
     /**
-     * Starts a training run on the trainer service (seasons auto-discovered there).
+     * Starts a training run for the given model slug on the trainer service
+     * (seasons auto-discovered there).
      *
-     * @throws IllegalStateException with a user-displayable message when the trainer
-     *         is busy, has no data, or is unreachable
+     * @param modelSlug  bundle to (re)train, e.g. "baseline" or "pace-v2"
+     * @param featureSet feature set name, or null to let the trainer pick a default
+     * @throws IllegalStateException with a user-displayable message when the slug is
+     *         invalid or the trainer is busy, has no data, or is unreachable
      */
     @Transactional
-    public MlTrainingRun startTraining() {
+    public MlTrainingRun startTraining(String modelSlug, String featureSet) {
+        if (modelSlug == null || !SLUG_RE.matcher(modelSlug).matches()) {
+            throw new IllegalStateException(
+                    "Model name must be 1-40 chars of lowercase letters, digits or hyphens");
+        }
         if (runRepository.existsByStatus(MlTrainingRun.Status.RUNNING)) {
             throw new IllegalStateException("A training run is already in progress");
         }
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("model_name", modelSlug);
+        if (featureSet != null && !featureSet.isBlank()) {
+            body.put("feature_set", featureSet);
+        }
         TrainerStart resp;
         try {
-            resp = restClient.post().uri("/train").retrieve().body(TrainerStart.class);
+            resp = restClient.post().uri("/train").body(body).retrieve().body(TrainerStart.class);
         } catch (RestClientResponseException e) {
             throw new IllegalStateException("Trainer rejected the request: " + detailOf(e), e);
         } catch (ResourceAccessException e) {
@@ -90,13 +108,14 @@ public class MlTrainingService {
 
         MlTrainingRun run = new MlTrainingRun();
         run.setRunId(resp.runId());
+        run.setModelSlug(modelSlug);
         run.setStatus(MlTrainingRun.Status.RUNNING);
         run.setTrainSeasons(resp.trainSeasons() != null ? joinYears(resp.trainSeasons()) : null);
         run.setTestSeason(resp.testSeason());
         run.setStartedAt(LocalDateTime.now());
         run = runRepository.save(run);
-        log.info("ML training run {} started (train={}, test={})",
-                resp.runId(), run.getTrainSeasons(), run.getTestSeason());
+        log.info("ML training run {} started (model={}, train={}, test={})",
+                resp.runId(), modelSlug, run.getTrainSeasons(), run.getTestSeason());
         return run;
     }
 
@@ -197,13 +216,16 @@ public class MlTrainingService {
             }
         }
 
-        MlModelStatus modelStatus = mlPredictionService.reload();
-        run.setReloaded(modelStatus.enabled());
+        mlModelRegistryService.reloadAndReconcile();
+        boolean loaded = run.getModelSlug() != null
+                ? mlPredictionService.isLoaded(run.getModelSlug())
+                : mlPredictionService.isEnabled();
+        run.setReloaded(loaded);
         runRepository.save(run);
-        log.info("ML training run {} completed — models reloaded (enabled={}, version={})",
-                run.getRunId(), modelStatus.enabled(), modelStatus.version());
+        log.info("ML training run {} completed — bundles reloaded (model {} loaded={})",
+                run.getRunId(), run.getModelSlug(), loaded);
 
-        if (modelStatus.enabled()) {
+        if (loaded) {
             List<Integer> years = seasonRepository.findAll().stream()
                     .map(Season::getYear).sorted().toList();
             if (!years.isEmpty()) {

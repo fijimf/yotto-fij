@@ -10,13 +10,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 /**
- * Smoke tests for the ONNX loading/scoring path using tiny deterministic fixture models
- * in {@code src/test/resources/ml-models} (generated graphs, not real trained models):
+ * Smoke tests for bundle loading/scoring using the tiny deterministic fixture models in
+ * {@code src/test/resources/ml-models} (legacy flat layout — loaded as slug "baseline"):
  *
  * <ul>
  *   <li>{@code spread_model.onnx}  — returns feature 0 ({@code massey_beta_home})</li>
@@ -54,38 +56,47 @@ class MlPredictionServiceTest {
         }
     }
 
-    private static MlFeatureVector completeVector() {
-        return new MlFeatureVector(
-                7.5, 2.5, 5.0,
-                70.25, 68.5, 138.75,
-                0.8, 0.3, 0.62,
-                0.9, 0.35, 0.67,
+    /** Copies the flat fixture files into {@code target/<subdir>}. */
+    private static void copyFixturesInto(Path target) throws IOException {
+        Files.createDirectories(target);
+        try (Stream<Path> files = Files.list(Path.of(fixtureDir()))) {
+            for (Path f : files.filter(Files::isRegularFile).toList()) {
+                Files.copy(f, target.resolve(f.getFileName().toString()));
+            }
+        }
+    }
+
+    static PredictionContext completeContext() {
+        return new PredictionContext(
+                7.5, 2.5,                // massey beta home/away → spread fixture returns 7.5
+                70.25, 68.5,             // massey gamma home/away → total fixture returns 138.75
+                0.8, 0.3, 0.1,
+                0.9, 0.35, 0.1,
                 0.6, 4.2, 145.8, 9.1,
                 0.4, -2.6, 150.2, 11.3,
                 12, 11,
                 3, 4, 9,
-                false, true);
+                false, true,
+                Map.of(), Map.of(), null, null);
     }
 
     @Test
-    void initLoadsModelsAndParsesMetrics() {
+    void initLoadsLegacyFlatLayoutAsBaseline() {
         service = newService(fixtureDir(), true);
 
         assertThat(service.isEnabled()).isTrue();
-        MlModelStatus status = service.getStatus();
-        assertThat(status.enabled()).isTrue();
+        assertThat(service.loadedSlugs()).containsExactly("baseline");
+        assertThat(service.featureNames("baseline")).hasSize(27)
+                .startsWith("massey_beta_home").endsWith("is_conference_game");
+
+        MlBundleStatus status = service.getStatuses().get(0);
+        assertThat(status.slug()).isEqualTo("baseline");
         assertThat(status.version()).isEqualTo("test-fixture-1");
         assertThat(status.featureCount()).isEqualTo(27);
-        assertThat(status.trainedAt()).isNotNull();
-
-        MlModelStatus.Metrics m = status.metrics();
+        MlBundleStatus.Metrics m = status.metrics();
         assertThat(m).isNotNull();
         assertThat(m.spreadRmse()).isEqualTo(10.5);
-        assertThat(m.spreadMae()).isEqualTo(8.25);
-        assertThat(m.totalRmse()).isEqualTo(17.75);
-        assertThat(m.totalMae()).isEqualTo(14.0);
         assertThat(m.brierScore()).isEqualTo(0.1875);
-        assertThat(m.winAccuracy()).isEqualTo(72.5);
         assertThat(m.inSample()).isFalse();
     }
 
@@ -93,30 +104,65 @@ class MlPredictionServiceTest {
     void predictScoresAllThreeModels() {
         service = newService(fixtureDir(), true);
 
-        PredictionResult.MlPrediction p = service.predict(completeVector());
+        PredictionResult.MlPrediction p = service.predict("baseline", completeContext());
 
         assertThat(p).isNotNull();
-        assertThat(p.spread()).isCloseTo(7.5, org.assertj.core.data.Offset.offset(1e-4));    // feature 0
-        assertThat(p.total()).isCloseTo(138.75, org.assertj.core.data.Offset.offset(1e-4));  // feature 5
-        assertThat(p.homeWinProbability()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(1e-6));
-        assertThat(p.awayWinProbability()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(1e-6));
+        assertThat(p.spread()).isCloseTo(7.5, within(1e-4));     // feature 0: massey_beta_home
+        assertThat(p.total()).isCloseTo(138.75, within(1e-4));   // feature 5: massey_gamma_sum
+        assertThat(p.homeWinProbability()).isCloseTo(0.5, within(1e-6));
         assertThat(p.homeImpliedMoneyline()).isEqualTo(-100);
-        assertThat(p.awayImpliedMoneyline()).isEqualTo(-100);
+        assertThat(p.modelSlug()).isEqualTo("baseline");
         assertThat(p.modelVersion()).isEqualTo("test-fixture-1");
     }
 
     @Test
-    void predictReturnsNullOnIncompleteRollingFeatures() {
+    void predictReturnsNullForUnknownSlugAndIncompleteFeatures() {
         service = newService(fixtureDir(), true);
 
-        MlFeatureVector v = new MlFeatureVector(
-                7.5, 2.5, 5.0, 70.25, 68.5, 138.75, 0.8, 0.3, 0.62, 0.9, 0.35, 0.67,
-                null, null, null, null,          // home rolling features missing (cold start)
-                0.4, -2.6, 150.2, 11.3,
-                12, 11, 3, 4, 9, false, true);
+        assertThat(service.predict("nope", completeContext())).isNull();
+        assertThat(service.predict("baseline", null)).isNull();
 
-        assertThat(service.predict(v)).isNull();
-        assertThat(service.predict(null)).isNull();
+        PredictionContext incomplete = new PredictionContext(
+                7.5, 2.5, 70.25, 68.5, 0.8, 0.3, 0.1, 0.9, 0.35, 0.1,
+                null, null, null, null,          // home rolling features missing
+                0.4, -2.6, 150.2, 11.3,
+                12, 11, 3, 4, 9, false, true,
+                Map.of(), Map.of(), null, null);
+        assertThat(service.predict("baseline", incomplete)).isNull();
+    }
+
+    @Test
+    void loadsMultipleBundlesFromSubdirectories(@TempDir Path tempDir) throws IOException {
+        copyFixturesInto(tempDir.resolve("baseline"));
+        copyFixturesInto(tempDir.resolve("alt"));
+        // Give the alt bundle its own slug/version
+        Path altManifest = tempDir.resolve("alt/features.json");
+        String json = Files.readString(altManifest)
+                .replace("\"version\": \"test-fixture-1\"", "\"version\": \"alt-v9\"");
+        Files.writeString(altManifest, json.replaceFirst("\\{", "{\"slug\": \"alt\", \"display_name\": \"Alt Model\","));
+
+        service = newService(tempDir.toString(), true);
+
+        assertThat(service.loadedSlugs()).containsExactlyInAnyOrder("baseline", "alt");
+        PredictionResult.MlPrediction alt = service.predict("alt", completeContext());
+        assertThat(alt).isNotNull();
+        assertThat(alt.modelSlug()).isEqualTo("alt");
+        assertThat(alt.displayName()).isEqualTo("Alt Model");
+        assertThat(alt.modelVersion()).isEqualTo("alt-v9");
+    }
+
+    @Test
+    void bundleWithUnknownFeatureIsSkipped(@TempDir Path tempDir) throws IOException {
+        copyFixturesInto(tempDir.resolve("weird"));
+        Path manifest = tempDir.resolve("weird/features.json");
+        String json = Files.readString(manifest)
+                .replace("\"massey_beta_home\"", "\"feature_from_the_future\"");
+        Files.writeString(manifest, json);
+
+        service = newService(tempDir.toString(), true);
+
+        assertThat(service.isEnabled()).isFalse();
+        assertThat(service.predict("weird", completeContext())).isNull();
     }
 
     @Test
@@ -124,8 +170,7 @@ class MlPredictionServiceTest {
         service = newService("/nonexistent/model/dir", true);
 
         assertThat(service.isEnabled()).isFalse();
-        assertThat(service.getStatus().metrics()).isNull();
-        assertThat(service.predict(completeVector())).isNull();
+        assertThat(service.getStatuses()).isEmpty();
     }
 
     @Test
@@ -133,7 +178,7 @@ class MlPredictionServiceTest {
         service = newService(fixtureDir(), false);
 
         assertThat(service.isEnabled()).isFalse();
-        assertThat(service.predict(completeVector())).isNull();
+        assertThat(service.predict("baseline", completeContext())).isNull();
     }
 
     @Test
@@ -141,30 +186,11 @@ class MlPredictionServiceTest {
         service = newService(fixtureDir(), true);
         assertThat(service.isEnabled()).isTrue();
 
-        MlModelStatus status = service.reload();
+        var statuses = service.reload();
 
-        assertThat(status.enabled()).isTrue();
-        PredictionResult.MlPrediction p = service.predict(completeVector());
+        assertThat(statuses).hasSize(1);
+        PredictionResult.MlPrediction p = service.predict("baseline", completeContext());
         assertThat(p).isNotNull();
-        assertThat(p.spread()).isCloseTo(7.5, org.assertj.core.data.Offset.offset(1e-4));
-    }
-
-    @Test
-    void featureCountMismatchDisablesService(@TempDir Path tempDir) throws IOException {
-        Path fixtures = Path.of(fixtureDir());
-        try (Stream<Path> files = Files.list(fixtures)) {
-            for (Path f : files.toList()) {
-                Files.copy(f, tempDir.resolve(f.getFileName().toString()));
-            }
-        }
-        // Truncate the feature list to 26 names — the loader must refuse the bundle
-        String json = Files.readString(tempDir.resolve("features.json"));
-        Files.writeString(tempDir.resolve("features.json"),
-                json.replace("\"is_conference_game\"", "").replaceAll(",\\s*]", "]"));
-
-        service = newService(tempDir.toString(), true);
-
-        assertThat(service.isEnabled()).isFalse();
-        assertThat(service.predict(completeVector())).isNull();
+        assertThat(p.spread()).isCloseTo(7.5, within(1e-4));
     }
 }

@@ -11,6 +11,7 @@
         <thead>
         <tr>
             <th style="text-align: left;">Started</th>
+            <th style="text-align: left;">Model</th>
             <th style="text-align: left;">Seasons</th>
             <th style="text-align: left;">Status</th>
             <th style="text-align: right;">Duration</th>
@@ -20,6 +21,7 @@
         <tbody>
         <tr th:each="v : ${trainingRuns}" th:with="r=${v.run}">
             <td th:text="${#temporals.format(r.startedAt, 'MMM d HH:mm')}">Jul 10 14:02</td>
+            <td th:text="${r.modelSlug ?: '—'}">baseline</td>
             <td>
                 <span th:text="${r.trainSeasons ?: '—'}">2024,2025</span>
                 <span th:if="${r.testSeason != null}" style="color: var(--color-text-muted);"

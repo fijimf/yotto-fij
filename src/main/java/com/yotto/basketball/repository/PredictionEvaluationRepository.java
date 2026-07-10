@@ -15,20 +15,24 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
 
     List<PredictionEvaluation> findByGameId(Long gameId);
 
-    /** One row per evaluated game in a season, with the ML row's model version (null if no ML row). */
-    interface EvaluatedGame {
+    /** Game ids that have at least one evaluation row in the season. */
+    @Query(nativeQuery = true, value =
+            "SELECT DISTINCT pe.game_id FROM prediction_evaluations pe WHERE pe.season_id = :seasonId")
+    List<Long> findEvaluatedGameIds(@Param("seasonId") Long seasonId);
+
+    /** Per-game ML rows ('ML:&lt;slug&gt;') with their model versions, for staleness checks. */
+    interface EvaluatedMlRow {
         Long getGameId();
-        String getMlVersion();
+        String getModelType();
+        String getModelVersion();
     }
 
     @Query(nativeQuery = true, value = """
-            SELECT pe.game_id AS gameid,
-                   max(pe.model_version) FILTER (WHERE pe.model_type = 'ML') AS mlversion
+            SELECT pe.game_id AS gameid, pe.model_type AS modeltype, pe.model_version AS modelversion
             FROM prediction_evaluations pe
-            WHERE pe.season_id = :seasonId
-            GROUP BY pe.game_id
+            WHERE pe.season_id = :seasonId AND pe.model_type LIKE 'ML:%'
             """)
-    List<EvaluatedGame> findEvaluatedGames(@Param("seasonId") Long seasonId);
+    List<EvaluatedMlRow> findEvaluatedMlRows(@Param("seasonId") Long seasonId);
 
     @Modifying
     @Query(nativeQuery = true, value = "DELETE FROM prediction_evaluations WHERE season_id = :seasonId")

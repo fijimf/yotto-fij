@@ -3,6 +3,7 @@ package com.yotto.basketball.controller;
 import com.yotto.basketball.repository.PredictionEvaluationRepository;
 import com.yotto.basketball.service.BradleyTerryRatingService;
 import com.yotto.basketball.service.MasseyRatingService;
+import com.yotto.basketball.service.MlModelRegistryService;
 import com.yotto.basketball.service.PredictionEvaluationService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -22,9 +23,8 @@ import java.util.Map;
 @Controller
 public class ModelPerformanceController {
 
-    /** Display metadata and ordering for known model types. */
+    /** Display metadata and ordering for the fixed model types; ML:&lt;slug&gt; is dynamic. */
     private static final Map<String, String> DISPLAY_NAMES = Map.of(
-            PredictionEvaluationService.MODEL_ML,          "ML Model",
             MasseyRatingService.MODEL_TYPE,                "Massey",
             MasseyRatingService.MODEL_TYPE_TOTALS,         "Massey Totals",
             BradleyTerryRatingService.MODEL_TYPE,          "Bradley-Terry",
@@ -32,7 +32,6 @@ public class ModelPerformanceController {
             PredictionEvaluationService.MODEL_BOOK,        "Book Closing Line");
 
     private static final List<String> DISPLAY_ORDER = List.of(
-            PredictionEvaluationService.MODEL_ML,
             MasseyRatingService.MODEL_TYPE,
             MasseyRatingService.MODEL_TYPE_TOTALS,
             BradleyTerryRatingService.MODEL_TYPE,
@@ -41,11 +40,14 @@ public class ModelPerformanceController {
 
     private final PredictionEvaluationRepository evaluationRepository;
     private final com.yotto.basketball.repository.SeasonRepository seasonRepository;
+    private final MlModelRegistryService mlModelRegistryService;
 
     public ModelPerformanceController(PredictionEvaluationRepository evaluationRepository,
-                                      com.yotto.basketball.repository.SeasonRepository seasonRepository) {
+                                      com.yotto.basketball.repository.SeasonRepository seasonRepository,
+                                      MlModelRegistryService mlModelRegistryService) {
         this.evaluationRepository = evaluationRepository;
         this.seasonRepository = seasonRepository;
+        this.mlModelRegistryService = mlModelRegistryService;
     }
 
     @GetMapping("/predictions/performance")
@@ -80,8 +82,16 @@ public class ModelPerformanceController {
                 .map(b -> new CalibrationPoint(b.getModelType(), displayName(b.getModelType()),
                         b.getBucket(), b.getN(), b.getAvgPredicted(), b.getActualRate()))
                 .toList());
-        model.addAttribute("displayNames", DISPLAY_NAMES);
+        model.addAttribute("displayNames", allDisplayNames());
         return "pages/model-performance";
+    }
+
+    /** Fixed model-type names plus a dynamic entry per ML bundle ('ML:slug' → registry name). */
+    private Map<String, String> allDisplayNames() {
+        Map<String, String> names = new java.util.LinkedHashMap<>(DISPLAY_NAMES);
+        mlModelRegistryService.plan().displayNames().forEach((slug, displayName) ->
+                names.put(PredictionEvaluationService.ML_TYPE_PREFIX + slug, displayName + " (ML)"));
+        return names;
     }
 
     /** JSON-friendly calibration point for the Chart.js inline block. */
@@ -94,12 +104,14 @@ public class ModelPerformanceController {
                 .toList();
     }
 
+    /** ML bundles sort first (alphabetically), then the fixed baselines, BOOK last. */
     private static int orderOf(String modelType) {
+        if (modelType.startsWith(PredictionEvaluationService.ML_TYPE_PREFIX)) return -1;
         int idx = DISPLAY_ORDER.indexOf(modelType);
         return idx >= 0 ? idx : DISPLAY_ORDER.size();
     }
 
-    private static String displayName(String modelType) {
-        return DISPLAY_NAMES.getOrDefault(modelType, modelType);
+    private String displayName(String modelType) {
+        return allDisplayNames().getOrDefault(modelType, modelType);
     }
 }

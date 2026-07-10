@@ -80,7 +80,7 @@ class AdminControllerTest extends BaseIntegrationTest {
                 .andExpect(model().attributeExists("healthByYear"))
                 .andExpect(model().attributeExists("entries"))
                 .andExpect(model().attributeExists("automation"))
-                .andExpect(model().attributeExists("mlStatus"));
+                .andExpect(model().attributeExists("mlModels"));
     }
 
     @Test
@@ -300,7 +300,7 @@ class AdminControllerTest extends BaseIntegrationTest {
         mockMvc.perform(get("/admin/ml/status"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/fragments/ml-status :: ml-status-card"))
-                .andExpect(model().attributeExists("mlStatus"));
+                .andExpect(model().attributeExists("mlModels"));
     }
 
     // ── POST /admin/ml/train + training status fragment ───────────────────────

@@ -60,7 +60,8 @@ See [UI.md](UI.md) for more details and guidelines.
 - **UserAuditEvent** - security audit trail (login/lockout/reset/etc.), 90-day retention
 - **Snapshot entities** - TeamSeasonStatSnapshot (wide per-team daily stats), TeamPowerRatingSnapshot + PowerModelParamSnapshot (power models), SeasonPopulationStat (long-format population distributions, shared across services via stat-name-scoped deletes), TeamStatSnapshot (long-format derived stats, e.g. four factors — new stats are registry entries in BoxScoreStatCalculator, not migrations)
 - **StatCalcWatermark** - per-season record of the last stats calc run; drives skip/incremental recalculation via Game.updatedAt change detection
-- **PredictionEvaluation** - one row per FINAL game × model (MASSEY/MASSEY_TOTALS/BRADLEY_TERRY/BRADLEY_TERRY_W/ML/BOOK benchmark): pre-game prediction + error vs. actual, built retroactively from snapshot time series (leakage-free) by PredictionEvaluationService — runs incrementally after scrapes and on demand from /admin; powers the public `/predictions/performance` page. Note: `betting_odds.spread` is handicap orientation (negative = home favored)
+- **PredictionEvaluation** - one row per FINAL game × model (MASSEY/MASSEY_TOTALS/BRADLEY_TERRY/BRADLEY_TERRY_W/ML:&lt;slug&gt;/BOOK benchmark): pre-game prediction + error vs. actual, built retroactively from snapshot time series (leakage-free) by PredictionEvaluationService — runs incrementally after scrapes and on demand from /admin; powers the public `/predictions/performance` page. Note: `betting_odds.spread` is handicap orientation (negative = home favored)
+- **MlModel** - registry of named ML bundles (`/models/<slug>/` = 3 ONNX files + features.json manifest whose ordered feature list drives vector assembly via `MlFeatureRegistry`): status ACTIVE (public) / CANDIDATE (shadow-evaluated only) / RETIRED + is_default. First model auto-promotes; later ones arrive as candidates. Feature sets: baseline (27) and pace-v2 (41, adds box-score/RPI features) — mirrored by name in `scripts/train_models.py`'s registry; adding a feature = one supplier entry on each side
 
 ### API Endpoints
 All REST controllers are at `/api/{resource}` with standard CRUD. Notable custom endpoints:
@@ -77,8 +78,9 @@ All REST controllers are at `/api/{resource}` with standard CRUD. Notable custom
 - `POST /admin/scrape/current/{year}` - trigger current season re-scrape (async)
 - `POST /admin/scrape/odds/{year}` - trigger odds backfill (async)
 - `GET /admin/scrape-history` - HTMX fragment for live scrape status
-- `POST /admin/ml/reload` - hot-reload ONNX models; `POST /admin/ml/evaluate[/rebuild]` - (re)build prediction evaluations (async, all seasons)
-- `POST /admin/ml/train` - start a training run on the trainer service; `GET /admin/ml/training-status` - HTMX-polled run history (completion auto-reloads models + re-runs evaluation). Runs recorded in ml_training_runs (V26)
+- `POST /admin/ml/reload` - rescan/reload all model bundles; `POST /admin/ml/evaluate[/rebuild]` - (re)build prediction evaluations (async, all seasons)
+- `POST /admin/ml/train` (params modelSlug, featureSet) - train a named model on the trainer service; `GET /admin/ml/training-status` - HTMX-polled run history (completion auto-reloads bundles + re-runs evaluation). Runs recorded in ml_training_runs
+- `POST /admin/ml/models/{slug}/promote|activate|retire|reinstate` - model lifecycle (ml_models registry, V27)
 - `GET /admin/users` - user management (search, lock/unlock, role, resend verification, trigger reset, delete)
 
 ### Error Handling

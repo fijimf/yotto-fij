@@ -40,8 +40,8 @@ public class PredictionEvaluationService {
 
     private static final Logger log = LoggerFactory.getLogger(PredictionEvaluationService.class);
 
-    /** Composite ML model rows (spread + total + win prob), tagged with the model version. */
-    public static final String MODEL_ML = "ML";
+    /** ML rows are written per model bundle as {@code ML:<slug>} (spread + total + win prob). */
+    public static final String ML_TYPE_PREFIX = "ML:";
     /** Closing-line benchmark rows built from {@link BettingOdds}. */
     public static final String MODEL_BOOK = "BOOK";
 
@@ -69,20 +69,20 @@ public class PredictionEvaluationService {
     private final SeasonRepository seasonRepository;
     private final PredictionEvaluationRepository evaluationRepository;
     private final PredictionService predictionService;
-    private final MlPredictionService mlPredictionService;
+    private final MlModelRegistryService mlModelRegistryService;
     private final JdbcTemplate jdbcTemplate;
 
     public PredictionEvaluationService(GameRepository gameRepository,
                                        SeasonRepository seasonRepository,
                                        PredictionEvaluationRepository evaluationRepository,
                                        PredictionService predictionService,
-                                       MlPredictionService mlPredictionService,
+                                       MlModelRegistryService mlModelRegistryService,
                                        JdbcTemplate jdbcTemplate) {
         this.gameRepository       = gameRepository;
         this.seasonRepository     = seasonRepository;
         this.evaluationRepository = evaluationRepository;
         this.predictionService    = predictionService;
-        this.mlPredictionService  = mlPredictionService;
+        this.mlModelRegistryService = mlModelRegistryService;
         this.jdbcTemplate         = jdbcTemplate;
     }
 
@@ -99,12 +99,18 @@ public class PredictionEvaluationService {
             return 0;
         }
 
-        String currentMlVersion = mlPredictionService.isEnabled()
-                ? mlPredictionService.getStatus().version() : null;
+        // Expected ML rows: one 'ML:<slug>' per evaluable (ACTIVE + CANDIDATE) bundle,
+        // stale when its stored version differs from the currently loaded bundle's.
+        Map<String, String> expectedMl = new java.util.LinkedHashMap<>();
+        mlModelRegistryService.plan().evaluableVersions()
+                .forEach((slug, version) -> expectedMl.put(ML_TYPE_PREFIX + slug, version));
 
-        Map<Long, String> evaluatedMlVersions = new HashMap<>();
-        for (var eg : evaluationRepository.findEvaluatedGames(season.getId())) {
-            evaluatedMlVersions.put(eg.getGameId(), eg.getMlVersion());
+        java.util.Set<Long> evaluatedIds =
+                new java.util.HashSet<>(evaluationRepository.findEvaluatedGameIds(season.getId()));
+        Map<Long, Map<String, String>> storedMlVersions = new HashMap<>();
+        for (var row : evaluationRepository.findEvaluatedMlRows(season.getId())) {
+            storedMlVersions.computeIfAbsent(row.getGameId(), k -> new HashMap<>())
+                    .put(row.getModelType(), row.getModelVersion());
         }
 
         List<Game> games = gameRepository.findFinalGamesForEvaluation(seasonYear);
@@ -112,13 +118,22 @@ public class PredictionEvaluationService {
         int evaluatedGames = 0;
 
         for (Game game : games) {
-            boolean seen = evaluatedMlVersions.containsKey(game.getId());
-            boolean mlStale = currentMlVersion != null
-                    && !currentMlVersion.equals(evaluatedMlVersions.get(game.getId()));
+            boolean seen = evaluatedIds.contains(game.getId());
+            boolean mlStale = false;
+            if (!expectedMl.isEmpty()) {
+                Map<String, String> stored = storedMlVersions.getOrDefault(game.getId(), Map.of());
+                for (var expected : expectedMl.entrySet()) {
+                    if (!stored.containsKey(expected.getKey())
+                            || !Objects.equals(stored.get(expected.getKey()), expected.getValue())) {
+                        mlStale = true;
+                        break;
+                    }
+                }
+            }
             if (seen && !mlStale) {
                 continue;
             }
-            List<Object[]> gameRows = buildRows(game, season, currentMlVersion);
+            List<Object[]> gameRows = buildRows(game, season, expectedMl);
             if (!gameRows.isEmpty()) {
                 rows.addAll(gameRows);
                 evaluatedGames++;
@@ -150,11 +165,14 @@ public class PredictionEvaluationService {
     // ── Row construction ──────────────────────────────────────────────────────
 
     /**
-     * Builds one upsert row per model with a usable prediction for this game.
-     * Returns an empty list when no model (and no book line) could predict it.
+     * Builds one upsert row per model with a usable prediction for this game. Expected
+     * ML models that could not predict (e.g. missing box-score features) get a row with
+     * null predictions — a marker that keeps incremental evaluation from re-scoring the
+     * game forever. Returns an empty list when the game has no actual result.
      */
-    private List<Object[]> buildRows(Game game, Season season, String currentMlVersion) {
-        PredictionResult result = predictionService.buildPrediction(game);
+    private List<Object[]> buildRows(Game game, Season season, Map<String, String> expectedMl) {
+        PredictionService.InternalPrediction internal = predictionService.buildInternal(game);
+        PredictionResult result = internal.result();
         if (result.actualMargin() == null) {
             return List.of();
         }
@@ -184,11 +202,23 @@ public class PredictionEvaluationService {
                     null, null, result.bradleyTerryWeighted().homeWinProbability(),
                     actualMargin, actualTotal, homeWon, null));
         }
-        if (result.ml() != null) {
-            rows.add(row(game, season, MODEL_ML,
-                    result.ml().spread(), result.ml().total(), result.ml().homeWinProbability(),
-                    actualMargin, actualTotal, homeWon,
-                    Objects.requireNonNullElse(result.ml().modelVersion(), currentMlVersion)));
+        // One row per evaluable ML bundle (ACTIVE + CANDIDATE shadow models); expected
+        // bundles with no prediction get a null-prediction marker row at their version.
+        Map<String, PredictionResult.MlPrediction> mlPredictions = internal.allMlPredictions();
+        for (Map.Entry<String, String> expected : expectedMl.entrySet()) {
+            String modelType = expected.getKey();
+            String slug = modelType.substring(ML_TYPE_PREFIX.length());
+            PredictionResult.MlPrediction p = mlPredictions.get(slug);
+            if (p != null) {
+                rows.add(row(game, season, modelType,
+                        p.spread(), p.total(), p.homeWinProbability(),
+                        actualMargin, actualTotal, homeWon,
+                        Objects.requireNonNullElse(p.modelVersion(), expected.getValue())));
+            } else {
+                rows.add(row(game, season, modelType,
+                        null, null, null,
+                        actualMargin, actualTotal, homeWon, expected.getValue()));
+            }
         }
 
         Object[] bookRow = bookRow(game, season, actualMargin, actualTotal, homeWon);

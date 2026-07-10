@@ -30,6 +30,9 @@ public class MlTrainingRun {
     @Column(length = 20)
     private Status status;
 
+    @Column(name = "model_slug", length = 40)
+    private String modelSlug;
+
     @Column(name = "train_seasons", length = 200)
     private String trainSeasons;
 
@@ -62,6 +65,9 @@ public class MlTrainingRun {
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+
+    public String getModelSlug() { return modelSlug; }
+    public void setModelSlug(String modelSlug) { this.modelSlug = modelSlug; }
 
     public String getTrainSeasons() { return trainSeasons; }
     public void setTrainSeasons(String trainSeasons) { this.trainSeasons = trainSeasons; }

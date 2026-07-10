@@ -276,7 +276,11 @@ at game time and without leakage.** The evaluation infrastructure is therefore c
 Phase 1 before Phase 3 deliberately: the performance page is both the user-facing feature
 and the yardstick that makes every subsequent model change verifiable.
 
-**Implementation status:** Phase 0 shipped 2026-07-10 (commits `9b37aec`…`5fa4034`),
-Phase 1 shipped 2026-07-10 (`59fed04`), Phase 2 shipped 2026-07-10 (trainer service +
-admin Train Models with auto reload → evaluate chain). Phase 3 (feature registry,
-box-score features, multi-model) not started.
+**Implementation status:** all four phases shipped 2026-07-10. Phase 0 (`9b37aec`…`5fa4034`),
+Phase 1 (`59fed04`), Phase 2 (`7235174`), Phase 3: feature-supplier registries on both
+sides (`MlFeatureRegistry` ↔ `FEATURE_REGISTRY`), pace-v2 feature set (41 features incl.
+box-score/RPI), walk-forward + early stopping + monotonic constraints in the trainer,
+`ml_models` registry (V27) with ACTIVE/CANDIDATE/RETIRED + default, per-slug `ML:<slug>`
+evaluation rows with shadow candidates, and the admin model-lifecycle table.
+Remaining follow-ups: per-user model selector on the predictions page (UserPreference),
+scheduled auto-retraining.

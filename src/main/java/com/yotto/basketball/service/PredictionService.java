@@ -5,11 +5,15 @@ import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
+import com.yotto.basketball.entity.TeamStatSnapshot;
+import com.yotto.basketball.entity.TeamSeasonStatSnapshot;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.PowerModelParamSnapshotRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamRepository;
+import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
+import com.yotto.basketball.repository.TeamStatSnapshotRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -18,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -40,20 +46,29 @@ public class PredictionService {
     private final SeasonRepository seasonRepository;
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final PowerModelParamSnapshotRepository paramRepository;
+    private final TeamStatSnapshotRepository teamStatSnapshotRepository;
+    private final TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository;
     private final MlPredictionService mlPredictionService;
+    private final MlModelRegistryService mlModelRegistryService;
 
     public PredictionService(GameRepository gameRepository,
                              TeamRepository teamRepository,
                              SeasonRepository seasonRepository,
                              TeamPowerRatingSnapshotRepository ratingRepository,
                              PowerModelParamSnapshotRepository paramRepository,
-                             MlPredictionService mlPredictionService) {
+                             TeamStatSnapshotRepository teamStatSnapshotRepository,
+                             TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
+                             MlPredictionService mlPredictionService,
+                             MlModelRegistryService mlModelRegistryService) {
         this.gameRepository       = gameRepository;
         this.teamRepository       = teamRepository;
         this.seasonRepository     = seasonRepository;
         this.ratingRepository     = ratingRepository;
         this.paramRepository      = paramRepository;
+        this.teamStatSnapshotRepository = teamStatSnapshotRepository;
+        this.teamSeasonStatSnapshotRepository = teamSeasonStatSnapshotRepository;
         this.mlPredictionService  = mlPredictionService;
+        this.mlModelRegistryService = mlModelRegistryService;
     }
 
     /** Returns a prediction for a single game by ID. */
@@ -102,20 +117,18 @@ public class PredictionService {
         PredictionResult.BradleyTerryPrediction bt          = toBradleyTerry(ratings);
         PredictionResult.BradleyTerryPrediction btWeighted  = toBradleyTerryWeighted(ratings);
 
-        PredictionResult.MlPrediction ml = null;
-        if (mlPredictionService.isEnabled() && ratings.hasAll()) {
-            LocalDateTime gameDatetime = gameDate.atStartOfDay();
-            MlFeatureVector features = buildMlFeatureVector(
-                    homeTeamId, awayTeamId, gameDatetime, season.getStartDate(),
-                    neutralSite, false, ratings);
-            ml = mlPredictionService.predict(features);
+        MlPredictions mlPredictions = MlPredictions.none();
+        if (ratings.hasAll()) {
+            mlPredictions = computeMlPredictions(homeTeamId, awayTeamId, gameDate.atStartOfDay(),
+                    season.getStartDate(), season.getId(), neutralSite, false, ratings);
         }
 
         return new PredictionResult(
                 null, gameDate, null, neutralSite,
                 toTeamSummary(home), toTeamSummary(away),
                 null, null, null, null,
-                massey, masseyTotal, bt, btWeighted, ml,
+                massey, masseyTotal, bt, btWeighted,
+                mlPredictions.defaultPrediction(), mlPredictions.active(),
                 null, null);
     }
 
@@ -123,6 +136,15 @@ public class PredictionService {
 
     /** Package-private for {@link PredictionEvaluationService}, which evaluates pre-loaded games in bulk. */
     PredictionResult buildPrediction(Game game) {
+        return buildInternal(game).result();
+    }
+
+    /**
+     * Full prediction plus every evaluable ML model's output (including CANDIDATE
+     * shadow models, which are never exposed in {@link PredictionResult}).
+     * Package-private for {@link PredictionEvaluationService}.
+     */
+    InternalPrediction buildInternal(Game game) {
         PredictionResult.TeamSummary homeTeam = toTeamSummary(game.getHomeTeam());
         PredictionResult.TeamSummary awayTeam = toTeamSummary(game.getAwayTeam());
 
@@ -134,11 +156,11 @@ public class PredictionService {
         // Postponed/cancelled games have no meaningful prediction
         if (game.getStatus() == Game.GameStatus.POSTPONED
                 || game.getStatus() == Game.GameStatus.CANCELLED) {
-            return new PredictionResult(
+            return new InternalPrediction(new PredictionResult(
                     game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                     game.getNeutralSite(), homeTeam, awayTeam,
-                    null, null, null, null, null, null, null, null, null,
-                    bookSpread, bookOverUnder);
+                    null, null, null, null, null, null, null, null, null, Map.of(),
+                    bookSpread, bookOverUnder), Map.of());
         }
 
         LocalDate cutoff = game.getGameDate().toLocalDate();
@@ -155,11 +177,13 @@ public class PredictionService {
         PredictionResult.BradleyTerryPrediction  bt              = toBradleyTerry(ratings);
         PredictionResult.BradleyTerryPrediction  btWeighted      = toBradleyTerryWeighted(ratings);
 
-        // ML enhancement (Phase 2) — null if ML is disabled or features incomplete
-        PredictionResult.MlPrediction ml = null;
-        if (mlPredictionService.isEnabled() && ratings.hasAll()) {
-            MlFeatureVector features = buildMlFeatureVector(game, ratings);
-            ml = mlPredictionService.predict(features);
+        // ML models — every evaluable bundle is scored once; only ACTIVE ones are public
+        MlPredictions mlPredictions = MlPredictions.none();
+        if (ratings.hasAll()) {
+            mlPredictions = computeMlPredictions(
+                    game.getHomeTeam().getId(), game.getAwayTeam().getId(),
+                    game.getGameDate(), game.getSeason().getStartDate(), seasonId,
+                    neutral, Boolean.TRUE.equals(game.getConferenceGame()), ratings);
         }
 
         Integer actualHomeScore = null, actualAwayScore = null, actualMargin = null, actualTotal = null;
@@ -171,12 +195,14 @@ public class PredictionService {
             actualTotal     = game.getHomeScore() + game.getAwayScore();
         }
 
-        return new PredictionResult(
+        PredictionResult result = new PredictionResult(
                 game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                 game.getNeutralSite(), homeTeam, awayTeam,
                 actualHomeScore, actualAwayScore, actualMargin, actualTotal,
-                massey, masseyTotal, bt, btWeighted, ml,
+                massey, masseyTotal, bt, btWeighted,
+                mlPredictions.defaultPrediction(), mlPredictions.active(),
                 bookSpread, bookOverUnder);
+        return new InternalPrediction(result, mlPredictions.all());
     }
 
     // ── Snapshot fetch ────────────────────────────────────────────────────────
@@ -276,20 +302,47 @@ public class PredictionService {
                 earlierDate(r.btWeightedHome().getSnapshotDate(), r.btWeightedAway().getSnapshotDate()));
     }
 
-    // ── Phase 2 ML feature builder ────────────────────────────────────────────
+    // ── ML scoring (Phase 3: per-bundle vectors from one shared context) ──────
 
-    private MlFeatureVector buildMlFeatureVector(Game game, GameRatings r) {
-        return buildMlFeatureVector(
-                game.getHomeTeam().getId(), game.getAwayTeam().getId(),
-                game.getGameDate(), game.getSeason().getStartDate(),
-                Boolean.TRUE.equals(game.getNeutralSite()),
-                Boolean.TRUE.equals(game.getConferenceGame()), r);
+    /**
+     * Builds the context once, scores every evaluable bundle (ACTIVE + CANDIDATE),
+     * and splits the results into public and shadow views.
+     */
+    private MlPredictions computeMlPredictions(Long homeId, Long awayId,
+                                               LocalDateTime gameDatetime, LocalDate seasonStartDate,
+                                               Long seasonId, boolean neutralSite, boolean conferenceGame,
+                                               GameRatings r) {
+        MlModelRegistryService.ServingPlan plan = mlModelRegistryService.plan();
+        if (!plan.hasServableModels()) {
+            return MlPredictions.none();
+        }
+
+        PredictionContext context = buildContext(homeId, awayId, gameDatetime, seasonStartDate,
+                seasonId, neutralSite, conferenceGame, r, plan.needsExtendedStats());
+
+        Map<String, PredictionResult.MlPrediction> all = new LinkedHashMap<>();
+        for (String slug : plan.evaluableVersions().keySet()) {
+            PredictionResult.MlPrediction prediction = mlPredictionService.predict(slug, context);
+            if (prediction != null) {
+                all.put(slug, prediction);
+            }
+        }
+        Map<String, PredictionResult.MlPrediction> active = new LinkedHashMap<>();
+        for (String slug : plan.activeVersions().keySet()) {
+            PredictionResult.MlPrediction prediction = all.get(slug);
+            if (prediction != null) {
+                active.put(slug, prediction);
+            }
+        }
+        PredictionResult.MlPrediction defaultPrediction =
+                plan.defaultSlug() != null ? active.get(plan.defaultSlug()) : null;
+        return new MlPredictions(defaultPrediction, Map.copyOf(active), Map.copyOf(all));
     }
 
-    private MlFeatureVector buildMlFeatureVector(Long homeId, Long awayId,
-                                                  LocalDateTime gameDatetime, LocalDate seasonStartDate,
-                                                  boolean neutralSite, boolean conferenceGame,
-                                                  GameRatings r) {
+    private PredictionContext buildContext(Long homeId, Long awayId,
+                                           LocalDateTime gameDatetime, LocalDate seasonStartDate,
+                                           Long seasonId, boolean neutralSite, boolean conferenceGame,
+                                           GameRatings r, boolean extendedStats) {
         List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, gameDatetime, PageRequest.of(0, 5));
         List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, gameDatetime, PageRequest.of(0, 5));
 
@@ -302,25 +355,38 @@ public class PredictionService {
         int seasonWeek = (int) (ChronoUnit.DAYS.between(
                 seasonStartDate, gameDatetime.toLocalDate()) / 7) + 1;
 
-        double betaHome   = r.masseyHome().getRating();
-        double betaAway   = r.masseyAway().getRating();
-        double gammaHome  = r.masseyTotalHome().getRating();
-        double gammaAway  = r.masseyTotalAway().getRating();
-        double thetaHome  = r.btHome().getRating();
-        double thetaAway  = r.btAway().getRating();
-        double thetaWHome = r.btWeightedHome().getRating();
-        double thetaWAway = r.btWeightedAway().getRating();
+        Map<String, Double> homeBox = Map.of();
+        Map<String, Double> awayBox = Map.of();
+        Double homeRpi = null, awayRpi = null;
+        if (extendedStats) {
+            LocalDate cutoff = gameDatetime.toLocalDate();
+            homeBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(homeId, seasonId, cutoff));
+            awayBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(awayId, seasonId, cutoff));
+            homeRpi = teamSeasonStatSnapshotRepository.findLatestBefore(homeId, seasonId, cutoff)
+                    .map(TeamSeasonStatSnapshot::getRpi).orElse(null);
+            awayRpi = teamSeasonStatSnapshotRepository.findLatestBefore(awayId, seasonId, cutoff)
+                    .map(TeamSeasonStatSnapshot::getRpi).orElse(null);
+        }
 
-        return new MlFeatureVector(
-                betaHome, betaAway, betaHome - betaAway,
-                gammaHome, gammaAway, gammaHome + gammaAway,
-                thetaHome, thetaAway, thetaHome - thetaAway + r.btAlpha(),
-                thetaWHome, thetaWAway, thetaWHome - thetaWAway + r.btWeightedAlpha(),
-                homeStats.winPct(),   homeStats.avgMargin(),   homeStats.avgTotal(),   homeStats.marginStddev(),
-                awayStats.winPct(),   awayStats.avgMargin(),   awayStats.avgTotal(),   awayStats.marginStddev(),
+        return new PredictionContext(
+                r.masseyHome().getRating(), r.masseyAway().getRating(),
+                r.masseyTotalHome().getRating(), r.masseyTotalAway().getRating(),
+                r.btHome().getRating(), r.btAway().getRating(), r.btAlpha(),
+                r.btWeightedHome().getRating(), r.btWeightedAway().getRating(), r.btWeightedAlpha(),
+                homeStats.winPct(), homeStats.avgMargin(), homeStats.avgTotal(), homeStats.marginStddev(),
+                awayStats.winPct(), awayStats.avgMargin(), awayStats.avgTotal(), awayStats.marginStddev(),
                 r.masseyHome().getGamesPlayed(), r.masseyAway().getGamesPlayed(),
                 homeDaysRest, awayDaysRest, seasonWeek,
-                neutralSite, conferenceGame);
+                neutralSite, conferenceGame,
+                homeBox, awayBox, homeRpi, awayRpi);
+    }
+
+    private static Map<String, Double> toStatMap(List<TeamStatSnapshot> snapshots) {
+        Map<String, Double> byName = new LinkedHashMap<>();
+        for (TeamStatSnapshot s : snapshots) {
+            byName.put(s.getStatName(), s.getValue());
+        }
+        return byName;
     }
 
     /**
@@ -386,6 +452,22 @@ public class PredictionService {
 
     /** Rolling aggregate stats for a team over their last N games. Nullable when window is empty. */
     private record RollingStats(Double winPct, Double avgMargin, Double avgTotal, Double marginStddev) {}
+
+    /**
+     * ML outputs for one game: the default model, the public ACTIVE map, and the full
+     * evaluable map (ACTIVE + CANDIDATE shadow models — evaluation only, never public).
+     */
+    private record MlPredictions(PredictionResult.MlPrediction defaultPrediction,
+                                 Map<String, PredictionResult.MlPrediction> active,
+                                 Map<String, PredictionResult.MlPrediction> all) {
+        static MlPredictions none() {
+            return new MlPredictions(null, Map.of(), Map.of());
+        }
+    }
+
+    /** A public result plus the shadow-model predictions used only by evaluation. */
+    record InternalPrediction(PredictionResult result,
+                              Map<String, PredictionResult.MlPrediction> allMlPredictions) {}
 
     // ── Utilities ─────────────────────────────────────────────────────────────
 
