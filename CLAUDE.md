@@ -78,6 +78,7 @@ All REST controllers are at `/api/{resource}` with standard CRUD. Notable custom
 - `POST /admin/scrape/odds/{year}` - trigger odds backfill (async)
 - `GET /admin/scrape-history` - HTMX fragment for live scrape status
 - `POST /admin/ml/reload` - hot-reload ONNX models; `POST /admin/ml/evaluate[/rebuild]` - (re)build prediction evaluations (async, all seasons)
+- `POST /admin/ml/train` - start a training run on the trainer service; `GET /admin/ml/training-status` - HTMX-polled run history (completion auto-reloads models + re-runs evaluation). Runs recorded in ml_training_runs (V26)
 - `GET /admin/users` - user management (search, lock/unlock, role, resend verification, trigger reset, delete)
 
 ### Error Handling
@@ -143,6 +144,7 @@ Full user account system — see [docs/USER_SYSTEM_SPEC.md](docs/USER_SYSTEM_SPE
 Docker Compose services:
 - **db**: PostgreSQL 16-alpine
 - **app**: Spring Boot (built with `--platform linux/amd64` for x86 server)
+- **trainer**: always-on ML trainer service (FastAPI, `scripts/trainer_service.py`) on the internal network only — the app POSTs `http://trainer:8000/train`; training runs `train_models.py` as a subprocess, writing ONNX models to the shared `model_data` volume
 - **nginx**: Reverse proxy on ports 80/443 with Let's Encrypt SSL
 - **goaccess**: real-time analytics from the nginx access log (port 8888, TLS + basic auth)
 - **netdata**: monitoring (see below)

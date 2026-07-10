@@ -27,6 +27,7 @@ services:
       NETDATA_DB_PASSWORD: ${NETDATA_DB_PASSWORD}   # Flyway V21 creates the netdata monitoring role
       ML_MODEL_DIR: /models
       ML_ENABLED: ${ML_ENABLED:-false}
+      ML_TRAINER_URL: http://trainer:8000
       # User account system: transactional email (Mailgun SMTP) + emailed-link base URL
       APP_MAIL_ENABLED: ${APP_MAIL_ENABLED:-true}
       SMTP_HOST: ${SMTP_HOST:-smtp.mailgun.org}
@@ -112,22 +113,24 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # container discovery + names only
       - nginx_logs:/var/log/nginx:ro                   # web_log collector reads access.log
 
-  # ML model trainer — NOT started by `docker compose up`.
-  # Run explicitly: docker compose --profile training run --rm trainer --train-seasons 2023,2024,2025 --test-season 2025
+  # ML trainer service — always on, internal network only (never expose/proxy it).
+  # The app triggers training via POST http://trainer:8000/train (admin "Train Models"
+  # button). One-shot CLI fallback: scripts/retrain.sh (uses --entrypoint python).
   trainer:
     build:
       context: ./scripts
       dockerfile: Dockerfile.trainer
-    profiles:
-      - training
+    restart: unless-stopped
     env_file: .env
     environment:
       DB_HOST: db
       DB_PORT: "5432"
+      ML_MODEL_DIR: /models
     volumes:
       - model_data:/models
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   yotto-postgres-data:

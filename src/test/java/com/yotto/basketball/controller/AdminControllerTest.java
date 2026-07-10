@@ -303,6 +303,26 @@ class AdminControllerTest extends BaseIntegrationTest {
                 .andExpect(model().attributeExists("mlStatus"));
     }
 
+    // ── POST /admin/ml/train + training status fragment ───────────────────────
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void mlTrain_trainerUnreachable_flashesError() throws Exception {
+        // No trainer service in the test environment — the controller must fail soft
+        mockMvc.perform(post("/admin/ml/train").with(csrf()))
+                .andExpect(redirectedUrl("/admin"))
+                .andExpect(flash().attributeExists("error"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void mlTrainingStatusFragment_rendersEmptyHistory() throws Exception {
+        mockMvc.perform(get("/admin/ml/training-status"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/fragments/ml-training-runs :: training-runs"))
+                .andExpect(model().attributeExists("trainingRuns"));
+    }
+
     // ── POST /admin/ml/evaluate ───────────────────────────────────────────────
 
     @Test

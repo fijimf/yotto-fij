@@ -5,6 +5,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY train_models.py .
+COPY train_models.py trainer_service.py ./
 
-ENTRYPOINT ["python", "train_models.py"]
+# Long-running trainer service (internal network only). The Spring app triggers
+# training via POST /train. One-shot CLI training is still possible:
+#   docker compose run --rm --entrypoint python trainer train_models.py --train-seasons ... --test-season ...
+EXPOSE 8000
+ENTRYPOINT ["uvicorn", "trainer_service:app", "--host", "0.0.0.0", "--port", "8000"]

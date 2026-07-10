@@ -339,6 +339,13 @@
             <h2 class="admin-section__title">ML Models</h2>
         </div>
         <div th:replace="~{admin/fragments/ml-status :: ml-status-card}"></div>
+
+        <h3 style="margin: 1rem 0 0.5rem; font-size: 0.95rem;">Training Runs</h3>
+        <div id="ml-training-runs"
+             hx-get="/admin/ml/training-status"
+             hx-trigger="every 5s">
+            <div th:replace="~{admin/fragments/ml-training-runs :: training-runs}"></div>
+        </div>
     </section>
 
     <!-- Scrape History -->

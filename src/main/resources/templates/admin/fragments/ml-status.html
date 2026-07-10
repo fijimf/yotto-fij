@@ -74,6 +74,12 @@
         </table>
 
         <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <form th:action="@{/admin/ml/train}" method="post">
+                <button type="submit" class="btn btn--sm"
+                        title="Train new models on the trainer service; on success the models hot-reload and evaluations refresh automatically">
+                    Train Models
+                </button>
+            </form>
             <form th:action="@{/admin/ml/evaluate}" method="post">
                 <button type="submit" class="btn btn--outline btn--sm"
                         title="Score every model against results for FINAL games not yet evaluated (runs in background)">
@@ -90,8 +96,8 @@
         </div>
 
         <p style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--color-text-muted);">
-            To retrain models, run <code>./scripts/retrain.sh</code> on the server after a full season scrape.
-            After a retrain + reload, run Evaluate Predictions so the performance page reflects the new model.
+            Train Models runs on the trainer container and auto-reloads + re-evaluates on success.
+            Shell fallback: <code>./scripts/retrain.sh</code> on the server.
         </p>
     </div>
 </div>

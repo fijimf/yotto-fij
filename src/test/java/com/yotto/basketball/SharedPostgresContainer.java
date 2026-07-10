@@ -24,6 +24,7 @@ final class SharedPostgresContainer {
             "conference_name_history",
             "conferences",
             "games",
+            "ml_training_runs",
             "non_d1_game_observations",
             "power_model_param_snapshots",
             "prediction_evaluations",

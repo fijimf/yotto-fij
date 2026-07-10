@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Retrain ML models and reload them in the running app without restarting.
 #
+# NOTE: the normal path is now the admin dashboard "Train Models" button, which calls
+# the always-on trainer service (POST http://trainer:8000/train) and auto-reloads +
+# re-evaluates on success. This script is the shell fallback — it runs a one-shot
+# training container directly (bypassing the service) and then reloads via the app.
+#
 # Usage (from the server, in the project directory):
 #   ./scripts/retrain.sh                    # auto-detect seasons from DB
 #   ./scripts/retrain.sh 2025,2026 2026     # explicit: train seasons, test season
@@ -39,7 +44,8 @@ else
 fi
 
 echo "[retrain] Starting ML model training (train=${TRAIN_SEASONS}, test=${TEST_SEASON})..."
-docker compose --profile training run --rm trainer \
+# The trainer image's entrypoint is the HTTP service; override it for one-shot CLI training.
+docker compose run --rm --entrypoint python trainer train_models.py \
   --train-seasons "$TRAIN_SEASONS" \
   --test-season   "$TEST_SEASON"
 

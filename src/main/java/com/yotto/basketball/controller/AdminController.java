@@ -9,6 +9,7 @@ import com.yotto.basketball.service.AutomationService;
 import com.yotto.basketball.service.AutomationStatus;
 import com.yotto.basketball.service.MlModelStatus;
 import com.yotto.basketball.service.MlPredictionService;
+import com.yotto.basketball.service.MlTrainingService;
 import com.yotto.basketball.service.ScrapeHistoryEntry;
 import com.yotto.basketball.service.ScrapeHistoryService;
 import com.yotto.basketball.service.SeasonHealth;
@@ -30,6 +31,7 @@ public class AdminController {
     private final SeasonRepository seasonRepository;
     private final AsyncScrapeService asyncScrapeService;
     private final MlPredictionService mlPredictionService;
+    private final MlTrainingService mlTrainingService;
     private final SeasonHealthService seasonHealthService;
     private final ScrapeHistoryService scrapeHistoryService;
     private final AutomationService automationService;
@@ -37,6 +39,7 @@ public class AdminController {
 
     public AdminController(SeasonRepository seasonRepository,
                            AsyncScrapeService asyncScrapeService, MlPredictionService mlPredictionService,
+                           MlTrainingService mlTrainingService,
                            SeasonHealthService seasonHealthService,
                            ScrapeHistoryService scrapeHistoryService,
                            AutomationService automationService,
@@ -44,6 +47,7 @@ public class AdminController {
         this.seasonRepository    = seasonRepository;
         this.asyncScrapeService  = asyncScrapeService;
         this.mlPredictionService = mlPredictionService;
+        this.mlTrainingService   = mlTrainingService;
         this.seasonHealthService = seasonHealthService;
         this.scrapeHistoryService = scrapeHistoryService;
         this.automationService = automationService;
@@ -68,6 +72,9 @@ public class AdminController {
         model.addAttribute("entries", historyEntries);
         model.addAttribute("automation", automation);
         model.addAttribute("mlStatus", mlPredictionService.getStatus());
+        mlTrainingService.pollActiveRuns();
+        model.addAttribute("trainingRuns", mlTrainingService.recentRuns());
+        model.addAttribute("trainingInProgress", mlTrainingService.isTrainingInProgress());
         return "admin/dashboard";
     }
 
@@ -249,6 +256,32 @@ public class AdminController {
         redirectAttributes.addFlashAttribute("success",
                 "ML models reloaded — enabled=" + status.enabled() + ", version=" + status.version());
         return "redirect:/admin";
+    }
+
+    /**
+     * Starts a training run on the trainer service. On completion (detected by the
+     * polled status fragment) models are hot-reloaded and evaluation re-runs.
+     */
+    @PostMapping("/ml/train")
+    public String mlTrain(RedirectAttributes redirectAttributes) {
+        try {
+            var run = mlTrainingService.startTraining();
+            redirectAttributes.addFlashAttribute("success",
+                    "Training started (seasons " + run.getTrainSeasons() + ") — models reload and "
+                            + "evaluations refresh automatically when it finishes");
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/admin";
+    }
+
+    /** HTMX-polled fragment: reconciles RUNNING rows with the trainer, then renders history. */
+    @GetMapping("/ml/training-status")
+    public String mlTrainingStatus(Model model) {
+        mlTrainingService.pollActiveRuns();
+        model.addAttribute("trainingRuns", mlTrainingService.recentRuns());
+        model.addAttribute("trainingInProgress", mlTrainingService.isTrainingInProgress());
+        return "admin/fragments/ml-training-runs :: training-runs";
     }
 
     /** Incrementally evaluates model predictions vs. results for all seasons (async). */

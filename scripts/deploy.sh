@@ -24,6 +24,7 @@ scp "${PROJECT_DIR}/docker-compose.yml" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_
 scp "${SCRIPT_DIR}/Dockerfile.trainer" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/Dockerfile.trainer"
 scp "${SCRIPT_DIR}/requirements.txt" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/requirements.txt"
 scp "${SCRIPT_DIR}/train_models.py" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/train_models.py"
+scp "${SCRIPT_DIR}/trainer_service.py" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/trainer_service.py"
 scp "${SCRIPT_DIR}/retrain.sh" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/retrain.sh"
 scp "${SCRIPT_DIR}/rotate-logs.sh" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/scripts/rotate-logs.sh"
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_DIR}/.env && chmod +x ${REMOTE_DIR}/scripts/retrain.sh"
