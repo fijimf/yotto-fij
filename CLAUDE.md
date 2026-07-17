@@ -8,6 +8,8 @@ Deployed on a server running Ubuntu 24.04.4 LTS.
 **Artifact:** `deepfij` (0.0.1-SNAPSHOT)
 **Base package:** `com.yotto.basketball`
 
+Operator runbook for the ML model system (training, evaluation, promotion, what the admin UI should show): [ADMIN_MANUAL.md](ADMIN_MANUAL.md)
+
 ## Build & Run
 
 ```bash
