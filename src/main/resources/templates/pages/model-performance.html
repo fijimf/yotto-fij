@@ -32,6 +32,7 @@
                 <option value="ncaa" th:selected="${segment == 'ncaa'}">NCAA Tournament</option>
                 <option value="postseason" th:selected="${segment == 'postseason'}">Other postseason</option>
             </select>
+            <input type="hidden" name="cmodel" th:if="${confModel != null}" th:value="${confModel}"/>
         </form>
     </div>
 
@@ -248,6 +249,56 @@
                 document.getElementById('monthly-metric').addEventListener('change', e => render(e.target.value));
             });
         </script>
+
+        <!-- By conference -->
+        <div class="card" style="margin-bottom: 1.5rem;" th:if="${!#lists.isEmpty(conferenceRows)}">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                <h2 style="margin-top: 0;">By Conference <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">where does the model beat the book?</span></h2>
+                <form method="get" th:action="@{/predictions/performance}"
+                      style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="hidden" name="year" th:value="${allSeasons} ? 'ALL' : ${selectedYear}"/>
+                    <input type="hidden" name="window" th:value="${window}"/>
+                    <input type="hidden" name="segment" th:value="${segment}"/>
+                    <select name="cmodel" class="form-input form-input--sm" style="width: auto;"
+                            onchange="this.form.submit()">
+                        <option th:each="opt : ${confModelOptions}" th:value="${opt.key}"
+                                th:text="${opt.value}" th:selected="${opt.key == confModel}">Massey</option>
+                    </select>
+                </form>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">Conference</th>
+                        <th style="text-align: right;" title="Games where both this model and the book have a spread prediction">Games</th>
+                        <th style="text-align: right;">Model MAE</th>
+                        <th style="text-align: right;">Book MAE</th>
+                        <th style="text-align: right;" title="Model MAE minus book MAE on the same games — negative means the model was closer">Δ vs Book</th>
+                        <th style="text-align: right;" title="How often the model's predicted winner won">Winner&nbsp;%</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${conferenceRows}">
+                        <td th:text="${r.name}">ACC</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">320</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.modelMae, 1, 2)}">8.60</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.bookMae, 1, 2)}">8.40</td>
+                        <td style="text-align: right;"
+                            th:style="'text-align: right; color: ' + (${r.delta < 0} ? '#065f46' : '#991b1b') + ';'"
+                            th:text="${(r.delta >= 0 ? '+' : '') + #numbers.formatDecimal(r.delta, 1, 2)}">+0.20</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.sideAccuracy * 100, 1, 1)} + '%'">70.1%</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0;">
+                Paired comparison: only games where both the selected model and the book closing
+                line made a spread prediction, sorted best-for-the-model first. Cross-conference
+                games count toward both teams' conferences. Small samples swing wildly — read
+                the Games column before drawing conclusions.
+            </p>
+        </div>
 
         <!-- Calibration -->
         <div class="card" th:if="${!#lists.isEmpty(calibration)}">

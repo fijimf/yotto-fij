@@ -157,6 +157,49 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                                         @Param("allSegments") boolean allSegments,
                                         @Param("tournamentTypes") List<String> tournamentTypes);
 
+    /**
+     * Paired model-vs-book spread accuracy per conference. Only games where BOTH the
+     * model and the book have a spread evaluation count (apples-to-apples). A game is
+     * attributed to each involved team's conference for that season — cross-conference
+     * games count once in each conference, intra-conference games once (DISTINCT).
+     */
+    interface ConferenceMetrics {
+        Long getConferenceId();
+        long getN();
+        Double getModelMae();
+        Double getBookMae();
+        Double getSideAccuracy();   // model's predicted-winner hit rate
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT confs.conference_id AS conferenceid,
+                   count(*) AS n,
+                   avg(abs(m.spread_error)) AS modelmae,
+                   avg(abs(b.spread_error)) AS bookmae,
+                   avg(CASE WHEN (m.predicted_spread >= 0) = (m.actual_margin > 0) THEN 1.0 ELSE 0.0 END) AS sideaccuracy
+            FROM prediction_evaluations m
+            JOIN prediction_evaluations b
+                 ON b.game_id = m.game_id AND b.model_type = 'BOOK' AND b.spread_error IS NOT NULL
+            JOIN games g ON g.id = m.game_id
+            JOIN LATERAL (
+                SELECT DISTINCT cm.conference_id
+                FROM conference_memberships cm
+                WHERE cm.season_id = m.season_id
+                  AND cm.team_id IN (g.home_team_id, g.away_team_id)
+            ) confs ON true
+            WHERE m.model_type = :modelType
+              AND m.spread_error IS NOT NULL
+              AND (:seasonId < 0 OR m.season_id = :seasonId)
+              AND m.game_date >= :fromDate
+              AND (:allSegments = true OR COALESCE(g.tournament_type, 'NONE') IN (:tournamentTypes))
+            GROUP BY confs.conference_id
+            """)
+    List<ConferenceMetrics> conferenceMetrics(@Param("seasonId") Long seasonId,
+                                              @Param("fromDate") LocalDate fromDate,
+                                              @Param("allSegments") boolean allSegments,
+                                              @Param("tournamentTypes") List<String> tournamentTypes,
+                                              @Param("modelType") String modelType);
+
     /** Calibration: predicted-probability deciles vs. actual home-win rate, per model. */
     interface CalibrationBucket {
         String getModelType();

@@ -1,10 +1,14 @@
 package com.yotto.basketball.controller;
 
 import com.yotto.basketball.BaseIntegrationTest;
+import com.yotto.basketball.entity.Conference;
+import com.yotto.basketball.entity.ConferenceMembership;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.PredictionEvaluation;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
+import com.yotto.basketball.repository.ConferenceMembershipRepository;
+import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.PredictionEvaluationRepository;
 import com.yotto.basketball.repository.SeasonRepository;
@@ -20,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,6 +40,8 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     @Autowired TeamRepository teamRepo;
     @Autowired GameRepository gameRepo;
     @Autowired PredictionEvaluationRepository evaluationRepo;
+    @Autowired ConferenceRepository conferenceRepo;
+    @Autowired ConferenceMembershipRepository membershipRepo;
 
     @Test
     void performancePage_emptyState_rendersWithoutData() throws Exception {
@@ -114,6 +121,30 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    void performancePage_byConference_pairsModelWithBookOncePerGame() throws Exception {
+        seedEvaluations();
+
+        MvcResult res = mockMvc.perform(get("/predictions/performance"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("By Conference")))
+                .andReturn();
+        @SuppressWarnings("unchecked")
+        List<ModelPerformanceController.ConferenceRow> rows =
+                (List<ModelPerformanceController.ConferenceRow>) res.getModelAndView().getModel().get("conferenceRows");
+        // No ML bundles in this context → default comparison model is Massey
+        assertThat(res.getModelAndView().getModel().get("confModel")).isEqualTo("MASSEY");
+        // Both teams are in the ACC: each game must count once, not once per membership
+        assertThat(rows).hasSize(1);
+        ModelPerformanceController.ConferenceRow acc = rows.get(0);
+        assertThat(acc.name()).isEqualTo("ACC");
+        assertThat(acc.n()).isEqualTo(2L);
+        // Massey errors 4.0 and 1.0 → MAE 2.5; book errors 1.5 and 0.5 → MAE 1.0; Δ +1.5
+        assertThat(acc.modelMae()).isCloseTo(2.5, within(1e-6));
+        assertThat(acc.bookMae()).isCloseTo(1.0, within(1e-6));
+        assertThat(acc.delta()).isCloseTo(1.5, within(1e-6));
+    }
+
+    @Test
     void performancePage_allSeasonsOption_rendersAggregatedData() throws Exception {
         seedEvaluations();
 
@@ -139,6 +170,14 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
 
         Team home = mkTeam("Duke", "DUKE");
         Team away = mkTeam("UNC", "UNC");
+
+        Conference acc = new Conference();
+        acc.setName("ACC");
+        acc.setAbbreviation("ACC");
+        acc.setEspnId("acc-test-id");
+        acc = conferenceRepo.save(acc);
+        mkMembership(home, acc, season);
+        mkMembership(away, acc, season);
 
         Game game = new Game();
         game.setHomeTeam(home);
@@ -187,6 +226,14 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         e.setTotalError(total != null ? 155 - total : null);
         e.setEvaluatedAt(LocalDateTime.now());
         evaluationRepo.save(e);
+    }
+
+    private void mkMembership(Team team, Conference conference, Season season) {
+        ConferenceMembership m = new ConferenceMembership();
+        m.setTeam(team);
+        m.setConference(conference);
+        m.setSeason(season);
+        membershipRepo.save(m);
     }
 
     private Team mkTeam(String name, String abbr) {

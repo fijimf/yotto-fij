@@ -2,6 +2,7 @@ package com.yotto.basketball.controller;
 
 import com.yotto.basketball.repository.PredictionEvaluationRepository;
 import com.yotto.basketball.service.BradleyTerryRatingService;
+import com.yotto.basketball.service.ConferenceNamingService;
 import com.yotto.basketball.service.MasseyRatingService;
 import com.yotto.basketball.service.MlModelRegistryService;
 import com.yotto.basketball.service.PredictionEvaluationService;
@@ -50,20 +51,27 @@ public class ModelPerformanceController {
 
     private final PredictionEvaluationRepository evaluationRepository;
     private final com.yotto.basketball.repository.SeasonRepository seasonRepository;
+    private final com.yotto.basketball.repository.ConferenceRepository conferenceRepository;
     private final MlModelRegistryService mlModelRegistryService;
+    private final ConferenceNamingService conferenceNamingService;
 
     public ModelPerformanceController(PredictionEvaluationRepository evaluationRepository,
                                       com.yotto.basketball.repository.SeasonRepository seasonRepository,
-                                      MlModelRegistryService mlModelRegistryService) {
+                                      com.yotto.basketball.repository.ConferenceRepository conferenceRepository,
+                                      MlModelRegistryService mlModelRegistryService,
+                                      ConferenceNamingService conferenceNamingService) {
         this.evaluationRepository = evaluationRepository;
         this.seasonRepository = seasonRepository;
+        this.conferenceRepository = conferenceRepository;
         this.mlModelRegistryService = mlModelRegistryService;
+        this.conferenceNamingService = conferenceNamingService;
     }
 
     @GetMapping("/predictions/performance")
     public String performance(@RequestParam(required = false) String year,
                               @RequestParam(defaultValue = "season") String window,
                               @RequestParam(defaultValue = "all") String segment,
+                              @RequestParam(required = false) String cmodel,
                               Model model) {
         List<Integer> years = evaluationRepository.findEvaluatedSeasonYears();
         boolean allSeasons = "ALL".equalsIgnoreCase(year) && !years.isEmpty();
@@ -113,9 +121,61 @@ public class ModelPerformanceController {
                         .map(b -> new CalibrationPoint(b.getModelType(), displayName(b.getModelType()),
                                 b.getBucket(), b.getN(), b.getAvgPredicted(), b.getActualRate()))
                         .toList());
+        String confModel = resolveConfModel(cmodel);
+        model.addAttribute("confModel", confModel);
+        model.addAttribute("confModelOptions", spreadModelOptions());
+        model.addAttribute("conferenceRows",
+                buildConferenceRows(seasonId, from, allSegments, types, confModel, allSeasons, selectedYear));
         model.addAttribute("displayNames", allDisplayNames());
         return "pages/model-performance";
     }
+
+    private List<ConferenceRow> buildConferenceRows(Long seasonId, LocalDate from, boolean allSegments,
+                                                    List<String> types, String confModel,
+                                                    boolean allSeasons, Integer selectedYear) {
+        var metrics = evaluationRepository.conferenceMetrics(seasonId, from, allSegments, types, confModel);
+        var confById = conferenceRepository
+                .findAllById(metrics.stream().map(PredictionEvaluationRepository.ConferenceMetrics::getConferenceId).toList())
+                .stream().collect(java.util.stream.Collectors.toMap(
+                        com.yotto.basketball.entity.Conference::getId, c -> c));
+        var names = conferenceNamingService.load();
+        return metrics.stream()
+                .map(cm -> {
+                    var conf = confById.get(cm.getConferenceId());
+                    String name = conf == null ? "Unknown"
+                            : allSeasons ? conf.getName() : names.name(conf, selectedYear);
+                    return new ConferenceRow(name, cm.getN(), cm.getModelMae(), cm.getBookMae(),
+                            cm.getModelMae() - cm.getBookMae(), cm.getSideAccuracy());
+                })
+                .sorted(Comparator.comparingDouble(ConferenceRow::delta))
+                .toList();
+    }
+
+    /** Spread-capable models for the by-conference card: ML bundles first, then Massey. */
+    private Map<String, String> spreadModelOptions() {
+        Map<String, String> options = new java.util.LinkedHashMap<>();
+        mlModelRegistryService.plan().displayNames().forEach((slug, displayName) ->
+                options.put(PredictionEvaluationService.ML_TYPE_PREFIX + slug, displayName + " (ML)"));
+        options.put(MasseyRatingService.MODEL_TYPE, "Massey");
+        return options;
+    }
+
+    private String resolveConfModel(String requested) {
+        Map<String, String> options = spreadModelOptions();
+        if (requested != null && options.containsKey(requested)) {
+            return requested;
+        }
+        String defaultSlug = mlModelRegistryService.plan().defaultSlug();
+        String defaultType = defaultSlug == null ? null
+                : PredictionEvaluationService.ML_TYPE_PREFIX + defaultSlug;
+        return (defaultType != null && options.containsKey(defaultType))
+                ? defaultType
+                : MasseyRatingService.MODEL_TYPE;
+    }
+
+    /** Per-conference paired comparison row; delta = model MAE − book MAE (negative = model better). */
+    public record ConferenceRow(String name, long n, Double modelMae, Double bookMae,
+                                double delta, Double sideAccuracy) {}
 
     private static Integer parseYear(String year) {
         if (year == null) return null;
