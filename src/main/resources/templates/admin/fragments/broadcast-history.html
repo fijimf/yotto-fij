@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="broadcast-history">
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Sent</th>
+                    <th>Subject</th>
+                    <th>By</th>
+                    <th>Attach</th>
+                    <th>Progress</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="b : ${broadcasts}"
+                    th:with="badge=${b.status.name() == 'SENT' ? 'completed' : (b.status.name() == 'FAILED' ? 'failed' : 'running')}">
+                    <td th:text="${#temporals.format(b.createdAt, 'MMM d HH:mm')}">Feb 15 14:30</td>
+                    <td th:text="${#strings.abbreviate(b.subject, 60)}">Subject</td>
+                    <td style="color: var(--color-text-muted);" th:text="${b.sentByUsername}">admin</td>
+                    <td th:text="${b.attachmentCount > 0 ? b.attachmentCount : '—'}"
+                        th:title="${b.attachmentNames}">—</td>
+                    <td>
+                        <span th:text="${b.sentCount} + ' / ' + ${b.recipientCount}">12 / 12</span>
+                        <span th:if="${b.failedCount > 0}" style="color: var(--color-danger);"
+                              th:text="'(' + ${b.failedCount} + ' failed)'">(1 failed)</span>
+                    </td>
+                    <td>
+                        <span class="status-badge"
+                              th:classappend="${'status-badge--' + badge}"
+                              th:text="${b.status}">SENT</span>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(broadcasts)}">
+                    <td colspan="6" style="text-align: center; color: var(--color-text-muted);">
+                        No broadcasts sent yet.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

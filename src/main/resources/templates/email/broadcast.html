@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, Helvetica, sans-serif; color: #222; background: #f4f5f7; margin: 0; padding: 24px;">
+<div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 6px; overflow: hidden; border: 1px solid #e2e4e8;">
+    <div style="background: #1a4b8c; color: #ffffff; padding: 16px 24px;">
+        <span style="font-size: 18px; font-weight: bold;">DeepFij</span>
+    </div>
+    <div style="padding: 24px;">
+        <h2 style="margin: 0 0 16px; font-size: 20px; color: #1a2a44;" th:text="${subject}">Subject</h2>
+        <!-- bodyHtml is already rendered from Markdown and sanitized server-side -->
+        <div style="font-size: 15px; line-height: 1.6;" th:utext="${bodyHtml}">Message body</div>
+    </div>
+    <div style="padding: 16px 24px; border-top: 1px solid #e2e4e8; color: #888; font-size: 12px;">
+        You are receiving this because you have a DeepFij account.
+    </div>
+</div>
+</body>
+</html>

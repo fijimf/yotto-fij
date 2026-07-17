@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Broadcast Email</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">Broadcast Email</h1>
+        <a href="/admin" class="btn btn--outline btn--sm">&#8592; Back to Dashboard</a>
+    </div>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <!-- Compose -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Compose message</h2>
+            <span style="color: var(--color-text-muted); font-size: 0.9rem;">
+                Reaches <strong th:text="${recipientCount}">0</strong>
+                verified user<span th:text="${recipientCount == 1 ? '' : 's'}">s</span>
+            </span>
+        </div>
+
+        <!-- Hidden CSRF field so the live-preview hx-post (which posts only the body) stays authorized -->
+        <input type="hidden" id="pv-csrf" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+        <div class="card">
+            <form th:action="@{/admin/broadcast/send}" method="post" enctype="multipart/form-data">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start;">
+
+                    <!-- Left: editor -->
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="subject">Subject</label>
+                            <input type="text" id="subject" name="subject" class="form-input"
+                                   maxlength="255" required placeholder="e.g. Scheduled maintenance this Saturday"/>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="markdown">Message (Markdown)</label>
+                            <textarea id="markdown" name="markdown" class="form-input" rows="16" required
+                                      style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical;"
+                                      placeholder="Write your announcement in Markdown.&#10;&#10;**Bold**, _italic_, [links](https://example.com), lists, and headings are supported."
+                                      hx-post="/admin/broadcast/preview"
+                                      hx-trigger="keyup changed delay:400ms, load"
+                                      hx-target="#preview-body"
+                                      hx-swap="innerHTML"
+                                      hx-include="#pv-csrf"></textarea>
+                            <small style="color: var(--color-text-muted);">
+                                Markdown supported: **bold**, _italic_, # headings, - lists, [links](url).
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="attachments">Attachments (optional)</label>
+                            <input type="file" id="attachments" name="attachments" class="form-input" multiple
+                                   accept="image/png,image/jpeg,image/gif,application/pdf"/>
+                            <small style="color: var(--color-text-muted);">
+                                PNG, JPEG, GIF or PDF. 10MB total. Each attachment is copied to every recipient.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Right: live preview -->
+                    <div>
+                        <label class="form-label">Preview</label>
+                        <div style="border: 1px solid var(--color-border); border-radius: var(--radius); background: #ffffff; color: #222; padding: 1rem; min-height: 20rem; overflow: auto;">
+                            <div id="preview-body" style="font-size: 15px; line-height: 1.6;">
+                                <span style="color: #999;">Start typing to see a preview…</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; margin-top: 1.25rem;">
+                    <button type="submit" class="btn btn--primary"
+                            onclick="return confirm('Send this email to ALL verified users? This cannot be undone.');">
+                        Send to all users
+                    </button>
+                    <button type="submit" th:formaction="@{/admin/broadcast/test}"
+                            class="btn btn--outline">Send test to myself</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- History -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Recent broadcasts</h2>
+            <span class="htmx-indicator" id="bc-spinner" style="color: var(--color-text-muted);">Refreshing…</span>
+        </div>
+        <div id="broadcast-history"
+             hx-get="/admin/broadcast/history"
+             hx-trigger="every 5s"
+             hx-indicator="#bc-spinner">
+            <div th:replace="~{admin/fragments/broadcast-history :: broadcast-history}"></div>
+        </div>
+    </section>
+</main>
+</body>
+</html>
