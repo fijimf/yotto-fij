@@ -17,5 +17,6 @@ public enum AuditEventType {
     ROLE_CHANGED,
     ACCOUNT_DELETED,
     RATE_LIMITED,
-    EMAIL_SEND_FAILED
+    EMAIL_SEND_FAILED,
+    BROADCAST_SENT
 }

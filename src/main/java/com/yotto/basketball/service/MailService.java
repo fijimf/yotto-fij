@@ -8,4 +8,11 @@ package com.yotto.basketball.service;
 public interface MailService {
 
     void send(AccountMailEvent mail);
+
+    /**
+     * Sends one already-rendered broadcast email (admin announcement) to a single
+     * recipient, including any attachments. Throws on delivery failure so the caller
+     * can count it against the broadcast's failed total.
+     */
+    void sendBroadcast(BroadcastEmail email);
 }

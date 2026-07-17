@@ -3,8 +3,11 @@ package com.yotto.basketball.config;
 import com.yotto.basketball.security.AppUserDetailsService;
 import com.yotto.basketball.security.AuthFailureHandler;
 import com.yotto.basketball.security.LoginRateLimitFilter;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.multipart.support.MultipartFilter;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.Customizer;
@@ -84,6 +87,22 @@ public class SecurityConfig {
                 .addFilterBefore(loginRateLimitFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * Runs Spring's MultipartFilter <em>before</em> the security filter chain so the
+     * {@code _csrf} token carried in a multipart/form-data body (the admin broadcast
+     * compose form uploads attachments) is parsed in time for CsrfFilter to see it.
+     * Without this, a multipart POST would 403 because CsrfFilter runs before the
+     * DispatcherServlet's multipart resolver. Non-multipart requests pass straight
+     * through untouched.
+     */
+    @Bean
+    public FilterRegistrationBean<MultipartFilter> multipartFilterRegistration() {
+        FilterRegistrationBean<MultipartFilter> registration =
+                new FilterRegistrationBean<>(new MultipartFilter());
+        registration.setOrder(SecurityProperties.DEFAULT_FILTER_ORDER - 1);
+        return registration;
     }
 
     @Bean

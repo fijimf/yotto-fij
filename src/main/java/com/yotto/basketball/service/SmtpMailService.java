@@ -3,6 +3,7 @@ package com.yotto.basketball.service;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,29 @@ public class SmtpMailService implements MailService {
             mailSender.send(message);
         } catch (Exception e) {
             throw new MailDeliveryException("Failed to send " + mail.kind() + " email", e);
+        }
+    }
+
+    @Override
+    public void sendBroadcast(BroadcastEmail email) {
+        try {
+            boolean multipart = email.attachments() != null && !email.attachments().isEmpty();
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper =
+                    new MimeMessageHelper(message, multipart, StandardCharsets.UTF_8.name());
+            helper.setFrom(from);
+            helper.setTo(email.to());
+            helper.setSubject(email.subject());
+            helper.setText(email.html(), true);
+            if (multipart) {
+                for (BroadcastAttachment att : email.attachments()) {
+                    helper.addAttachment(att.filename(),
+                            new ByteArrayResource(att.data()), att.contentType());
+                }
+            }
+            mailSender.send(message);
+        } catch (Exception e) {
+            throw new MailDeliveryException("Failed to send broadcast email to " + email.to(), e);
         }
     }
 }

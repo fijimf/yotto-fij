@@ -6,18 +6,18 @@
 2) ~~Make sure all pages (except admin) are reachable via top menu; rationalization of menu~~
 3) Fix matchup page
 4) ~~Improve game page~~
-5) Allow multiple ML models; Display model performance
+5) ~~Allow multiple ML models; Display model performance~~
 6) ~~NCAA Bracket~~ 
 7) ~~Calc more stats off game data~~
 8) ~~Improve stats on team page~~
-9) Create Users
-    * create user/password
-    * reset password
-    * login/logout
-    * disable user
-    * profile
+9) ~~Create Users~~
+    * ~~create user/password~~
+    * ~~reset password~~
+    * ~~login/logout~~
+    * ~~disable user~~
+    * ~~profile~~
 10) Simple model creation
-11) 
+11) Scrape and summarize news.
 11) 
     
 

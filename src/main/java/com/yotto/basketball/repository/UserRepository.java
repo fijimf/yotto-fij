@@ -32,6 +32,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** Never-verified accounts older than the cutoff (registration abandonment purge). */
     List<User> findByEnabledFalseAndEmailVerifiedAtIsNullAndCreatedAtBefore(Instant cutoff);
 
+    /** Mailable users for admin broadcasts: verified (enabled), not admin-locked, with an email. */
+    List<User> findByEnabledTrueAndLockedFalseAndEmailIsNotNull();
+
+    long countByEnabledTrueAndLockedFalseAndEmailIsNotNull();
+
     @Modifying
     @Query("UPDATE User u SET u.failedLoginAttempts = 0, u.lockoutExpiresAt = NULL "
             + "WHERE u.lockoutExpiresAt IS NOT NULL AND u.lockoutExpiresAt < :now")

@@ -35,4 +35,19 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    // Dedicated single-thread pool for admin broadcast sends. Kept off mailExecutor
+    // so a bulk fan-out can never starve or reject latency-sensitive transactional
+    // account mail (verify/reset). One thread paces delivery gently for Mailgun; each
+    // broadcast is one task that loops its own recipients internally.
+    @Bean(name = "broadcastExecutor")
+    public Executor broadcastExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(10);
+        executor.setThreadNamePrefix("broadcast-");
+        executor.initialize();
+        return executor;
+    }
 }

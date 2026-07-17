@@ -20,4 +20,11 @@ public class LoggingMailService implements MailService {
         log.info("MAIL (logged, not sent) kind={} to={} username={} link={}",
                 mail.kind(), mail.to(), mail.username(), mail.link());
     }
+
+    @Override
+    public void sendBroadcast(BroadcastEmail email) {
+        int attachments = email.attachments() == null ? 0 : email.attachments().size();
+        log.info("BROADCAST MAIL (logged, not sent) to={} subject=\"{}\" attachments={}",
+                email.to(), email.subject(), attachments);
+    }
 }
