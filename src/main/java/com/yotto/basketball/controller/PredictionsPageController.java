@@ -3,6 +3,8 @@ package com.yotto.basketball.controller;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.service.PredictionResult;
 import com.yotto.basketball.service.PredictionService;
+import com.yotto.basketball.service.PredictionsPageService;
+import com.yotto.basketball.service.PredictionsPageService.PredictionsPage;
 import com.yotto.basketball.service.TeamService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
@@ -13,31 +15,39 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Controller
 public class PredictionsPageController {
 
     private final PredictionService predictionService;
+    private final PredictionsPageService predictionsPageService;
     private final TeamService teamService;
 
-    public PredictionsPageController(PredictionService predictionService, TeamService teamService) {
+    public PredictionsPageController(PredictionService predictionService,
+                                     PredictionsPageService predictionsPageService,
+                                     TeamService teamService) {
         this.predictionService = predictionService;
+        this.predictionsPageService = predictionsPageService;
         this.teamService = teamService;
     }
 
     @GetMapping("/predictions")
-    public String predictions(@RequestParam(defaultValue = "7") int days, Model model) {
-        populateModel(days, model);
-        model.addAttribute("currentPage", "predictions");
+    public String predictions(@RequestParam(required = false) String date,
+                              @RequestParam(defaultValue = "7") int days,
+                              @RequestParam(required = false) String model,
+                              Model uiModel) {
+        populateModel(date, days, model, uiModel);
+        uiModel.addAttribute("currentPage", "predictions");
         return "pages/predictions";
     }
 
     @GetMapping("/predictions/list")
-    public String predictionsList(@RequestParam(defaultValue = "7") int days, Model model) {
-        populateModel(days, model);
+    public String predictionsList(@RequestParam(required = false) String date,
+                                  @RequestParam(defaultValue = "7") int days,
+                                  @RequestParam(required = false) String model,
+                                  Model uiModel) {
+        populateModel(date, days, model, uiModel);
         return "fragments/predictions-list :: predictions-list";
     }
 
@@ -73,14 +83,9 @@ public class PredictionsPageController {
         return "fragments/matchup-result :: matchup-result";
     }
 
-    private void populateModel(int days, Model model) {
-        int clamped = Math.min(Math.max(days, 1), 30);
-        List<PredictionResult> predictions = predictionService.getUpcoming(clamped);
-        Map<LocalDate, List<PredictionResult>> byDate = predictions.stream()
-                .collect(Collectors.groupingBy(PredictionResult::gameDate,
-                        TreeMap::new, Collectors.toList()));
-        model.addAttribute("predictionsByDate", byDate);
-        model.addAttribute("days", clamped);
-        model.addAttribute("today", LocalDate.now());
+    private void populateModel(String date, int days, String model, Model uiModel) {
+        PredictionsPage page = predictionsPageService.build(date, days, model);
+        uiModel.addAttribute("page", page);
+        uiModel.addAttribute("today", LocalDate.now(com.yotto.basketball.util.EasternDates.EASTERN));
     }
 }

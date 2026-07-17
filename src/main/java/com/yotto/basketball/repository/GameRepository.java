@@ -187,4 +187,8 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     /** Earliest game instant on/after the given window end — drives "next day with games." */
     @Query("SELECT MIN(g.gameDate) FROM Game g WHERE g.gameDate >= :endUtc")
     Optional<LocalDateTime> findMinGameDateOnOrAfter(@Param("endUtc") LocalDateTime endUtc);
+
+    /** Latest FINAL game instant (UTC) across all seasons — drives the off-season default date. */
+    @Query("SELECT MAX(g.gameDate) FROM Game g WHERE g.status = 'FINAL'")
+    Optional<LocalDateTime> findMaxFinalGameDate();
 }

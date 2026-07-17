@@ -1842,6 +1842,80 @@ a.team-hero__conference:hover {
     color: var(--color-text-muted);
 }
 
+/* Date navigation + control labels */
+.predictions-datenav {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.predictions-control-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+/* Results / Upcoming sections */
+.predictions-section {
+    margin-bottom: 2.5rem;
+}
+.predictions-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+.predictions-section-sub {
+    font-weight: 400;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+/* Completed-game card styling */
+.prediction-card--final { border-left: 3px solid var(--color-border); }
+.prediction-card__score {
+    margin-left: auto;
+    font-weight: 700;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+.prediction-card__team-row--won .prediction-card__team-name { font-weight: 800; }
+.prediction-card__team-row--won .prediction-card__score { color: var(--color-primary); }
+
+/* Result grading row */
+.prediction-card__result {
+    margin-top: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+}
+.prediction-card__result-final {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+}
+.pred-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 600;
+}
+.pred-check--ok { color: #047857; }
+.pred-check--miss { color: #b91c1c; }
+.pred-check--neutral { color: var(--color-text-muted); }
+.pred-check__detail {
+    font-weight: 400;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
 /* Matchup predictor page */
 .matchup-form-card {
     margin-bottom: 0;

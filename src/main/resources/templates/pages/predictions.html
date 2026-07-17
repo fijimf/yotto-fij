@@ -10,25 +10,49 @@
 <main layout:fragment="content">
 
     <div class="predictions-header">
-        <h1 class="page-title">Upcoming Predictions</h1>
-        <div class="predictions-controls">
-            <label for="days-select" style="color: var(--color-text-muted); font-size: 0.875rem;">Show next</label>
-            <select id="days-select" name="days"
-                    class="form-input form-input--sm"
-                    style="width: auto;"
-                    hx-get="/predictions/list"
-                    hx-target="#predictions-list"
-                    hx-swap="innerHTML"
-                    hx-include="this">
-                <option value="3"  th:selected="${days == 3}">3 days</option>
-                <option value="7"  th:selected="${days == 7}">7 days</option>
-                <option value="14" th:selected="${days == 14}">14 days</option>
-            </select>
-        </div>
+        <h1 class="page-title">Predictions</h1>
+
+        <form method="get" th:action="@{/predictions}" class="predictions-controls">
+            <!-- Date navigation -->
+            <div class="predictions-datenav">
+                <a class="btn btn--outline btn--sm"
+                   th:href="@{/predictions(date=${page.prevDate}, days=${page.days}, model=${page.selectedModel})}"
+                   title="Previous day">‹</a>
+                <input type="date" name="date" class="form-input form-input--sm"
+                       th:value="${page.refDate}" onchange="this.form.submit()"
+                       aria-label="Reference date"/>
+                <a class="btn btn--outline btn--sm"
+                   th:href="@{/predictions(date=${page.nextDate}, days=${page.days}, model=${page.selectedModel})}"
+                   title="Next day">›</a>
+            </div>
+
+            <!-- Window -->
+            <label class="predictions-control-label">
+                <span>Window</span>
+                <select name="days" class="form-input form-input--sm" style="width: auto;"
+                        onchange="this.form.submit()">
+                    <option value="3" th:selected="${page.days == 3}">3 days</option>
+                    <option value="7" th:selected="${page.days == 7}">7 days</option>
+                </select>
+            </label>
+
+            <!-- Model -->
+            <label class="predictions-control-label">
+                <span>Model</span>
+                <select name="model" class="form-input form-input--sm" style="width: auto;"
+                        onchange="this.form.submit()">
+                    <option th:each="opt : ${page.modelOptions}"
+                            th:value="${opt.key}" th:text="${opt.label}"
+                            th:selected="${opt.key == page.selectedModel}">Model</option>
+                </select>
+            </label>
+        </form>
     </div>
 
     <p class="predictions-disclaimer">
-        Model predictions are for analytical purposes only and do not constitute betting advice.
+        Showing predictions from <strong th:text="${page.selectedModelLabel}">the model</strong>
+        as they stood before each game — completed games are graded against the final score.
+        Predictions are for analytical purposes only and do not constitute betting advice.
         <a th:href="@{/predictions/performance}" style="white-space: nowrap;">How accurate are these models? →</a>
     </p>
 

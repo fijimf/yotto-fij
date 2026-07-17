@@ -3,6 +3,8 @@ package com.yotto.basketball.controller;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
+import com.yotto.basketball.service.PredictionCardView;
+import com.yotto.basketball.service.PredictionsPageService.PredictionsPage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,44 +73,67 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
         return gameRepo.save(g);
     }
 
+    private Game mkFinal(LocalDateTime when, int homeScore, int awayScore) {
+        Game g = new Game();
+        g.setHomeTeam(home);
+        g.setAwayTeam(away);
+        g.setStatus(Game.GameStatus.FINAL);
+        g.setNeutralSite(false);
+        g.setSeason(season);
+        g.setGameDate(when);
+        g.setHomeScore(homeScore);
+        g.setAwayScore(awayScore);
+        return gameRepo.save(g);
+    }
+
+    @SuppressWarnings("unchecked")
+    private PredictionsPage pageFrom(org.springframework.test.web.servlet.ResultActions actions) throws Exception {
+        return (PredictionsPage) actions.andReturn().getModelAndView().getModel().get("page");
+    }
+
     // ── GET /predictions ──────────────────────────────────────────────────────
 
     @Test
     void predictions_returnsPageView() throws Exception {
-        mockMvc.perform(get("/predictions"))
+        var actions = mockMvc.perform(get("/predictions"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("pages/predictions"))
                 .andExpect(model().attribute("currentPage", "predictions"))
-                .andExpect(model().attributeExists("predictionsByDate"))
-                .andExpect(model().attribute("days", 7))
+                .andExpect(model().attributeExists("page"))
                 .andExpect(model().attributeExists("today"));
+        PredictionsPage page = pageFrom(actions);
+        org.assertj.core.api.Assertions.assertThat(page.days()).isEqualTo(7);
     }
 
     @Test
-    void predictions_explicitDaysParam_clampedAndUsed() throws Exception {
-        // Above the 30-day cap should be clamped to 30
-        mockMvc.perform(get("/predictions").param("days", "100"))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("days", 30));
-
-        // Below 1 should be clamped to 1
-        mockMvc.perform(get("/predictions").param("days", "0"))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("days", 1));
+    void predictions_daysParam_restrictedToThreeOrSeven() throws Exception {
+        // Only 3 and 7 are valid; anything else falls back to 7
+        org.assertj.core.api.Assertions.assertThat(
+                pageFrom(mockMvc.perform(get("/predictions").param("days", "3"))).days()).isEqualTo(3);
+        org.assertj.core.api.Assertions.assertThat(
+                pageFrom(mockMvc.perform(get("/predictions").param("days", "100"))).days()).isEqualTo(7);
+        org.assertj.core.api.Assertions.assertThat(
+                pageFrom(mockMvc.perform(get("/predictions").param("days", "0"))).days()).isEqualTo(7);
     }
 
     @Test
-    void predictions_groupedByDate_containsScheduledGames() throws Exception {
-        // Fixed times of day: now()+3h crosses midnight when the suite runs after 21:00,
-        // splitting the two games onto different calendar dates
-        LocalDate target = LocalDate.now().plusDays(2);
-        mkScheduled(target.atTime(12, 0));
-        mkScheduled(target.atTime(15, 0));
+    void predictions_splitsResultsAndUpcomingAtReferenceDate() throws Exception {
+        LocalDate ref = LocalDate.of(2025, 1, 15);
+        // Noon-UTC times map cleanly to the same Eastern calendar date.
+        mkFinal(ref.atTime(12, 0), 80, 70);              // on ref → results
+        mkScheduled(ref.plusDays(2).atTime(12, 0));      // after ref → upcoming
 
-        mockMvc.perform(get("/predictions"))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("predictionsByDate",
-                        org.hamcrest.Matchers.aMapWithSize(1)));
+        PredictionsPage page = pageFrom(mockMvc.perform(
+                get("/predictions").param("date", ref.toString()).param("days", "7"))
+                .andExpect(status().isOk()));
+
+        org.assertj.core.api.Assertions.assertThat(page.resultsByDate()).containsKey(ref);
+        org.assertj.core.api.Assertions.assertThat(page.upcomingByDate()).containsKey(ref.plusDays(2));
+
+        PredictionCardView finalCard = page.resultsByDate().get(ref).get(0);
+        org.assertj.core.api.Assertions.assertThat(finalCard.isFinal()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(finalCard.homeScore()).isEqualTo(80);
+        org.assertj.core.api.Assertions.assertThat(finalCard.actualMargin()).isEqualTo(10);
     }
 
     @Test

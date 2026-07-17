@@ -6,6 +6,7 @@ import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonRepository;
+import com.yotto.basketball.util.EasternDates;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +19,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Month;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -33,7 +33,7 @@ import java.util.Optional;
 @Controller
 public class GameWebController {
 
-    static final ZoneId EASTERN = ZoneId.of("America/New_York");
+    static final ZoneId EASTERN = EasternDates.EASTERN;
     private static final LocalTime NOON = LocalTime.NOON;
 
     private final GameRepository gameRepository;
@@ -120,19 +120,15 @@ public class GameWebController {
 
     /** The [startUtc, endUtc) UTC window for the given Eastern calendar date. */
     static LocalDateTime[] easternDayWindowUtc(LocalDate easternDate) {
-        LocalDateTime start = easternDate.atStartOfDay(EASTERN)
-                .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
-        LocalDateTime end = easternDate.plusDays(1).atStartOfDay(EASTERN)
-                .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
-        return new LocalDateTime[]{start, end};
+        return EasternDates.dayWindowUtc(easternDate);
     }
 
     private static LocalDate toEasternDate(LocalDateTime utc) {
-        return utc.atZone(ZoneOffset.UTC).withZoneSameInstant(EASTERN).toLocalDate();
+        return EasternDates.toEasternDate(utc);
     }
 
     private static LocalDateTime toEasternTime(LocalDateTime utc) {
-        return utc.atZone(ZoneOffset.UTC).withZoneSameInstant(EASTERN).toLocalDateTime();
+        return EasternDates.toEasternTime(utc);
     }
 
     private static Optional<LocalDate> parseDate(String s) {
