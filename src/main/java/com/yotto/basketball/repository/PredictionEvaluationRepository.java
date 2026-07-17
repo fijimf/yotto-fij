@@ -112,6 +112,31 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
             """)
     List<ProbMetrics> probMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
 
+    /** Month-by-month accuracy per model over a full season; month is 'YYYY-MM'. */
+    interface MonthlyMetrics {
+        String getModelType();
+        String getMonth();
+        long getSpreadN();
+        Double getSpreadMae();
+        long getProbN();
+        Double getBrier();
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT pe.model_type AS modeltype,
+                   to_char(pe.game_date, 'YYYY-MM') AS month,
+                   count(pe.spread_error) AS spreadn,
+                   avg(abs(pe.spread_error)) AS spreadmae,
+                   count(pe.predicted_home_win_prob) AS probn,
+                   avg(power(pe.predicted_home_win_prob - (CASE WHEN pe.home_won THEN 1.0 ELSE 0.0 END), 2)) AS brier
+            FROM prediction_evaluations pe
+            WHERE pe.season_id = :seasonId
+              AND (pe.spread_error IS NOT NULL OR pe.predicted_home_win_prob IS NOT NULL)
+            GROUP BY pe.model_type, month
+            ORDER BY month, pe.model_type
+            """)
+    List<MonthlyMetrics> monthlyMetrics(@Param("seasonId") Long seasonId);
+
     /** Calibration: predicted-probability deciles vs. actual home-win rate, per model. */
     interface CalibrationBucket {
         String getModelType();

@@ -56,6 +56,18 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    void performancePage_rendersMonthlyTrendWithOneEntryPerMonth() throws Exception {
+        seedEvaluations();
+
+        mockMvc.perform(get("/predictions/performance"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Month by Month")))
+                // the inline chart data carries one point per model per month
+                .andExpect(content().string(containsString("2025-01")))
+                .andExpect(content().string(containsString("2025-02")));
+    }
+
+    @Test
     void performancePage_selectsRequestedYear() throws Exception {
         seedEvaluations();
 
@@ -88,6 +100,19 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         save(game, season, "MASSEY_TOTALS", null, 148.0, null);
         save(game, season, "BRADLEY_TERRY", null, null, 0.65);
         save(game, season, "BOOK", 6.5, 150.5, 0.70);
+
+        Game febGame = new Game();
+        febGame.setHomeTeam(home);
+        febGame.setAwayTeam(away);
+        febGame.setStatus(Game.GameStatus.FINAL);
+        febGame.setHomeScore(70);
+        febGame.setAwayScore(65);
+        febGame.setSeason(season);
+        febGame.setGameDate(LocalDateTime.of(2025, 2, 10, 19, 0));
+        febGame = gameRepo.save(febGame);
+
+        save(febGame, season, "MASSEY", 4.0, null, null);
+        save(febGame, season, "BOOK", 5.5, null, 0.62);
     }
 
     private void save(Game game, Season season, String modelType,

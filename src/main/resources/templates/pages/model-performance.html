@@ -134,6 +134,112 @@
             </div>
         </div>
 
+        <!-- Shared model-color helper for the charts below -->
+        <script>
+            window.modelColor = (type) => {
+                const FIXED = {
+                    'MASSEY':          '#0ea5e9',
+                    'MASSEY_TOTALS':   '#14b8a6',
+                    'BRADLEY_TERRY':   '#3b82f6',
+                    'BRADLEY_TERRY_W': '#8b5cf6',
+                    'BOOK':            '#f59e0b'
+                };
+                if (FIXED[type]) return FIXED[type];
+                if (type.startsWith('ML:')) {
+                    const GREENS = ['#22c55e', '#15803d', '#84cc16', '#059669'];
+                    let h = 0;
+                    for (const c of type) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+                    return GREENS[h % GREENS.length];
+                }
+                return '#94a3b8';
+            };
+        </script>
+
+        <!-- Month by month -->
+        <div class="card" style="margin-bottom: 1.5rem;" th:if="${!#lists.isEmpty(monthly)}">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                <h2 style="margin-top: 0;">Month by Month <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">do the models close the gap to the book as the season develops?</span></h2>
+                <select id="monthly-metric" class="form-input form-input--sm" style="width: auto;">
+                    <option value="spread">Spread MAE</option>
+                    <option value="brier">Brier score</option>
+                </select>
+            </div>
+            <div style="max-width: 760px; margin: 0 auto;">
+                <canvas id="chart-monthly"></canvas>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0;">
+                Monthly accuracy over the full season (the window selector does not apply here).
+                Lower is better for both metrics; the dashed line is the book benchmark.
+                Early-season months reflect ratings that are still converging on limited games.
+            </p>
+        </div>
+
+        <script th:inline="javascript" th:if="${!#lists.isEmpty(monthly)}">
+            document.addEventListener('DOMContentLoaded', () => {
+                const points = /*[[${monthly}]]*/ [];
+                const MONTHS = [...new Set(points.map(p => p.month))].sort();
+                const monthLabel = m => {
+                    const [y, mo] = m.split('-');
+                    return new Date(y, mo - 1, 1).toLocaleString('en-US', { month: 'short' }) + ' ' + y;
+                };
+
+                const METRICS = {
+                    spread: { value: p => p.spreadMae, n: p => p.spreadN, axis: 'Spread MAE (points)', decimals: 2 },
+                    brier:  { value: p => p.brier,     n: p => p.probN,   axis: 'Brier score',         decimals: 4 }
+                };
+
+                let chart = null;
+                const render = (metricKey) => {
+                    const metric = METRICS[metricKey];
+                    const byModel = new Map();
+                    for (const p of points) {
+                        const v = metric.value(p);
+                        if (v == null || metric.n(p) === 0) continue;
+                        if (!byModel.has(p.modelType)) {
+                            byModel.set(p.modelType, { label: p.displayName, data: new Map() });
+                        }
+                        byModel.get(p.modelType).data.set(p.month, { v: v, n: metric.n(p) });
+                    }
+                    const datasets = [...byModel.entries()].map(([type, d]) => ({
+                        label: d.label,
+                        data: MONTHS.map(m => d.data.has(m) ? d.data.get(m).v : null),
+                        metaN: MONTHS.map(m => d.data.has(m) ? d.data.get(m).n : null),
+                        borderColor: window.modelColor(type),
+                        backgroundColor: window.modelColor(type),
+                        borderWidth: 2,
+                        borderDash: type === 'BOOK' ? [6, 4] : undefined,
+                        pointRadius: 3,
+                        spanGaps: true,
+                        fill: false,
+                        tension: 0.2
+                    }));
+                    if (chart) chart.destroy();
+                    chart = new Chart(document.getElementById('chart-monthly'), {
+                        type: 'line',
+                        data: { labels: MONTHS.map(monthLabel), datasets },
+                        options: {
+                            responsive: true,
+                            aspectRatio: 2,
+                            scales: { y: { title: { display: true, text: metric.axis } } },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: ctx => {
+                                            const n = ctx.dataset.metaN[ctx.dataIndex];
+                                            return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(metric.decimals)}`
+                                                    + (n != null ? ` (n=${n.toLocaleString()})` : '');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                };
+                render('spread');
+                document.getElementById('monthly-metric').addEventListener('change', e => render(e.target.value));
+            });
+        </script>
+
         <!-- Calibration -->
         <div class="card" th:if="${!#lists.isEmpty(calibration)}">
             <h2 style="margin-top: 0;">Calibration <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">when a model says 70%, does the home team win 70% of the time?</span></h2>
@@ -151,13 +257,6 @@
             document.addEventListener('DOMContentLoaded', () => {
                 const points = /*[[${calibration}]]*/ [];
 
-                const MODEL_COLORS = {
-                    'ML':              '#22c55e',
-                    'BRADLEY_TERRY':   '#3b82f6',
-                    'BRADLEY_TERRY_W': '#8b5cf6',
-                    'BOOK':            '#f59e0b'
-                };
-
                 const byModel = new Map();
                 for (const p of points) {
                     if (p.avgPredicted == null || p.actualRate == null) continue;
@@ -170,8 +269,8 @@
                 const datasets = [...byModel.entries()].map(([type, d]) => ({
                     label: d.label,
                     data: d.data.sort((a, b) => a.x - b.x),
-                    borderColor: MODEL_COLORS[type] || '#94a3b8',
-                    backgroundColor: MODEL_COLORS[type] || '#94a3b8',
+                    borderColor: window.modelColor(type),
+                    backgroundColor: window.modelColor(type),
                     borderWidth: 2,
                     pointRadius: 3,
                     fill: false,
@@ -181,7 +280,7 @@
                 datasets.push({
                     label: 'Perfect calibration',
                     data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
-                    borderColor: 'rgba(255,255,255,0.3)',
+                    borderColor: 'rgba(100,116,139,0.6)',
                     borderWidth: 1,
                     borderDash: [6, 4],
                     pointRadius: 0,
