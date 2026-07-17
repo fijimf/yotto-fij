@@ -13,10 +13,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -76,6 +79,57 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
                 .andExpect(content().string(containsString("2025")));
     }
 
+    @Test
+    void performancePage_ncaaSegment_filtersToTournamentGames() throws Exception {
+        seedEvaluations();
+
+        // Only the February game is NCAA_TOURNAMENT; Massey missed it by exactly 1.0
+        MvcResult res = mockMvc.perform(get("/predictions/performance").param("segment", "ncaa"))
+                .andExpect(status().isOk())
+                .andReturn();
+        @SuppressWarnings("unchecked")
+        List<PredictionEvaluationRepository.SpreadMetrics> rows =
+                (List<PredictionEvaluationRepository.SpreadMetrics>) res.getModelAndView().getModel().get("spreadRows");
+        assertThat(rows).isNotEmpty().allSatisfy(r -> assertThat(r.getN()).isEqualTo(1L));
+        PredictionEvaluationRepository.SpreadMetrics massey = rows.stream()
+                .filter(r -> r.getModelType().equals("MASSEY")).findFirst().orElseThrow();
+        assertThat(massey.getMae()).isEqualTo(1.0);
+    }
+
+    @Test
+    void performancePage_regularSegment_excludesTournamentGames() throws Exception {
+        seedEvaluations();
+
+        // Only the January game is regular season; Massey missed it by exactly 4.0
+        MvcResult res = mockMvc.perform(get("/predictions/performance").param("segment", "regular"))
+                .andExpect(status().isOk())
+                .andReturn();
+        @SuppressWarnings("unchecked")
+        List<PredictionEvaluationRepository.SpreadMetrics> rows =
+                (List<PredictionEvaluationRepository.SpreadMetrics>) res.getModelAndView().getModel().get("spreadRows");
+        PredictionEvaluationRepository.SpreadMetrics massey = rows.stream()
+                .filter(r -> r.getModelType().equals("MASSEY")).findFirst().orElseThrow();
+        assertThat(massey.getN()).isEqualTo(1L);
+        assertThat(massey.getMae()).isEqualTo(4.0);
+    }
+
+    @Test
+    void performancePage_allSeasonsOption_rendersAggregatedData() throws Exception {
+        seedEvaluations();
+
+        MvcResult res = mockMvc.perform(get("/predictions/performance").param("year", "ALL"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Massey")))
+                .andExpect(content().string(not(containsString("No prediction evaluations yet"))))
+                .andReturn();
+        @SuppressWarnings("unchecked")
+        List<PredictionEvaluationRepository.SpreadMetrics> rows =
+                (List<PredictionEvaluationRepository.SpreadMetrics>) res.getModelAndView().getModel().get("spreadRows");
+        PredictionEvaluationRepository.SpreadMetrics massey = rows.stream()
+                .filter(r -> r.getModelType().equals("MASSEY")).findFirst().orElseThrow();
+        assertThat(massey.getN()).isEqualTo(2L);
+    }
+
     private void seedEvaluations() {
         Season season = new Season();
         season.setYear(2025);
@@ -109,6 +163,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         febGame.setAwayScore(65);
         febGame.setSeason(season);
         febGame.setGameDate(LocalDateTime.of(2025, 2, 10, 19, 0));
+        febGame.setTournamentType(Game.TournamentType.NCAA_TOURNAMENT);
         febGame = gameRepo.save(febGame);
 
         save(febGame, season, "MASSEY", 4.0, null, null);

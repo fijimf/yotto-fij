@@ -38,6 +38,16 @@ public class ModelPerformanceController {
             BradleyTerryRatingService.MODEL_TYPE_WEIGHTED,
             PredictionEvaluationService.MODEL_BOOK);
 
+    /** Game segments: dropdown key → tournament_type values ('NONE' = regular season). */
+    private static final Map<String, List<String>> SEGMENTS = Map.of(
+            "regular",    List.of("NONE", "IN_SEASON_TOURNAMENT"),
+            "conf",       List.of("CONFERENCE_TOURNAMENT"),
+            "ncaa",       List.of("NCAA_TOURNAMENT"),
+            "postseason", List.of("NIT", "CBI", "CROWN", "OTHER_POSTSEASON"));
+
+    /** Sentinel seasonId meaning "all seasons" in the aggregate queries. */
+    private static final long ALL_SEASONS = -1L;
+
     private final PredictionEvaluationRepository evaluationRepository;
     private final com.yotto.basketball.repository.SeasonRepository seasonRepository;
     private final MlModelRegistryService mlModelRegistryService;
@@ -51,43 +61,69 @@ public class ModelPerformanceController {
     }
 
     @GetMapping("/predictions/performance")
-    public String performance(@RequestParam(required = false) Integer year,
+    public String performance(@RequestParam(required = false) String year,
                               @RequestParam(defaultValue = "season") String window,
+                              @RequestParam(defaultValue = "all") String segment,
                               Model model) {
         List<Integer> years = evaluationRepository.findEvaluatedSeasonYears();
-        Integer selectedYear = (year != null && years.contains(year))
-                ? year
-                : (years.isEmpty() ? null : years.get(0));
+        boolean allSeasons = "ALL".equalsIgnoreCase(year) && !years.isEmpty();
+        Integer requestedYear = parseYear(year);
+        Integer selectedYear = allSeasons ? null
+                : (requestedYear != null && years.contains(requestedYear))
+                        ? requestedYear
+                        : (years.isEmpty() ? null : years.get(0));
         boolean last30 = "30".equals(window);
+        String selectedSegment = SEGMENTS.containsKey(segment) ? segment : "all";
 
         model.addAttribute("years", years);
         model.addAttribute("selectedYear", selectedYear);
+        model.addAttribute("allSeasons", allSeasons);
         model.addAttribute("window", last30 ? "30" : "season");
+        model.addAttribute("segment", selectedSegment);
         model.addAttribute("currentPage", "predictions");
 
-        if (selectedYear == null) {
+        boolean hasData = allSeasons || selectedYear != null;
+        model.addAttribute("hasData", hasData);
+        if (!hasData) {
             return "pages/model-performance";
         }
 
-        Long seasonId = seasonRepository.findByYear(selectedYear).orElseThrow().getId();
+        Long seasonId = allSeasons ? ALL_SEASONS
+                : seasonRepository.findByYear(selectedYear).orElseThrow().getId();
         LocalDate from = last30 ? LocalDate.now().minusDays(30) : LocalDate.of(1900, 1, 1);
+        boolean allSegments = "all".equals(selectedSegment);
+        List<String> types = SEGMENTS.getOrDefault(selectedSegment, List.of("NONE"));
 
-        model.addAttribute("spreadRows", sortRows(evaluationRepository.spreadMetrics(seasonId, from),
-                PredictionEvaluationRepository.SpreadMetrics::getModelType));
-        model.addAttribute("totalRows", sortRows(evaluationRepository.totalMetrics(seasonId, from),
-                PredictionEvaluationRepository.TotalMetrics::getModelType));
-        model.addAttribute("probRows", sortRows(evaluationRepository.probMetrics(seasonId, from),
-                PredictionEvaluationRepository.ProbMetrics::getModelType));
-        model.addAttribute("monthly", evaluationRepository.monthlyMetrics(seasonId).stream()
-                .map(m -> new MonthlyPoint(m.getModelType(), displayName(m.getModelType()), m.getMonth(),
-                        m.getSpreadN(), m.getSpreadMae(), m.getProbN(), m.getBrier()))
-                .toList());
-        model.addAttribute("calibration", evaluationRepository.calibrationBuckets(seasonId, from).stream()
-                .map(b -> new CalibrationPoint(b.getModelType(), displayName(b.getModelType()),
-                        b.getBucket(), b.getN(), b.getAvgPredicted(), b.getActualRate()))
-                .toList());
+        model.addAttribute("spreadRows",
+                sortRows(evaluationRepository.spreadMetrics(seasonId, from, allSegments, types),
+                        PredictionEvaluationRepository.SpreadMetrics::getModelType));
+        model.addAttribute("totalRows",
+                sortRows(evaluationRepository.totalMetrics(seasonId, from, allSegments, types),
+                        PredictionEvaluationRepository.TotalMetrics::getModelType));
+        model.addAttribute("probRows",
+                sortRows(evaluationRepository.probMetrics(seasonId, from, allSegments, types),
+                        PredictionEvaluationRepository.ProbMetrics::getModelType));
+        model.addAttribute("monthly",
+                evaluationRepository.monthlyMetrics(seasonId, allSegments, types).stream()
+                        .map(m -> new MonthlyPoint(m.getModelType(), displayName(m.getModelType()), m.getMonth(),
+                                m.getSpreadN(), m.getSpreadMae(), m.getProbN(), m.getBrier()))
+                        .toList());
+        model.addAttribute("calibration",
+                evaluationRepository.calibrationBuckets(seasonId, from, allSegments, types).stream()
+                        .map(b -> new CalibrationPoint(b.getModelType(), displayName(b.getModelType()),
+                                b.getBucket(), b.getN(), b.getAvgPredicted(), b.getActualRate()))
+                        .toList());
         model.addAttribute("displayNames", allDisplayNames());
         return "pages/model-performance";
+    }
+
+    private static Integer parseYear(String year) {
+        if (year == null) return null;
+        try {
+            return Integer.valueOf(year);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** Fixed model-type names plus a dynamic entry per ML bundle ('ML:slug' → registry name). */

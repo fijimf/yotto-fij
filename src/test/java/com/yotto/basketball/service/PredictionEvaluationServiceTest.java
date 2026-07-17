@@ -185,7 +185,7 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
         evaluationService.evaluateSeason(2025);
 
         LocalDate from = LocalDate.of(1900, 1, 1);
-        var spread = evaluationRepo.spreadMetrics(season.getId(), from);
+        var spread = evaluationRepo.spreadMetrics(season.getId(), from, true, List.of("NONE"));
         var masseyRow = spread.stream().filter(r -> r.getModelType().equals("MASSEY")).findFirst().orElseThrow();
         assertThat(masseyRow.getN()).isEqualTo(2);
         // errors: 5−9 = −4 and −10−9 = −19 → MAE 11.5, RMSE sqrt((16+361)/2)
@@ -193,14 +193,14 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
         assertThat(masseyRow.getRmse()).isCloseTo(Math.sqrt((16.0 + 361.0) / 2.0), within(1e-6));
         assertThat(masseyRow.getSideAccuracy()).isCloseTo(0.5, within(1e-6));
 
-        var prob = evaluationRepo.probMetrics(season.getId(), from);
+        var prob = evaluationRepo.probMetrics(season.getId(), from, true, List.of("NONE"));
         var btRow = prob.stream().filter(r -> r.getModelType().equals("BRADLEY_TERRY")).findFirst().orElseThrow();
         double p = 1.0 / (1.0 + Math.exp(-0.6));
         double expectedBrier = (Math.pow(p - 1, 2) + Math.pow(p - 0, 2)) / 2.0;
         assertThat(btRow.getBrier()).isCloseTo(expectedBrier, within(1e-6));
         assertThat(btRow.getAccuracy()).isCloseTo(0.5, within(1e-6));
 
-        var buckets = evaluationRepo.calibrationBuckets(season.getId(), from);
+        var buckets = evaluationRepo.calibrationBuckets(season.getId(), from, true, List.of("NONE"));
         assertThat(buckets).isNotEmpty();
         var btBuckets = buckets.stream().filter(b -> b.getModelType().equals("BRADLEY_TERRY")).toList();
         assertThat(btBuckets).hasSize(1);   // both games share the same predicted prob

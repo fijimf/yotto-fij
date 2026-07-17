@@ -47,6 +47,10 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
     List<Integer> findEvaluatedSeasonYears();
 
     // ── Aggregate metrics (per model, within a season, from a cutoff date) ─────
+    // All aggregate queries share the same filters: seasonId (< 0 means all seasons),
+    // fromDate cutoff, and a game-segment predicate — allSegments=true disables it,
+    // otherwise games are kept when COALESCE(tournament_type,'NONE') is in
+    // tournamentTypes ('NONE' stands for regular-season games).
 
     interface SpreadMetrics {
         String getModelType();
@@ -63,12 +67,16 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                    sqrt(avg(pe.spread_error * pe.spread_error)) AS rmse,
                    avg(CASE WHEN (pe.predicted_spread >= 0) = (pe.actual_margin > 0) THEN 1.0 ELSE 0.0 END) AS sideaccuracy
             FROM prediction_evaluations pe
-            WHERE pe.season_id = :seasonId
+            JOIN games g ON g.id = pe.game_id
+            WHERE (:seasonId < 0 OR pe.season_id = :seasonId)
               AND pe.game_date >= :fromDate
+              AND (:allSegments = true OR COALESCE(g.tournament_type, 'NONE') IN (:tournamentTypes))
               AND pe.predicted_spread IS NOT NULL
             GROUP BY pe.model_type
             """)
-    List<SpreadMetrics> spreadMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
+    List<SpreadMetrics> spreadMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate,
+                                      @Param("allSegments") boolean allSegments,
+                                      @Param("tournamentTypes") List<String> tournamentTypes);
 
     interface TotalMetrics {
         String getModelType();
@@ -85,12 +93,16 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                    sqrt(avg(pe.total_error * pe.total_error)) AS rmse,
                    avg(pe.total_error) AS bias
             FROM prediction_evaluations pe
-            WHERE pe.season_id = :seasonId
+            JOIN games g ON g.id = pe.game_id
+            WHERE (:seasonId < 0 OR pe.season_id = :seasonId)
               AND pe.game_date >= :fromDate
+              AND (:allSegments = true OR COALESCE(g.tournament_type, 'NONE') IN (:tournamentTypes))
               AND pe.predicted_total IS NOT NULL
             GROUP BY pe.model_type
             """)
-    List<TotalMetrics> totalMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
+    List<TotalMetrics> totalMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate,
+                                    @Param("allSegments") boolean allSegments,
+                                    @Param("tournamentTypes") List<String> tournamentTypes);
 
     interface ProbMetrics {
         String getModelType();
@@ -105,12 +117,16 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                    avg(power(pe.predicted_home_win_prob - (CASE WHEN pe.home_won THEN 1.0 ELSE 0.0 END), 2)) AS brier,
                    avg(CASE WHEN (pe.predicted_home_win_prob >= 0.5) = pe.home_won THEN 1.0 ELSE 0.0 END) AS accuracy
             FROM prediction_evaluations pe
-            WHERE pe.season_id = :seasonId
+            JOIN games g ON g.id = pe.game_id
+            WHERE (:seasonId < 0 OR pe.season_id = :seasonId)
               AND pe.game_date >= :fromDate
+              AND (:allSegments = true OR COALESCE(g.tournament_type, 'NONE') IN (:tournamentTypes))
               AND pe.predicted_home_win_prob IS NOT NULL
             GROUP BY pe.model_type
             """)
-    List<ProbMetrics> probMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
+    List<ProbMetrics> probMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate,
+                                  @Param("allSegments") boolean allSegments,
+                                  @Param("tournamentTypes") List<String> tournamentTypes);
 
     /** Month-by-month accuracy per model over a full season; month is 'YYYY-MM'. */
     interface MonthlyMetrics {
@@ -130,12 +146,16 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                    count(pe.predicted_home_win_prob) AS probn,
                    avg(power(pe.predicted_home_win_prob - (CASE WHEN pe.home_won THEN 1.0 ELSE 0.0 END), 2)) AS brier
             FROM prediction_evaluations pe
-            WHERE pe.season_id = :seasonId
+            JOIN games g ON g.id = pe.game_id
+            WHERE (:seasonId < 0 OR pe.season_id = :seasonId)
+              AND (:allSegments = true OR COALESCE(g.tournament_type, 'NONE') IN (:tournamentTypes))
               AND (pe.spread_error IS NOT NULL OR pe.predicted_home_win_prob IS NOT NULL)
             GROUP BY pe.model_type, month
             ORDER BY month, pe.model_type
             """)
-    List<MonthlyMetrics> monthlyMetrics(@Param("seasonId") Long seasonId);
+    List<MonthlyMetrics> monthlyMetrics(@Param("seasonId") Long seasonId,
+                                        @Param("allSegments") boolean allSegments,
+                                        @Param("tournamentTypes") List<String> tournamentTypes);
 
     /** Calibration: predicted-probability deciles vs. actual home-win rate, per model. */
     interface CalibrationBucket {
@@ -153,11 +173,15 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                    avg(pe.predicted_home_win_prob) AS avgpredicted,
                    avg(CASE WHEN pe.home_won THEN 1.0 ELSE 0.0 END) AS actualrate
             FROM prediction_evaluations pe
-            WHERE pe.season_id = :seasonId
+            JOIN games g ON g.id = pe.game_id
+            WHERE (:seasonId < 0 OR pe.season_id = :seasonId)
               AND pe.game_date >= :fromDate
+              AND (:allSegments = true OR COALESCE(g.tournament_type, 'NONE') IN (:tournamentTypes))
               AND pe.predicted_home_win_prob IS NOT NULL
             GROUP BY pe.model_type, bucket
             ORDER BY pe.model_type, bucket
             """)
-    List<CalibrationBucket> calibrationBuckets(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
+    List<CalibrationBucket> calibrationBuckets(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate,
+                                               @Param("allSegments") boolean allSegments,
+                                               @Param("tournamentTypes") List<String> tournamentTypes);
 }

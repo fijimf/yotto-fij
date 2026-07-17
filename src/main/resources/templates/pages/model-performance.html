@@ -17,11 +17,20 @@
                     onchange="this.form.submit()">
                 <option th:each="y : ${years}" th:value="${y}" th:text="${y}"
                         th:selected="${y == selectedYear}">2026</option>
+                <option value="ALL" th:selected="${allSeasons}">All seasons</option>
             </select>
             <select name="window" class="form-input form-input--sm" style="width: auto;"
                     onchange="this.form.submit()">
                 <option value="season" th:selected="${window == 'season'}">Full season</option>
                 <option value="30" th:selected="${window == '30'}">Last 30 days</option>
+            </select>
+            <select name="segment" class="form-input form-input--sm" style="width: auto;"
+                    onchange="this.form.submit()">
+                <option value="all" th:selected="${segment == 'all'}">All games</option>
+                <option value="regular" th:selected="${segment == 'regular'}">Regular season</option>
+                <option value="conf" th:selected="${segment == 'conf'}">Conference tournaments</option>
+                <option value="ncaa" th:selected="${segment == 'ncaa'}">NCAA Tournament</option>
+                <option value="postseason" th:selected="${segment == 'postseason'}">Other postseason</option>
             </select>
         </form>
     </div>
@@ -34,14 +43,14 @@
     </p>
 
     <!-- Empty state -->
-    <div th:if="${selectedYear == null}" class="card">
+    <div th:if="${!hasData}" class="card">
         <p style="color: var(--color-text-muted); margin: 0;">
             No prediction evaluations yet. They are generated automatically after scrapes,
             or an admin can run them from the Admin dashboard.
         </p>
     </div>
 
-    <th:block th:if="${selectedYear != null}">
+    <th:block th:if="${hasData}">
 
         <!-- Spread accuracy -->
         <div class="card" style="margin-bottom: 1.5rem;">
