@@ -7,14 +7,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @AutoConfigureMockMvc
+@WithMockUser(roles = "ADMIN")
 class ConferenceMembershipControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -78,6 +81,7 @@ class ConferenceMembershipControllerTest extends BaseIntegrationTest {
     @Test
     void create_returns201() throws Exception {
         mockMvc.perform(post("/api/conference-memberships")
+                        .with(csrf())
                         .param("teamId", teamA.getId().toString())
                         .param("conferenceId", sec.getId().toString())
                         .param("seasonId", season.getId().toString()))
@@ -192,6 +196,7 @@ class ConferenceMembershipControllerTest extends BaseIntegrationTest {
         ConferenceMembership m = enroll(teamA, sec);
 
         mockMvc.perform(put("/api/conference-memberships/{id}", m.getId())
+                        .with(csrf())
                         .param("conferenceId", acc.getId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(m.getId()))
@@ -207,6 +212,7 @@ class ConferenceMembershipControllerTest extends BaseIntegrationTest {
     @Test
     void update_notFound_returns404() throws Exception {
         mockMvc.perform(put("/api/conference-memberships/999999")
+                        .with(csrf())
                         .param("conferenceId", sec.getId().toString()))
                 .andExpect(status().isNotFound());
     }
@@ -217,13 +223,13 @@ class ConferenceMembershipControllerTest extends BaseIntegrationTest {
     void delete_returns204() throws Exception {
         ConferenceMembership m = enroll(teamA, sec);
 
-        mockMvc.perform(delete("/api/conference-memberships/{id}", m.getId()))
+        mockMvc.perform(delete("/api/conference-memberships/{id}", m.getId()).with(csrf()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void delete_notFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/conference-memberships/999999"))
+        mockMvc.perform(delete("/api/conference-memberships/999999").with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

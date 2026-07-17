@@ -9,13 +9,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @AutoConfigureMockMvc
+@WithMockUser(roles = "ADMIN")
 class TeamControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -84,6 +87,7 @@ class TeamControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/teams")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -113,6 +117,7 @@ class TeamControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/teams")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
@@ -205,6 +210,7 @@ class TeamControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/teams/{id}", team.getId())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -234,6 +240,7 @@ class TeamControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/teams/999999")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isNotFound());
@@ -246,13 +253,13 @@ class TeamControllerTest extends BaseIntegrationTest {
         // Create a team with no game dependencies
         Team team = mkTeam("DeleteMe");
 
-        mockMvc.perform(delete("/api/teams/{id}", team.getId()))
+        mockMvc.perform(delete("/api/teams/{id}", team.getId()).with(csrf()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void delete_notFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/teams/999999"))
+        mockMvc.perform(delete("/api/teams/999999").with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

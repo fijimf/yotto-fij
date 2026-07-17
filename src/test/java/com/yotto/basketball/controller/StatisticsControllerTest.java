@@ -8,15 +8,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @AutoConfigureMockMvc
+@WithMockUser(roles = "ADMIN")
 class StatisticsControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -156,7 +159,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
     void teamTimeSeries_afterRecalc_returnsSnapshots() throws Exception {
         addGame();
 
-        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
+        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025).with(csrf()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/statistics/team/{teamId}/season/{year}",
@@ -226,7 +229,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
         addGameOn(LocalDateTime.of(2025, 1, 10, 20, 0));
         addGameOn(LocalDateTime.of(2025, 1, 17, 20, 0));
 
-        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
+        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025).with(csrf()))
                 .andExpect(status().isOk());
 
         // After date=2025-01-10 each team has played exactly 1 game.
@@ -253,7 +256,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
         addGameOn(LocalDateTime.of(2025, 1, 10, 20, 0));
         addGameOn(LocalDateTime.of(2025, 1, 17, 20, 0));
 
-        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
+        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025).with(csrf()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/statistics/season/{year}/snapshots", 2025))
@@ -282,7 +285,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
     void seasonPopulation_afterRecalc_returnsMeanAndStddev() throws Exception {
         addGame();
 
-        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
+        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025).with(csrf()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/statistics/season/{year}/population", 2025))
@@ -296,7 +299,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
 
     @Test
     void recalculate_returns200WithStatus() throws Exception {
-        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
+        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ok"))
                 .andExpect(jsonPath("$.year").value("2025"));
@@ -308,7 +311,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
     void snapshotDto_allFieldsPresent() throws Exception {
         addGame();
 
-        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
+        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025).with(csrf()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/statistics/team/{teamId}/season/{year}",
@@ -329,7 +332,7 @@ class StatisticsControllerTest extends BaseIntegrationTest {
     void popDto_allFieldsPresent() throws Exception {
         addGame();
 
-        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025))
+        mockMvc.perform(post("/api/statistics/recalculate/{year}", 2025).with(csrf()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/statistics/season/{year}/population", 2025))

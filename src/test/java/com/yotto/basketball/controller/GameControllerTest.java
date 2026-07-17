@@ -8,16 +8,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @AutoConfigureMockMvc
+@WithMockUser(roles = "ADMIN")
 class GameControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -105,6 +108,7 @@ class GameControllerTest extends BaseIntegrationTest {
                 """.formatted(home.getId(), away.getId());
 
         mockMvc.perform(post("/api/games")
+                        .with(csrf())
                         .param("homeTeamId", home.getId().toString())
                         .param("awayTeamId", away.getId().toString())
                         .param("seasonId", season.getId().toString())
@@ -219,6 +223,7 @@ class GameControllerTest extends BaseIntegrationTest {
         Game game = mkGame(Game.GameStatus.SCHEDULED);
 
         mockMvc.perform(put("/api/games/{id}/score", game.getId())
+                        .with(csrf())
                         .param("homeScore", "85")
                         .param("awayScore", "78"))
                 .andExpect(status().isOk())
@@ -239,6 +244,7 @@ class GameControllerTest extends BaseIntegrationTest {
         Game game = mkGame(Game.GameStatus.SCHEDULED);
 
         mockMvc.perform(put("/api/games/{id}/status", game.getId())
+                        .with(csrf())
                         .param("status", "POSTPONED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("POSTPONED"));
@@ -253,13 +259,13 @@ class GameControllerTest extends BaseIntegrationTest {
     void delete_returns204() throws Exception {
         Game game = mkGame(Game.GameStatus.SCHEDULED);
 
-        mockMvc.perform(delete("/api/games/{id}", game.getId()))
+        mockMvc.perform(delete("/api/games/{id}", game.getId()).with(csrf()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void delete_notFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/games/999999"))
+        mockMvc.perform(delete("/api/games/999999").with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
@@ -278,6 +284,7 @@ class GameControllerTest extends BaseIntegrationTest {
                 """.formatted(home.getId(), away.getId());
 
         mockMvc.perform(post("/api/games")
+                        .with(csrf())
                         .param("homeTeamId", home.getId().toString())
                         .param("awayTeamId", away.getId().toString())
                         .param("seasonId", season.getId().toString())

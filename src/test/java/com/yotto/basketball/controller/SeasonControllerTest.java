@@ -8,14 +8,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @AutoConfigureMockMvc
+@WithMockUser(roles = "ADMIN")
 class SeasonControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -68,6 +71,7 @@ class SeasonControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/seasons")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -82,6 +86,7 @@ class SeasonControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/seasons")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
@@ -135,6 +140,7 @@ class SeasonControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/seasons/{id}", s.getId())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -157,6 +163,7 @@ class SeasonControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/seasons/999999")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isNotFound());
@@ -168,13 +175,13 @@ class SeasonControllerTest extends BaseIntegrationTest {
     void delete_returns204() throws Exception {
         Season s = mkSeason(2025);
 
-        mockMvc.perform(delete("/api/seasons/{id}", s.getId()))
+        mockMvc.perform(delete("/api/seasons/{id}", s.getId()).with(csrf()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void delete_notFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/seasons/999999"))
+        mockMvc.perform(delete("/api/seasons/999999").with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

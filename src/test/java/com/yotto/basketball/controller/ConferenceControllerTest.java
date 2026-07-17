@@ -9,12 +9,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @AutoConfigureMockMvc
+@WithMockUser(roles = "ADMIN")
 class ConferenceControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -70,6 +73,7 @@ class ConferenceControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/conferences")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -94,6 +98,7 @@ class ConferenceControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/conferences")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
@@ -174,6 +179,7 @@ class ConferenceControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/conferences/{id}", c.getId())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -199,6 +205,7 @@ class ConferenceControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/conferences/999999")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isNotFound());
@@ -210,13 +217,13 @@ class ConferenceControllerTest extends BaseIntegrationTest {
     void delete_returns204() throws Exception {
         Conference c = mkConference("ToDelete", "del1");
 
-        mockMvc.perform(delete("/api/conferences/{id}", c.getId()))
+        mockMvc.perform(delete("/api/conferences/{id}", c.getId()).with(csrf()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void delete_notFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/conferences/999999"))
+        mockMvc.perform(delete("/api/conferences/999999").with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

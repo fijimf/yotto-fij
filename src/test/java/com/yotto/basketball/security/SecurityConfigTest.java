@@ -13,12 +13,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.springframework.boot.web.servlet.server.CookieSameSiteSupplier;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,6 +34,7 @@ class SecurityConfigTest extends BaseIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private CookieSameSiteSupplier cookieSameSiteSupplier;
 
     static final String ADMIN_USERNAME = "sec-admin";
     static final String USER_USERNAME = "sec-user";
@@ -116,16 +122,51 @@ class SecurityConfigTest extends BaseIntegrationTest {
     // ── CSRF behavior ────────────────────────────────────────────────────────
 
     @Test
-    void apiPost_withoutCsrf_succeedsBecauseApiIsCsrfIgnored() throws Exception {
-        mockMvc.perform(post("/api/teams")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest());
+    void apiGet_staysPublic() throws Exception {
+        // Read access to the REST API remains anonymous.
+        mockMvc.perform(get("/api/teams"))
+                .andExpect(status().isOk());
     }
 
     @Test
-    void apiDelete_withoutCsrf_succeedsBecauseApiIsCsrfIgnored() throws Exception {
+    void apiPost_anonymous_isRejected() throws Exception {
+        // Mutating API writes now require ADMIN + CSRF; an anonymous POST must not
+        // reach the controller (previously this returned 400 after hitting it).
+        mockMvc.perform(post("/api/teams")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void apiDelete_anonymous_isRejected() throws Exception {
         mockMvc.perform(delete("/api/teams/999999"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void apiDelete_asNonAdminUser_isForbidden() throws Exception {
+        // A logged-in non-admin still cannot write, even with a CSRF token.
+        mockMvc.perform(delete("/api/teams/999999").with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void apiDelete_asAdminWithoutCsrf_isForbidden() throws Exception {
+        // CSRF is enforced on /api now (no longer ignored): a token is required
+        // even for an admin.
+        mockMvc.perform(delete("/api/teams/999999"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void apiDelete_asAdminWithCsrf_reachesController() throws Exception {
+        // ADMIN + CSRF passes security and hits the controller — 404 for a missing
+        // id (NOT 403), proving admins can still perform writes.
+        mockMvc.perform(delete("/api/teams/999999").with(csrf()))
                 .andExpect(status().isNotFound());
     }
 
@@ -135,6 +176,37 @@ class SecurityConfigTest extends BaseIntegrationTest {
         mockMvc.perform(post("/admin/seasons")
                         .param("year", "2026"))
                 .andExpect(status().isForbidden());
+    }
+
+    // ── Security response headers ─────────────────────────────────────────────
+
+    @Test
+    void responses_carryContentSecurityPolicyAndReferrerPolicy() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Security-Policy",
+                        org.hamcrest.Matchers.containsString("default-src 'self'")))
+                .andExpect(header().string("Content-Security-Policy",
+                        org.hamcrest.Matchers.containsString("object-src 'none'")))
+                .andExpect(header().string("Content-Security-Policy",
+                        org.hamcrest.Matchers.containsString("frame-ancestors 'none'")))
+                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
+                // Spring Security defaults must still be present alongside the CSP
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"));
+    }
+
+    // ── Remember-me cookie SameSite ───────────────────────────────────────────
+
+    @Test
+    void rememberMeCookie_isTaggedSameSiteLax() {
+        // The remember-me cookie is written by the container, so SameSite is applied
+        // via CookieSameSiteSupplier rather than the session-cookie properties.
+        assertThat(cookieSameSiteSupplier.getSameSite(new jakarta.servlet.http.Cookie("remember-me", "x")))
+                .isEqualTo(org.springframework.boot.web.server.Cookie.SameSite.LAX);
+        // Other cookies are left untouched by this supplier.
+        assertThat(cookieSameSiteSupplier.getSameSite(new jakarta.servlet.http.Cookie("JSESSIONID", "x")))
+                .isNull();
     }
 
     // ── Form login flow ──────────────────────────────────────────────────────

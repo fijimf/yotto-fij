@@ -16,9 +16,9 @@ import java.security.SecureRandom;
 import java.time.Instant;
 
 /**
- * Bootstraps the admin account on first startup (random password logged at
- * WARN, forced change on first login) and backfills the admin email from
- * configuration so admin password reset works.
+ * Bootstraps the admin account on first startup (random password printed once to
+ * the console/stdout, forced change on first login) and backfills the admin email
+ * from configuration so admin password reset works.
  */
 @Component
 public class UserInitializer implements ApplicationRunner {
@@ -64,7 +64,16 @@ public class UserInitializer implements ApplicationRunner {
                 admin.setEmailVerifiedAt(null);
                 userRepository.save(admin);
             }
-            log.warn("Admin password generated: {}. Change it at /account/password", password);
+            // Print the cleartext password to the console (stdout) only — never through
+            // the SLF4J logger, which feeds the app's persisted/aggregated log files.
+            // It is forced to change on first login (passwordMustChange=true).
+            System.out.println("=================================================================");
+            System.out.println(" Initial admin account created (username: " + ADMIN_USERNAME + ")");
+            System.out.println(" Temporary password: " + password);
+            System.out.println(" Log in and change it immediately at /account/password.");
+            System.out.println(" This is shown once and is NOT written to the application log.");
+            System.out.println("=================================================================");
+            log.warn("Admin account bootstrapped; temporary password printed to console (stdout) once");
             return;
         }
 

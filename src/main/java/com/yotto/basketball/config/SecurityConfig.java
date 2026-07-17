@@ -5,8 +5,10 @@ import com.yotto.basketball.security.AuthFailureHandler;
 import com.yotto.basketball.security.LoginRateLimitFilter;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.web.servlet.server.CookieSameSiteSupplier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.web.multipart.support.MultipartFilter;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -20,6 +22,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -49,6 +52,12 @@ public class SecurityConfig {
                         // ADMIN passes hasRole('USER') via the role hierarchy
                         .requestMatchers("/account/**").hasRole("USER")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
+                        // Public REST API is READ-ONLY for anonymous callers. Every
+                        // mutating verb (POST/PUT/PATCH/DELETE) requires ADMIN so a
+                        // stray curl can't rewrite or delete games/teams/scores.
+                        .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/api/**").permitAll()
+                        .requestMatchers("/api/**").hasRole("ADMIN")
                         .requestMatchers("/**").permitAll()
                 )
                 .formLogin(form -> form
@@ -76,8 +85,29 @@ public class SecurityConfig {
                         .sessionRegistry(sessionRegistry)
                         .expiredUrl("/login?expired")
                 )
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/api/**")
+                // CSRF is enforced everywhere, including /api/** — its mutating
+                // endpoints are now ADMIN-only and browser-reachable, so they must
+                // carry a token. GET/HEAD are never CSRF-checked, so public API
+                // reads are unaffected.
+                .csrf(Customizer.withDefaults())
+                .headers(headers -> headers
+                        // Defense-in-depth against XSS/clickjacking/plugin abuse.
+                        // 'unsafe-inline' is required because the Thymeleaf templates
+                        // carry inline <script>/<style>; external CDNs used by the UI
+                        // (htmx, chart.js, d3, Google Fonts) are explicitly allowlisted.
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; " +
+                                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; " +
+                                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                                "font-src 'self' https://fonts.gstatic.com data:; " +
+                                "img-src 'self' data: https:; " +
+                                "connect-src 'self'; " +
+                                "object-src 'none'; " +
+                                "base-uri 'self'; " +
+                                "frame-ancestors 'none'; " +
+                                "form-action 'self'"))
+                        .referrerPolicy(referrer -> referrer.policy(
+                                ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                 )
                 .exceptionHandling(handling -> handling
                         .accessDeniedPage("/error/403")
@@ -103,6 +133,17 @@ public class SecurityConfig {
                 new FilterRegistrationBean<>(new MultipartFilter());
         registration.setOrder(SecurityProperties.DEFAULT_FILTER_ORDER - 1);
         return registration;
+    }
+
+    /**
+     * Spring Security's remember-me cookie is written by the container, not through
+     * {@code server.servlet.session.cookie.*} (which only governs JSESSIONID), so it
+     * would otherwise ship without a SameSite attribute. Tag it {@code SameSite=Lax}
+     * so this long-lived (30-day) auth cookie isn't sent on cross-site requests.
+     */
+    @Bean
+    public CookieSameSiteSupplier rememberMeCookieSameSiteSupplier() {
+        return CookieSameSiteSupplier.ofLax().whenHasName("remember-me");
     }
 
     @Bean

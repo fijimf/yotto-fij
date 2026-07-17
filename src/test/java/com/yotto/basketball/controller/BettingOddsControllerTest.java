@@ -8,16 +8,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @AutoConfigureMockMvc
+@WithMockUser(roles = "ADMIN")
 class BettingOddsControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -112,6 +115,7 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/betting-odds")
+                        .with(csrf())
                         .param("gameId", game.getId().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -184,6 +188,7 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/betting-odds/{id}", o.getId())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -204,6 +209,7 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
                 """;
 
         mockMvc.perform(put("/api/betting-odds/999999")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isNotFound());
@@ -215,13 +221,13 @@ class BettingOddsControllerTest extends BaseIntegrationTest {
     void delete_returns204() throws Exception {
         BettingOdds o = mkOdds(game, new BigDecimal("-3.5"), new BigDecimal("145.5"));
 
-        mockMvc.perform(delete("/api/betting-odds/{id}", o.getId()))
+        mockMvc.perform(delete("/api/betting-odds/{id}", o.getId()).with(csrf()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void delete_notFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/betting-odds/999999"))
+        mockMvc.perform(delete("/api/betting-odds/999999").with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

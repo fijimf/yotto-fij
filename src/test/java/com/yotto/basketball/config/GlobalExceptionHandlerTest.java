@@ -95,12 +95,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void uncaughtException_returns500WithInternalServerErrorBody() throws Exception {
+    void uncaughtException_returns500WithGenericMessage_notLeakingCause() throws Exception {
+        // The catch-all handler must NOT echo the raw exception message to the client
+        // (it could leak SQL/class/internal detail on the public API). It returns a
+        // fixed generic message; the real cause is only logged server-side.
         mockMvc.perform(get("/stub/boom"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.error").value("Internal Server Error"))
-                .andExpect(jsonPath("$.message").value("kaboom"))
+                .andExpect(jsonPath("$.message").value("An unexpected error occurred"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("kaboom"))))
                 .andExpect(jsonPath("$.timestamp").exists());
     }
 }
