@@ -21,6 +21,7 @@
                 <a class="nav__link" th:href="@{/bracket}" th:classappend="${#strings.equals(currentPage, 'bracket')} ? 'nav__link--active'">Bracket</a>
             </li>
             <li><a class="nav__link" th:href="@{/predictions}" th:classappend="${#strings.equals(currentPage, 'predictions')} ? 'nav__link--active'">Predictions</a></li>
+            <li><a class="nav__link" th:href="@{/news}" th:classappend="${#strings.equals(currentPage, 'news')} ? 'nav__link--active'">News</a></li>
             <li><a class="nav__link" th:href="@{/predictions/matchup}" th:classappend="${#strings.equals(currentPage, 'matchup')} ? 'nav__link--active'">Matchup</a></li>
             <li class="nav__spacer" aria-hidden="true"></li>
             <li sec:authorize="hasRole('ADMIN')">

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Conference Site News</title>
+  <link href="https://theacc.example.com/news"/>
+  <id>urn:uuid:feed-1</id>
+  <updated>2026-02-15T09:00:00Z</updated>
+  <entry>
+    <title>Tournament bracket released</title>
+    <link href="https://theacc.example.com/news/tournament-bracket-released"/>
+    <id>urn:uuid:entry-1</id>
+    <updated>2026-02-15T08:30:00Z</updated>
+    <summary>The conference announced seedings on Saturday.</summary>
+  </entry>
+</feed>

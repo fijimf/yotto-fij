@@ -349,6 +349,44 @@
         </div>
     </section>
 
+    <!-- News -->
+    <section class="admin-section">
+        <div class="admin-section__header" style="display: flex; align-items: center; justify-content: space-between;">
+            <h2 class="admin-section__title">News</h2>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="/admin/news/sources" class="btn btn--outline btn--sm">Sources</a>
+                <a href="/admin/news/tagging" class="btn btn--outline btn--sm">Tagging Quality</a>
+                <a href="/admin/news/articles" class="btn btn--outline btn--sm">Articles</a>
+                <form th:action="@{/admin/news/poll}" method="post" class="inline-form">
+                    <button type="submit" class="btn btn--primary btn--sm">▶ Poll Now</button>
+                </form>
+            </div>
+        </div>
+        <div class="card">
+            <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
+                <div>
+                    <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Articles today</div>
+                    <div style="font-size: 1.4rem;" th:text="${news.articlesToday}">0</div>
+                </div>
+                <div>
+                    <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Untagged today</div>
+                    <div style="font-size: 1.4rem;" th:text="${news.untaggedToday}">0</div>
+                </div>
+                <div>
+                    <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Sources auto-disabled</div>
+                    <div style="font-size: 1.4rem;"
+                         th:style="${news.sourcesFailing > 0 ? 'font-size: 1.4rem; color: var(--color-danger, #c00);' : 'font-size: 1.4rem;'}"
+                         th:text="${news.sourcesFailing}">0</div>
+                </div>
+                <div>
+                    <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Last poll</div>
+                    <div style="font-size: 1.4rem;"
+                         th:text="${news.lastNewsBatch.isPresent() ? #temporals.format(news.lastNewsBatch.get().startedAt, 'MMM d HH:mm') : '—'}">—</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Scrape History -->
     <section class="admin-section">
         <div class="admin-section__header">

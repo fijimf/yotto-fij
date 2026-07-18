@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Beat Writer Blog</title>
+    <link>https://hoopsblog.example.com/</link>
+    <description>CBB blog with broken dates</description>
+    <item>
+      <title>Story with unparseable date</title>
+      <link>https://hoopsblog.example.com/story-bad-date</link>
+      <pubDate>Yesterday sometime</pubDate>
+    </item>
+    <item>
+      <title>Story with no date</title>
+      <link>https://hoopsblog.example.com/story-no-date</link>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>News Sources</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">News Sources</h1>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="/admin/news/tagging" class="btn btn--outline btn--sm">Tagging Quality</a>
+            <a href="/admin/news/articles" class="btn btn--outline btn--sm">Articles</a>
+            <form th:action="@{/admin/news/poll}" method="post" class="inline-form">
+                <button type="submit" class="btn btn--primary btn--sm">▶ Poll Now</button>
+            </form>
+            <a href="/admin" class="btn btn--outline btn--sm">&#8592; Dashboard</a>
+        </div>
+    </div>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <!-- Add source with dry-run test -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Add Source</h2>
+        </div>
+        <div class="card">
+            <form th:action="@{/admin/news/sources}" method="post" id="add-source-form">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                    <input type="text" name="name" class="form-input" placeholder="Name (e.g. ESPN CBB)" required/>
+                    <input type="text" name="domain" class="form-input" placeholder="Domain (espn.com)" required/>
+                    <input type="url" name="feedUrl" class="form-input" placeholder="Feed URL (RSS/Atom)" required/>
+                    <input type="number" name="authorityWeight" class="form-input" value="50" min="0" max="100"
+                           title="Authority weight 0–100"/>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem;">
+                    <label style="display: flex; align-items: center; gap: 0.35rem;">
+                        <input type="checkbox" name="dedicatedCbb" value="true"/>
+                        Dedicated CBB feed (skip sport filter — every item is men's college basketball)
+                    </label>
+                    <input type="text" name="notes" class="form-input" placeholder="Notes (optional)"
+                           style="flex: 1;"/>
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                    <!-- Dry run BEFORE saving: parses the feed and shows what the filter/tagger would do -->
+                    <button type="button" class="btn btn--outline btn--sm"
+                            hx-get="/admin/news/sources/test"
+                            hx-include="#add-source-form [name='feedUrl'], #add-source-form [name='dedicatedCbb']"
+                            hx-target="#dryrun-results" hx-indicator="#dryrun-spinner">
+                        🧪 Test (dry run)
+                    </button>
+                    <span id="dryrun-spinner" class="htmx-indicator">Testing feed…</span>
+                    <button type="submit" class="btn btn--primary btn--sm">Add Source</button>
+                </div>
+            </form>
+            <div id="dryrun-results" style="margin-top: 1rem;"></div>
+        </div>
+    </section>
+
+    <!-- Source list -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Sources</h2>
+        </div>
+        <div class="card">
+            <p th:if="${#lists.isEmpty(sources)}" style="color: var(--color-text-muted);">
+                No sources yet — add a feed above and use the dry-run test before saving.
+            </p>
+            <table th:unless="${#lists.isEmpty(sources)}">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Domain</th>
+                    <th>Weight</th>
+                    <th>Dedicated</th>
+                    <th>Status</th>
+                    <th>Last success</th>
+                    <th>Failures</th>
+                    <th>Articles (7d)</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${sources}">
+                    <td>
+                        <span th:text="${row.source.name}">ESPN</span>
+                        <div th:if="${row.source.notes}" style="color: var(--color-text-muted); font-size: 0.78rem;"
+                             th:text="${row.source.notes}"></div>
+                    </td>
+                    <td th:text="${row.source.domain}">espn.com</td>
+                    <td th:text="${row.source.authorityWeight}">100</td>
+                    <td th:text="${row.source.dedicatedCbb ? 'yes' : 'filtered'}">yes</td>
+                    <td>
+                        <span th:if="${row.source.autoDisabledAt != null}" style="color: var(--color-danger, #c00);"
+                              th:title="${'Auto-disabled ' + row.source.autoDisabledAt}">auto-disabled</span>
+                        <span th:if="${row.source.autoDisabledAt == null and row.source.active}">active</span>
+                        <span th:if="${!row.source.active}" style="color: var(--color-text-muted);">off</span>
+                    </td>
+                    <td th:text="${row.source.lastSuccessAt != null ? #temporals.format(row.source.lastSuccessAt, 'MMM d HH:mm') : '—'}">—</td>
+                    <td th:text="${row.source.consecutiveFailures}">0</td>
+                    <td th:text="${row.articlesLast7Days}">12</td>
+                    <td style="white-space: nowrap;">
+                        <form th:if="${row.source.autoDisabledAt != null}" method="post" class="inline-form"
+                              th:action="@{/admin/news/sources/{id}/reenable(id=${row.source.id})}">
+                            <button type="submit" class="btn btn--outline btn--sm">Re-enable</button>
+                        </form>
+                        <form th:if="${row.articlesLast7Days == 0}" method="post" class="inline-form"
+                              th:action="@{/admin/news/sources/{id}/delete(id=${row.source.id})}"
+                              onsubmit="return confirm('Delete this source?');">
+                            <button type="submit" class="btn btn--outline btn--sm">Delete</button>
+                        </form>
+                        <details style="display: inline-block;">
+                            <summary class="btn btn--outline btn--sm" style="display: inline-block;">Edit</summary>
+                            <form th:action="@{/admin/news/sources/{id}(id=${row.source.id})}" method="post"
+                                  style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; min-width: 260px;">
+                                <input type="text" name="name" class="form-input form-input--sm" th:value="${row.source.name}" required/>
+                                <input type="text" name="domain" class="form-input form-input--sm" th:value="${row.source.domain}" required/>
+                                <input type="url" name="feedUrl" class="form-input form-input--sm" th:value="${row.source.feedUrl}"/>
+                                <input type="number" name="authorityWeight" class="form-input form-input--sm"
+                                       th:value="${row.source.authorityWeight}" min="0" max="100"/>
+                                <label><input type="checkbox" name="dedicatedCbb" value="true"
+                                              th:checked="${row.source.dedicatedCbb}"/> Dedicated CBB</label>
+                                <label><input type="checkbox" name="active" value="true"
+                                              th:checked="${row.source.active}"/> Active</label>
+                                <input type="text" name="notes" class="form-input form-input--sm"
+                                       th:value="${row.source.notes}" placeholder="Notes"/>
+                                <button type="submit" class="btn btn--primary btn--sm">Save</button>
+                            </form>
+                        </details>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

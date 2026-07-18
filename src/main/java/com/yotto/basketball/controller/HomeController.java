@@ -1,6 +1,7 @@
 package com.yotto.basketball.controller;
 
 import com.yotto.basketball.entity.Game;
+import com.yotto.basketball.news.NewsQueryService;
 import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonRepository;
@@ -16,15 +17,18 @@ public class HomeController {
     private final GameRepository gameRepository;
     private final SeasonRepository seasonRepository;
     private final ConferenceRepository conferenceRepository;
+    private final NewsQueryService newsQueryService;
 
     public HomeController(TeamRepository teamRepository,
                           GameRepository gameRepository,
                           SeasonRepository seasonRepository,
-                          ConferenceRepository conferenceRepository) {
+                          ConferenceRepository conferenceRepository,
+                          NewsQueryService newsQueryService) {
         this.teamRepository = teamRepository;
         this.gameRepository = gameRepository;
         this.seasonRepository = seasonRepository;
         this.conferenceRepository = conferenceRepository;
+        this.newsQueryService = newsQueryService;
     }
 
     @GetMapping("/")
@@ -34,6 +38,7 @@ public class HomeController {
         model.addAttribute("gameCount", gameRepository.countByStatus(Game.GameStatus.FINAL));
         model.addAttribute("seasonCount", seasonRepository.count());
         model.addAttribute("conferenceCount", conferenceRepository.count());
+        model.addAttribute("newsCards", newsQueryService.frontPage());
         return "pages/home";
     }
 }

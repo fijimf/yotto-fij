@@ -72,7 +72,8 @@ public class ScrapeBatch {
         STANDINGS,
         GAMES,
         ODDS_BACKFILL,
-        GAME_STATS
+        GAME_STATS,
+        NEWS
     }
 
     public enum ScrapeStatus {

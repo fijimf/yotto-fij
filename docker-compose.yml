@@ -37,8 +37,12 @@ services:
       MAIL_FROM: ${MAIL_FROM}
       APP_BASE_URL: ${APP_BASE_URL}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
+      # News module (docs/NEWS_MODULE.md): flip on per environment
+      NEWS_ENABLED: ${NEWS_ENABLED:-false}
+      NEWS_THUMBNAIL_DIR: /news-thumbnails
     volumes:
       - model_data:/models:ro
+      - news_thumbnails:/news-thumbnails
     depends_on:
       db:
         condition: service_healthy
@@ -135,6 +139,7 @@ services:
 volumes:
   yotto-postgres-data:
   model_data:
+  news_thumbnails:
   nginx_logs:
   goaccess_report:
   netdatalib:

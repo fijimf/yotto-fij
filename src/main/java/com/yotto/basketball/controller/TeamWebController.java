@@ -41,6 +41,8 @@ public class TeamWebController {
     private final SeasonPopulationStatRepository popStatRepository;
     private final ConferenceNamingService namingService;
 
+    private final com.yotto.basketball.news.NewsQueryService newsQueryService;
+
     public TeamWebController(TeamRepository teamRepository,
                              SeasonRepository seasonRepository,
                              GameRepository gameRepository,
@@ -49,7 +51,8 @@ public class TeamWebController {
                              TeamStatSnapshotRepository teamStatSnapshotRepository,
                              TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
                              SeasonPopulationStatRepository popStatRepository,
-                             ConferenceNamingService namingService) {
+                             ConferenceNamingService namingService,
+                             com.yotto.basketball.news.NewsQueryService newsQueryService) {
         this.teamRepository = teamRepository;
         this.seasonRepository = seasonRepository;
         this.gameRepository = gameRepository;
@@ -59,6 +62,7 @@ public class TeamWebController {
         this.teamSeasonStatSnapshotRepository = teamSeasonStatSnapshotRepository;
         this.popStatRepository = popStatRepository;
         this.namingService = namingService;
+        this.newsQueryService = newsQueryService;
     }
 
     // ── Teams listing ──
@@ -187,6 +191,8 @@ public class TeamWebController {
         model.addAttribute("schedule", currentSeasonSchedule);
         model.addAttribute("currentSeasonYear", currentSeason != null ? currentSeason.getYear() : null);
         model.addAttribute("statPanel", currentSeason != null ? buildStatPanel(id, currentSeason) : null);
+        model.addAttribute("newsCards", newsQueryService.teamNews(id, 5));
+        model.addAttribute("newsMoreLink", "/news?teamId=" + id);
 
         return "pages/team-detail";
     }

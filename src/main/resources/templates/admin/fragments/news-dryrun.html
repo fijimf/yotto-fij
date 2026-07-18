@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="dryrun">
+    <h3 style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">
+        Dry run: <span th:text="${feedUrl}" style="font-weight: normal;">feed</span>
+    </h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Verdict</th>
+            <th>Title</th>
+            <th>Published</th>
+            <th>Tags</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item : ${items}">
+            <td style="white-space: nowrap;">
+                <span th:if="${item.kept}" style="color: var(--color-success, #080);">✔ keep</span>
+                <span th:unless="${item.kept}" style="color: var(--color-danger, #c00);">✘ skip</span>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem;" th:text="${item.verdict}"></div>
+            </td>
+            <td>
+                <a th:if="${item.title != null}" th:href="${item.url}" th:text="${item.title}"
+                   target="_blank" rel="noopener"></a>
+                <span th:if="${item.title == null}" th:text="${item.url}"></span>
+            </td>
+            <td th:text="${item.publishedAt != null ? #temporals.format(item.publishedAt, 'MMM d HH:mm') : '—'}">—</td>
+            <td>
+                <span th:if="${#lists.isEmpty(item.tags)}" style="color: var(--color-text-muted);">none</span>
+                <span th:each="tag, it : ${item.tags}">
+                    <span th:text="${tag}"></span><span th:unless="${it.last}">, </span>
+                </span>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

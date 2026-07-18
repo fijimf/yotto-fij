@@ -63,6 +63,31 @@
         </a>
     </nav>
 
+    <!-- News panel: intentionally below the section nav (front page redesign may revisit) -->
+    <section th:unless="${#lists.isEmpty(newsCards)}" style="margin-top: 2.5rem;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.75rem;">
+            <h2 style="margin: 0;">Latest News</h2>
+            <a th:href="@{/news}" style="font-size: 0.85rem;">All news &#8594;</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem;">
+            <article class="card" th:each="card : ${newsCards}"
+                     style="display: flex; flex-direction: column; gap: 0.4rem;">
+                <img th:if="${card.hasThumbnail}" th:src="@{/news/img/{id}(id=${card.id})}" alt=""
+                     loading="lazy" style="width: 100%; border-radius: 4px;"
+                     onerror="this.style.display='none'"/>
+                <h3 style="font-size: 0.95rem; margin: 0;">
+                    <a th:href="${card.url}" th:text="${card.title}" target="_blank" rel="noopener"></a>
+                </h3>
+                <div style="margin-top: auto; font-size: 0.78rem; color: var(--color-text-muted);">
+                    <span th:if="${card.sourceName}" th:text="${card.sourceName}">ESPN</span>
+                    <span th:if="${card.sourceName}"> · </span>
+                    <span th:text="${#temporals.format(card.publishedAt, 'MMM d, HH:mm')}">—</span>
+                    <span> ↗</span>
+                </div>
+            </article>
+        </div>
+    </section>
+
 </main>
 
 </body>

@@ -49,6 +49,8 @@ public class ConferenceWebController {
     private final ConferenceRankingService rankingService;
     private final ConferenceNamingService namingService;
 
+    private final com.yotto.basketball.news.NewsQueryService newsQueryService;
+
     public ConferenceWebController(ConferenceRepository conferenceRepository,
                                   ConferenceMembershipRepository membershipRepository,
                                   SeasonRepository seasonRepository,
@@ -56,7 +58,9 @@ public class ConferenceWebController {
                                   TeamPowerRatingSnapshotRepository ratingRepository,
                                   GameRepository gameRepository,
                                   ConferenceRankingService rankingService,
-                                  ConferenceNamingService namingService) {
+                                  ConferenceNamingService namingService,
+                                  com.yotto.basketball.news.NewsQueryService newsQueryService) {
+        this.newsQueryService = newsQueryService;
         this.conferenceRepository = conferenceRepository;
         this.membershipRepository = membershipRepository;
         this.seasonRepository = seasonRepository;
@@ -130,6 +134,8 @@ public class ConferenceWebController {
         model.addAttribute("seasons", seasons);
         model.addAttribute("currentSeasonYear", season != null ? season.getYear() : null);
         model.addAttribute("detail", season != null ? buildDetail(conference, season, identity) : null);
+        model.addAttribute("newsCards", newsQueryService.conferenceNews(id, 5));
+        model.addAttribute("newsMoreLink", "/news?conferenceId=" + id);
         return "pages/conference-detail";
     }
 

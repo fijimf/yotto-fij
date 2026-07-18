@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>News Article</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">Article</h1>
+        <a href="/admin/news/articles" class="btn btn--outline btn--sm">&#8592; All Articles</a>
+    </div>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <section class="admin-section">
+        <div class="card">
+            <h2 style="margin-top: 0;">
+                <a th:href="${article.urlCanonical}" th:text="${article.title}" target="_blank" rel="noopener"></a>
+            </h2>
+            <p th:if="${article.subtitle}" th:text="${article.subtitle}" style="color: var(--color-text-muted);"></p>
+            <table>
+                <tbody>
+                <tr><th style="text-align: left;">Canonical URL</th><td th:text="${article.urlCanonical}"></td></tr>
+                <tr><th style="text-align: left;">Original URL</th><td th:text="${article.urlOriginal}"></td></tr>
+                <tr><th style="text-align: left;">Publisher</th>
+                    <td th:text="${article.source != null ? article.source.name : '(unattributed)'}"></td></tr>
+                <tr><th style="text-align: left;">Discovered via</th>
+                    <td th:text="${article.discoveredVia != null ? article.discoveredVia.name : '—'}"></td></tr>
+                <tr><th style="text-align: left;">Published / fetched</th>
+                    <td th:text="${#temporals.format(article.publishedAt, 'MMM d yyyy HH:mm') + ' / '
+                        + #temporals.format(article.fetchedAt, 'MMM d yyyy HH:mm')}"></td></tr>
+                <tr><th style="text-align: left;">Static score</th>
+                    <td th:text="${#numbers.formatDecimal(article.staticScore, 1, 0)}"></td></tr>
+                <tr><th style="text-align: left;">Body tokens / simhash</th>
+                    <td th:text="${article.bodyTokenCount + ' / ' + (article.simhash != null ? article.simhash : 'not hashed')}"></td></tr>
+                <tr><th style="text-align: left;">Status</th>
+                    <td>
+                        <span th:text="${article.tagStatus}"></span>
+                        <span th:if="${article.hidden}" style="color: var(--color-danger, #c00);"> · hidden</span>
+                        <span th:if="${article.duplicateOf != null}">
+                            · duplicate of <a th:href="@{/admin/news/articles/{id}(id=${article.duplicateOf.id})}"
+                                              th:text="${article.duplicateOf.title}"></a>
+                        </span>
+                    </td></tr>
+                <tr th:if="${article.thumbnailPath != null}">
+                    <th style="text-align: left;">Thumbnail</th>
+                    <td><img th:src="@{/news/img/{id}(id=${article.id})}" alt="" style="max-width: 160px;"/></td></tr>
+                </tbody>
+            </table>
+
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+                <form th:action="@{/admin/news/articles/{id}/hide(id=${article.id})}" method="post" class="inline-form">
+                    <input type="hidden" name="hidden" th:value="${!article.hidden}"/>
+                    <button type="submit" class="btn btn--outline btn--sm"
+                            th:text="${article.hidden ? 'Unhide article' : 'Hide article'}">Hide</button>
+                </form>
+                <form th:if="${article.duplicateOf != null}" method="post" class="inline-form"
+                      th:action="@{/admin/news/articles/{id}/break-cluster(id=${article.id})}">
+                    <button type="submit" class="btn btn--outline btn--sm">Break cluster link</button>
+                </form>
+                <form th:action="@{/admin/news/articles/{id}/refetch(id=${article.id})}" method="post" class="inline-form">
+                    <button type="submit" class="btn btn--outline btn--sm"
+                            title="Full-strength retag: re-fetches the page body">Refetch &amp; retag</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-section">
+        <div class="admin-section__header"><h2 class="admin-section__title">Tags</h2></div>
+        <div class="card">
+            <table>
+                <thead>
+                <tr><th>Target</th><th>Confidence</th><th>Matched via</th><th>Manual</th><th></th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="t : ${teamTags}">
+                    <td th:text="${t.team.name}">Kansas</td>
+                    <td th:text="${#numbers.formatDecimal(t.confidence, 1, 2)}">0.60</td>
+                    <td th:text="${t.matchedVia}">Kansas Jayhawks</td>
+                    <td th:text="${t.manual ? 'yes' : ''}"></td>
+                    <td>
+                        <form th:action="@{/admin/news/articles/{id}/untag-team(id=${article.id})}" method="post"
+                              class="inline-form">
+                            <input type="hidden" name="teamId" th:value="${t.team.id}"/>
+                            <input type="hidden" name="back" value="detail"/>
+                            <button type="submit" class="btn btn--outline btn--sm">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:each="c : ${conferenceTags}">
+                    <td th:text="${c.conference.name}">Big 12</td>
+                    <td th:text="${#numbers.formatDecimal(c.confidence, 1, 2)}">0.30</td>
+                    <td th:text="${c.matchedVia}">via Kansas</td>
+                    <td th:text="${c.manual ? 'yes' : ''}"></td>
+                    <td>
+                        <form th:action="@{/admin/news/articles/{id}/untag-conference(id=${article.id})}" method="post"
+                              class="inline-form">
+                            <input type="hidden" name="conferenceId" th:value="${c.conference.id}"/>
+                            <input type="hidden" name="back" value="detail"/>
+                            <button type="submit" class="btn btn--outline btn--sm">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div style="display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                <form th:action="@{/admin/news/articles/{id}/tag-team(id=${article.id})}" method="post"
+                      style="display: flex; gap: 0.35rem;">
+                    <input type="hidden" name="back" value="detail"/>
+                    <select name="teamId" class="form-input form-input--sm" required>
+                        <option value="" disabled selected>Add team tag…</option>
+                        <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                    </select>
+                    <button type="submit" class="btn btn--primary btn--sm">Add</button>
+                </form>
+                <form th:action="@{/admin/news/articles/{id}/tag-conference(id=${article.id})}" method="post"
+                      style="display: flex; gap: 0.35rem;">
+                    <input type="hidden" name="back" value="detail"/>
+                    <select name="conferenceId" class="form-input form-input--sm" required>
+                        <option value="" disabled selected>Add conference tag…</option>
+                        <option th:each="c : ${conferences}" th:value="${c.id}" th:text="${c.name}"></option>
+                    </select>
+                    <button type="submit" class="btn btn--primary btn--sm">Add</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-section" th:unless="${#lists.isEmpty(clusterMembers)}">
+        <div class="admin-section__header"><h2 class="admin-section__title">Cluster Members</h2></div>
+        <div class="card">
+            <table>
+                <thead><tr><th>Title</th><th>Source</th><th>Published</th></tr></thead>
+                <tbody>
+                <tr th:each="m : ${clusterMembers}">
+                    <td><a th:href="@{/admin/news/articles/{id}(id=${m.id})}" th:text="${m.title}"></a></td>
+                    <td th:text="${m.source != null ? m.source.name : '—'}"></td>
+                    <td th:text="${#temporals.format(m.publishedAt, 'MMM d HH:mm')}"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

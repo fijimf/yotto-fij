@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>News Tagging Quality</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">News Tagging Quality</h1>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="/admin/news/sources" class="btn btn--outline btn--sm">Sources</a>
+            <a href="/admin/news/articles" class="btn btn--outline btn--sm">Articles</a>
+            <a href="/admin" class="btn btn--outline btn--sm">&#8592; Dashboard</a>
+        </div>
+    </div>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <!-- Panel 1: untagged articles -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Untagged Articles (last 7 days)</h2>
+        </div>
+        <div class="card">
+            <p th:if="${#lists.isEmpty(untagged)}" style="color: var(--color-text-muted);">
+                Nothing untagged — the gazetteer is keeping up.
+            </p>
+            <table th:unless="${#lists.isEmpty(untagged)}">
+                <thead>
+                <tr><th>Article</th><th>Published</th><th style="min-width: 320px;">Assign tag</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="a : ${untagged}">
+                    <td>
+                        <a th:href="${a.urlCanonical}" th:text="${a.title}" target="_blank" rel="noopener"></a>
+                        <div th:if="${a.subtitle}" style="color: var(--color-text-muted); font-size: 0.78rem;"
+                             th:text="${a.subtitle}"></div>
+                    </td>
+                    <td th:text="${#temporals.format(a.publishedAt, 'MMM d HH:mm')}">—</td>
+                    <td>
+                        <!-- Tag + optional "…and create alias" in one submit (§7.2 panel 1) -->
+                        <form th:action="@{/admin/news/articles/{id}/tag-team(id=${a.id})}" method="post"
+                              style="display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;">
+                            <select name="teamId" class="form-input form-input--sm" required>
+                                <option value="" disabled selected>Team…</option>
+                                <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                            </select>
+                            <input type="text" name="newAlias" class="form-input form-input--sm"
+                                   placeholder="…and create alias (optional)" style="width: 170px;"/>
+                            <label style="font-size: 0.78rem;">
+                                <input type="checkbox" name="aliasAmbiguous" value="true"/> ambiguous
+                            </label>
+                            <button type="submit" class="btn btn--primary btn--sm">Tag</button>
+                        </form>
+                        <form th:action="@{/admin/news/articles/{id}/tag-conference(id=${a.id})}" method="post"
+                              style="display: flex; gap: 0.35rem; align-items: center; margin-top: 0.3rem;">
+                            <select name="conferenceId" class="form-input form-input--sm" required>
+                                <option value="" disabled selected>Conference…</option>
+                                <option th:each="c : ${conferences}" th:value="${c.id}" th:text="${c.name}"></option>
+                            </select>
+                            <button type="submit" class="btn btn--outline btn--sm">Tag conference</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Panel 2: near-misses -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Near-Miss Tags (matched but below display threshold)</h2>
+        </div>
+        <div class="card">
+            <p th:if="${#lists.isEmpty(nearMisses)}" style="color: var(--color-text-muted);">No near-misses.</p>
+            <table th:unless="${#lists.isEmpty(nearMisses)}">
+                <thead>
+                <tr><th>Article</th><th>Team</th><th>Matched via</th><th>Confidence</th><th></th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="nm : ${nearMisses}">
+                    <td><a th:href="${nm.article.urlCanonical}" th:text="${nm.article.title}"
+                           target="_blank" rel="noopener"></a></td>
+                    <td th:text="${nm.team.name}">Kansas</td>
+                    <td th:text="${nm.matchedVia}">Jayhawks</td>
+                    <td th:text="${#numbers.formatDecimal(nm.confidence, 1, 2)}">0.30</td>
+                    <td style="white-space: nowrap;">
+                        <form th:action="@{/admin/news/near-misses/{id}/confirm(id=${nm.id})}" method="post"
+                              class="inline-form">
+                            <button type="submit" class="btn btn--primary btn--sm">Confirm</button>
+                        </form>
+                        <form th:action="@{/admin/news/near-misses/{id}/dismiss(id=${nm.id})}" method="post"
+                              class="inline-form">
+                            <button type="submit" class="btn btn--outline btn--sm">Dismiss</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Panel 3: alias browser -->
+    <section class="admin-section">
+        <div class="admin-section__header" style="display: flex; align-items: center; justify-content: space-between;">
+            <h2 class="admin-section__title">Aliases</h2>
+            <div style="display: flex; gap: 0.5rem;">
+                <form th:action="@{/admin/news/retag}" method="post" class="inline-form">
+                    <input type="hidden" name="days" value="30"/>
+                    <button type="submit" class="btn btn--outline btn--sm"
+                            title="Add-only: re-runs the tagger over stored titles/snippets; never removes tags or touches manual rows">
+                        ⟳ Retag last 30 days
+                    </button>
+                </form>
+                <form th:action="@{/admin/news/aliases/reseed}" method="post" class="inline-form">
+                    <button type="submit" class="btn btn--outline btn--sm"
+                            title="Regenerates AUTO aliases from teams/conferences; MANUAL and BLOCK rows are never touched">
+                        ⟳ Reseed AUTO aliases
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div class="card">
+            <div style="display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                <form th:action="@{/admin/news/tagging}" method="get" class="inline-form" style="display: flex; gap: 0.35rem;">
+                    <input type="text" name="aliasFilter" class="form-input form-input--sm"
+                           placeholder="Filter aliases…" th:value="${aliasFilter}"/>
+                    <button type="submit" class="btn btn--outline btn--sm">Filter</button>
+                </form>
+                <form th:action="@{/admin/news/aliases}" method="post" class="inline-form"
+                      style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                    <input type="text" name="alias" class="form-input form-input--sm" placeholder="New alias" required/>
+                    <select name="teamId" class="form-input form-input--sm" required>
+                        <option value="" disabled selected>Team…</option>
+                        <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                    </select>
+                    <label style="font-size: 0.78rem;"><input type="checkbox" name="ambiguous" value="true"/> ambiguous</label>
+                    <button type="submit" class="btn btn--primary btn--sm">Add alias</button>
+                </form>
+            </div>
+            <p style="color: var(--color-text-muted); font-size: 0.78rem;">
+                Sorted by hits over the last 30 days — an alias racking up hits across many unrelated
+                articles is a de-facto stopword: mark it ambiguous or BLOCK it.
+            </p>
+            <table>
+                <thead>
+                <tr><th>Alias</th><th>Target</th><th>Kind</th><th>Flags</th><th>Hits (30d)</th><th></th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${aliases}">
+                    <td th:text="${row.alias.alias}">Jayhawks</td>
+                    <td th:text="${row.alias.team != null ? row.alias.team.name : row.alias.conference.name}">Kansas</td>
+                    <td th:text="${row.alias.kind}">AUTO</td>
+                    <td style="font-size: 0.78rem; color: var(--color-text-muted);">
+                        <span th:if="${row.alias.ambiguous}">ambiguous </span>
+                        <span th:if="${row.alias.caseSensitive}">case-sensitive </span>
+                        <span th:unless="${row.alias.enabled}">disabled</span>
+                    </td>
+                    <td th:text="${row.hits30Days}">42</td>
+                    <td>
+                        <details style="display: inline-block;">
+                            <summary class="btn btn--outline btn--sm" style="display: inline-block;">Edit</summary>
+                            <form th:action="@{/admin/news/aliases/{id}(id=${row.alias.id})}" method="post"
+                                  style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem; flex-wrap: wrap;">
+                                <label style="font-size: 0.78rem;">
+                                    <input type="checkbox" name="enabled" value="true" th:checked="${row.alias.enabled}"/> enabled
+                                </label>
+                                <label style="font-size: 0.78rem;">
+                                    <input type="checkbox" name="ambiguous" value="true" th:checked="${row.alias.ambiguous}"/> ambiguous
+                                </label>
+                                <select name="kind" class="form-input form-input--sm">
+                                    <option th:each="k : ${T(com.yotto.basketball.entity.NewsAlias.Kind).values()}"
+                                            th:value="${k}" th:text="${k}" th:selected="${k == row.alias.kind}"></option>
+                                </select>
+                                <button type="submit" class="btn btn--primary btn--sm">Save</button>
+                            </form>
+                            <form th:action="@{/admin/news/aliases/{id}/delete(id=${row.alias.id})}" method="post"
+                                  class="inline-form" style="margin-top: 0.3rem;"
+                                  onsubmit="return confirm('Delete alias?');">
+                                <button type="submit" class="btn btn--outline btn--sm">Delete</button>
+                            </form>
+                        </details>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

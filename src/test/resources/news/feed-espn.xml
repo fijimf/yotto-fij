@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>ESPN Men's College Basketball</title>
+    <link>https://www.espn.com/mens-college-basketball/</link>
+    <description>Latest CBB news</description>
+    <item>
+      <title>Kansas tops Iowa State behind Dickinson double-double</title>
+      <link>https://www.espn.com/mens-college-basketball/story/_/id/1001/kansas-tops-iowa-state?utm_source=rss</link>
+      <description>Hunter Dickinson had 21 and 12 as the Jayhawks won at home.</description>
+      <pubDate>Sat, 14 Feb 2026 03:15:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Duke rolls past North Carolina at Cameron</title>
+      <link>https://www.espn.com/mens-college-basketball/story/_/id/1002/duke-rolls-past-unc</link>
+      <description>Cooper Flagg poured in 30 as the Blue Devils clinched a share of the ACC title.</description>
+      <pubDate>Sun, 15 Feb 2026 01:40:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Duplicate link entry should be skipped</title>
+      <link>https://www.espn.com/mens-college-basketball/story/_/id/1002/duke-rolls-past-unc</link>
+      <pubDate>Sun, 15 Feb 2026 02:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Entry with relative link</title>
+      <link>/mens-college-basketball/story/_/id/1003/relative-link-story</link>
+      <pubDate>Sun, 15 Feb 2026 02:30:00 GMT</pubDate>
+    </item>
+    <item>
+      <title></title>
+      <link>https://www.espn.com/mens-college-basketball/story/_/id/1004/no-title</link>
+    </item>
+    <item>
+      <title>Entry with no link at all</title>
+    </item>
+  </channel>
+</rss>

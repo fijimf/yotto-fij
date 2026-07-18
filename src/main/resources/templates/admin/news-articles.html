@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>News Articles</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <h1 class="page-title" style="margin-bottom: 0;">News Articles</h1>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="/admin/news/sources" class="btn btn--outline btn--sm">Sources</a>
+            <a href="/admin/news/tagging" class="btn btn--outline btn--sm">Tagging Quality</a>
+            <a href="/admin" class="btn btn--outline btn--sm">&#8592; Dashboard</a>
+        </div>
+    </div>
+
+    <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
+
+    <section class="admin-section">
+        <div class="card">
+            <form th:action="@{/admin/news/articles}" method="get" class="inline-form"
+                  style="display: flex; gap: 0.35rem; margin-bottom: 0.75rem;">
+                <input type="text" name="q" class="form-input form-input--sm" placeholder="Search titles…"
+                       th:value="${q}"/>
+                <button type="submit" class="btn btn--outline btn--sm">Search</button>
+            </form>
+
+            <p th:if="${articles.isEmpty()}" style="color: var(--color-text-muted);">No articles.</p>
+            <table th:unless="${articles.isEmpty()}">
+                <thead>
+                <tr><th>Title</th><th>Source</th><th>Published</th><th>Status</th><th>Score</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="a : ${articles.content}">
+                    <td>
+                        <a th:href="@{/admin/news/articles/{id}(id=${a.id})}" th:text="${a.title}"></a>
+                        <span th:if="${a.hidden}" style="color: var(--color-danger, #c00); font-size: 0.78rem;">hidden</span>
+                        <span th:if="${a.duplicateOf != null}" style="color: var(--color-text-muted); font-size: 0.78rem;">duplicate</span>
+                    </td>
+                    <td th:text="${a.source != null ? a.source.name : (a.discoveredVia != null ? 'via ' + a.discoveredVia.name : '—')}">ESPN</td>
+                    <td th:text="${#temporals.format(a.publishedAt, 'MMM d HH:mm')}">—</td>
+                    <td th:text="${a.tagStatus}">TAGGED</td>
+                    <td th:text="${#numbers.formatDecimal(a.staticScore, 1, 0)}">100</td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div th:if="${articles.totalPages > 1}" style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                <a th:if="${articles.hasPrevious()}" class="btn btn--outline btn--sm"
+                   th:href="@{/admin/news/articles(q=${q}, page=${articles.number - 1})}">&#8592; Newer</a>
+                <span style="align-self: center; color: var(--color-text-muted); font-size: 0.85rem;"
+                      th:text="${'Page ' + (articles.number + 1) + ' of ' + articles.totalPages}"></span>
+                <a th:if="${articles.hasNext()}" class="btn btn--outline btn--sm"
+                   th:href="@{/admin/news/articles(q=${q}, page=${articles.number + 1})}">Older &#8594;</a>
+            </div>
+        </div>
+    </section>
+</main>
+</body>
+</html>

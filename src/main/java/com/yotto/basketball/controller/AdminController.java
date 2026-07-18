@@ -35,6 +35,7 @@ public class AdminController {
     private final ScrapeHistoryService scrapeHistoryService;
     private final AutomationService automationService;
     private final TournamentReclassifier tournamentReclassifier;
+    private final com.yotto.basketball.news.NewsAdminService newsAdminService;
 
     public AdminController(SeasonRepository seasonRepository,
                            AsyncScrapeService asyncScrapeService,
@@ -43,7 +44,8 @@ public class AdminController {
                            SeasonHealthService seasonHealthService,
                            ScrapeHistoryService scrapeHistoryService,
                            AutomationService automationService,
-                           TournamentReclassifier tournamentReclassifier) {
+                           TournamentReclassifier tournamentReclassifier,
+                           com.yotto.basketball.news.NewsAdminService newsAdminService) {
         this.seasonRepository    = seasonRepository;
         this.asyncScrapeService  = asyncScrapeService;
         this.mlModelRegistryService = mlModelRegistryService;
@@ -52,6 +54,7 @@ public class AdminController {
         this.scrapeHistoryService = scrapeHistoryService;
         this.automationService = automationService;
         this.tournamentReclassifier = tournamentReclassifier;
+        this.newsAdminService = newsAdminService;
     }
 
     @GetMapping
@@ -75,6 +78,7 @@ public class AdminController {
         mlTrainingService.pollActiveRuns();
         model.addAttribute("trainingRuns", mlTrainingService.recentRuns());
         model.addAttribute("trainingInProgress", mlTrainingService.isTrainingInProgress());
+        model.addAttribute("news", newsAdminService.dashboard());
         return "admin/dashboard";
     }
 

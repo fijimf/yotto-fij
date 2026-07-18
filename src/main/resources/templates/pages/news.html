@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>News</title>
+</head>
+<body>
+
+<main layout:fragment="content">
+    <h1 class="page-title">College Basketball News</h1>
+
+    <form th:action="@{/news}" method="get"
+          style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
+        <select name="conferenceId" class="form-input form-input--sm" onchange="this.form.submit()">
+            <option value="">All conferences</option>
+            <option th:each="c : ${conferences}" th:value="${c.id}" th:text="${c.name}"
+                    th:selected="${c.id == conferenceId}"></option>
+        </select>
+        <select name="teamId" class="form-input form-input--sm" onchange="this.form.submit()">
+            <option value="">All teams</option>
+            <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"
+                    th:selected="${t.id == teamId}"></option>
+        </select>
+        <a th:if="${teamId != null or conferenceId != null}" th:href="@{/news}"
+           class="btn btn--outline btn--sm">Clear filters</a>
+    </form>
+
+    <p th:if="${#lists.isEmpty(cards)}" style="color: var(--color-text-muted);">
+        No stories yet — check back soon.
+    </p>
+
+    <div class="news-grid" th:unless="${#lists.isEmpty(cards)}"
+         style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+        <article class="card" th:each="card : ${cards}" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <img th:if="${card.hasThumbnail}" th:src="@{/news/img/{id}(id=${card.id})}" alt=""
+                 loading="lazy" style="width: 100%; border-radius: 4px;"
+                 onerror="this.style.display='none'"/>
+            <h2 style="font-size: 1rem; margin: 0;">
+                <a th:href="${card.url}" th:text="${card.title}" target="_blank" rel="noopener"></a>
+            </h2>
+            <p th:if="${card.subtitle}" th:text="${card.subtitle}"
+               style="margin: 0; font-size: 0.85rem; color: var(--color-text-muted);"></p>
+            <div style="margin-top: auto; font-size: 0.78rem; color: var(--color-text-muted);">
+                <span th:if="${card.sourceName}" th:text="${card.sourceName}">ESPN</span>
+                <span th:if="${card.sourceName}"> · </span>
+                <span th:text="${#temporals.format(card.publishedAt, 'MMM d, HH:mm')}">—</span>
+                <span> ↗</span>
+            </div>
+        </article>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; margin-top: 1.25rem;">
+        <a th:if="${page > 0}" class="btn btn--outline btn--sm"
+           th:href="@{/news(teamId=${teamId}, conferenceId=${conferenceId}, page=${page - 1})}">&#8592; Newer</a>
+        <a th:if="${hasNext}" class="btn btn--outline btn--sm"
+           th:href="@{/news(teamId=${teamId}, conferenceId=${conferenceId}, page=${page + 1})}">Older &#8594;</a>
+    </div>
+</main>
+
+</body>
+</html>
