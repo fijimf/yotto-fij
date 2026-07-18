@@ -402,8 +402,11 @@ public class NewsScrapeService {
                                    boolean dedicatedCbb, int limit) {
         NewsHttpClient.FetchResult result = httpClient.fetchFeed(feedUrl, null, null);
         if (!result.isSuccess()) {
-            return List.of(new DryRunItem(null, feedUrl, null, false,
-                    "Feed fetch failed (HTTP " + result.status() + ")", List.of()));
+            String reason = result.status() == 0
+                    ? "Feed fetch failed (network/DNS error, blocked non-public target, or too many redirects — retry once and check the URL)"
+                    : "Feed fetch failed (HTTP " + result.status()
+                            + (result.status() == 202 ? " — the site answered with a bot challenge" : "") + ")";
+            return List.of(new DryRunItem(null, feedUrl, null, false, reason, List.of()));
         }
         List<FeedItem> items;
         try {
