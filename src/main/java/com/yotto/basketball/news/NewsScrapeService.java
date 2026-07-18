@@ -55,6 +55,7 @@ public class NewsScrapeService {
     private final ConferenceResolver conferenceResolver;
     private final NewsDeduplicator deduplicator;
     private final NewsThumbnailService thumbnailService;
+    private final EspnNewsApiParser espnNewsApiParser;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -72,7 +73,8 @@ public class NewsScrapeService {
                              TeamTagger teamTagger,
                              ConferenceResolver conferenceResolver,
                              NewsDeduplicator deduplicator,
-                             NewsThumbnailService thumbnailService) {
+                             NewsThumbnailService thumbnailService,
+                             EspnNewsApiParser espnNewsApiParser) {
         this.properties = properties;
         this.sourceRepository = sourceRepository;
         this.articleRepository = articleRepository;
@@ -88,6 +90,7 @@ public class NewsScrapeService {
         this.conferenceResolver = conferenceResolver;
         this.deduplicator = deduplicator;
         this.thumbnailService = thumbnailService;
+        this.espnNewsApiParser = espnNewsApiParser;
     }
 
     /**
@@ -146,7 +149,7 @@ public class NewsScrapeService {
     }
 
     private void pollSource(NewsSource source, ScrapeBatch batch) {
-        if (source.getFeedUrl() == null || source.getSourceType() != NewsSource.SourceType.RSS) {
+        if (source.getFeedUrl() == null || source.getSourceType() == NewsSource.SourceType.HTML_INDEX) {
             return; // HTML_INDEX reserved for a later version
         }
         NewsHttpClient.FetchResult result = httpClient.fetchFeed(
@@ -161,7 +164,7 @@ public class NewsScrapeService {
         source.setEtag(result.etag());
         source.setLastModifiedHeader(result.lastModified());
 
-        List<FeedItem> items = feedPoller.parse(result.body(), source.getFeedUrl());
+        List<FeedItem> items = parseItems(source.getSourceType(), result.body(), source.getFeedUrl());
         int processed = 0;
         for (FeedItem item : items) {
             if (processed++ >= properties.getPollCapPerSource()) {
@@ -231,7 +234,8 @@ public class NewsScrapeService {
         article.setDiscoveredVia(feedSource);
         article.setTitle(title);
         article.setSubtitle(subtitle);
-        article.setImageUrl(cleanImageUrl(page.ogImage()));
+        // page og:image preferred; API-provided image covers pages we can't fetch
+        article.setImageUrl(cleanImageUrl(firstNonBlank(page.ogImage(), item.imageUrl())));
         article.setPublishedAt(publishedAt);
         article.setFetchedAt(now);
         article.setStaticScore((double) (publisher != null
@@ -383,11 +387,19 @@ public class NewsScrapeService {
                              boolean kept, String verdict, List<String> tags) {
     }
 
+    /** Dispatches feed bytes to the right parser for the source type. */
+    private List<FeedItem> parseItems(NewsSource.SourceType sourceType, byte[] body, String feedUrl) {
+        return sourceType == NewsSource.SourceType.ESPN_API
+                ? espnNewsApiParser.parse(body, feedUrl)
+                : feedPoller.parse(body, feedUrl);
+    }
+
     /**
      * Fetches and evaluates the first {@code limit} items of a feed without
      * persisting anything — powers the admin "Test" button.
      */
-    public List<DryRunItem> dryRun(String feedUrl, boolean dedicatedCbb, int limit) {
+    public List<DryRunItem> dryRun(String feedUrl, NewsSource.SourceType sourceType,
+                                   boolean dedicatedCbb, int limit) {
         NewsHttpClient.FetchResult result = httpClient.fetchFeed(feedUrl, null, null);
         if (!result.isSuccess()) {
             return List.of(new DryRunItem(null, feedUrl, null, false,
@@ -395,10 +407,10 @@ public class NewsScrapeService {
         }
         List<FeedItem> items;
         try {
-            items = feedPoller.parse(result.body(), feedUrl);
+            items = parseItems(sourceType, result.body(), feedUrl);
         } catch (FeedPoller.FeedParseException e) {
             return List.of(new DryRunItem(null, feedUrl, null, false,
-                    "Not a parseable RSS/Atom feed: " + e.getMessage(), List.of()));
+                    "Not a parseable feed: " + e.getMessage(), List.of()));
         }
         if (items.isEmpty()) {
             return List.of(new DryRunItem(null, feedUrl, null, false, "Feed parsed but has no entries", List.of()));

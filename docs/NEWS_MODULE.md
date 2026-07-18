@@ -671,6 +671,18 @@ double-run guard pattern as the game scraper.
 - **Body extraction picks the richest `<article>`**, not the first — ESPN
   precedes the story with an empty ad `<article>`, which broke extraction
   (0 body tokens → no simhash, keyword filter starved) until this fix.
+- **ESPN requires the `ESPN_API` source type.** ESPN's classic RSS
+  (`espn.com/espn/rss/ncb/news`) serves a "202 Accepted" HTML bot-challenge to
+  server-side Java clients — Akamai fingerprints the TLS stack itself, so
+  identical headers via curl succeed while Java fails; no header change fixes
+  it. Instead, add ESPN with source type `ESPN_API` and feed URL
+  `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/news`
+  (same public API family the game scrapers already use). Article pages are
+  also challenged, so ESPN items ingest metadata-only (title/description/image
+  from the API; no body → no simhash) — the URL sport verdict still applies
+  via the canonical link. Related hardening: `FetchResult.isSuccess()` now
+  requires status 200 exactly (202 challenge pages used to pass the 2xx
+  check), and `FeedPoller` reports HTML-instead-of-feed responses explicitly.
 - **SSRF guard**: every fetch hop (feed URLs, article links, redirect targets,
   image downloads) resolves the host and rejects loopback, link-local (cloud
   metadata), private, any-local, multicast, and IPv6 unique-local addresses —

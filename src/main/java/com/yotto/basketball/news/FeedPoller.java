@@ -31,6 +31,12 @@ public class FeedPoller {
      * @throws FeedParseException when the bytes are not a parseable feed
      */
     public List<FeedItem> parse(byte[] feedBytes, String feedUrl) {
+        String head = new String(feedBytes, 0, Math.min(feedBytes.length, 200),
+                java.nio.charset.StandardCharsets.UTF_8).stripLeading().toLowerCase();
+        if (head.startsWith("<!doctype html") || head.startsWith("<html")) {
+            throw new FeedParseException("Feed URL " + feedUrl
+                    + " returned an HTML page, not a feed — the site may be blocking server-side requests", null);
+        }
         SyndFeed feed;
         try {
             feed = new SyndFeedInput().build(new XmlReader(new ByteArrayInputStream(feedBytes)));

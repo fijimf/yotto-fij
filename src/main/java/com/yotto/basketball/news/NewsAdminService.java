@@ -94,6 +94,7 @@ public class NewsAdminService {
     }
 
     public NewsSource createSource(String name, String domain, String feedUrl,
+                                   NewsSource.SourceType sourceType,
                                    int authorityWeight, boolean dedicatedCbb, String notes) {
         if (feedUrl != null && !feedUrl.isBlank()
                 && sourceRepository.findByFeedUrl(feedUrl.strip()).isPresent()) {
@@ -103,6 +104,7 @@ public class NewsAdminService {
         source.setName(name.strip());
         source.setDomain(domain.strip().toLowerCase());
         source.setFeedUrl(feedUrl == null || feedUrl.isBlank() ? null : feedUrl.strip());
+        source.setSourceType(sourceType);
         source.setAuthorityWeight(clampWeight(authorityWeight));
         source.setDedicatedCbb(dedicatedCbb);
         source.setNotes(blankToNull(notes));
@@ -110,12 +112,14 @@ public class NewsAdminService {
     }
 
     public void updateSource(Long id, String name, String domain, String feedUrl,
+                             NewsSource.SourceType sourceType,
                              int authorityWeight, boolean dedicatedCbb, boolean active, String notes) {
         NewsSource source = sourceRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("News source not found: " + id));
         source.setName(name.strip());
         source.setDomain(domain.strip().toLowerCase());
         source.setFeedUrl(feedUrl == null || feedUrl.isBlank() ? null : feedUrl.strip());
+        source.setSourceType(sourceType);
         source.setAuthorityWeight(clampWeight(authorityWeight));
         source.setDedicatedCbb(dedicatedCbb);
         source.setActive(active);

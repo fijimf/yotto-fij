@@ -62,6 +62,8 @@ public class NewsSource {
 
     public enum SourceType {
         RSS,
+        /** ESPN site-API news JSON — their RSS bot-challenges server-side Java clients. */
+        ESPN_API,
         HTML_INDEX
     }
 

@@ -50,7 +50,9 @@ public class NewsHttpClient {
                               String etag, String lastModified) {
 
         public boolean isSuccess() {
-            return status >= 200 && status < 300 && body != null;
+            // Strictly 200: bot managers (ESPN/Akamai) answer challenged requests
+            // with "202 Accepted" + an HTML page, which must never count as content.
+            return status == 200 && body != null;
         }
 
         public boolean isNotModified() {

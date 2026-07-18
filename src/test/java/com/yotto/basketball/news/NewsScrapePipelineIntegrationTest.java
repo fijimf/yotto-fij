@@ -388,6 +388,44 @@ class NewsScrapePipelineIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void espnApiSourceIngestsJsonWithChallengedArticlePages() {
+        // ESPN scenario: the API returns JSON; article pages answer with a
+        // 202 HTML bot challenge → metadata-only ingest, image from the API.
+        String apiUrl = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/news";
+        NewsSource espnApi = source("ESPN API", "site.api.espn.com", apiUrl, 100, true);
+        espnApi.setSourceType(NewsSource.SourceType.ESPN_API);
+        sourceRepository.save(espnApi);
+
+        String json = """
+                {"articles": [{
+                  "headline": "Kansas Jayhawks land top transfer guard",
+                  "description": "The Jayhawks added a veteran guard from the portal on Thursday.",
+                  "published": "%s",
+                  "links": {"web": {"href": "https://www.espn.com/mens-college-basketball/story/_/id/3001/kansas-transfer"}},
+                  "images": [{"url": "https://a.espncdn.com/photo/kansas.jpg"}]
+                }]}
+                """.formatted(hoursAgo(2).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        when(httpClient.fetchFeed(eq(apiUrl), any(), any())).thenReturn(
+                new NewsHttpClient.FetchResult(200, apiUrl, "application/json",
+                        json.getBytes(StandardCharsets.UTF_8), null, null));
+        when(httpClient.fetchPage(anyString())).thenReturn(
+                new NewsHttpClient.FetchResult(202, "https://www.espn.com/challenged",
+                        "text/html", "<!DOCTYPE html><html>bot check</html>".getBytes(StandardCharsets.UTF_8),
+                        null, null));
+
+        scrapeService.pollAll(ScrapeBatch.Source.MANUAL);
+
+        List<NewsArticle> articles = articleRepository.findAll();
+        assertEquals(1, articles.size());
+        NewsArticle article = articles.get(0);
+        assertEquals("Kansas Jayhawks land top transfer guard", article.getTitle());
+        assertEquals("https://a.espncdn.com/photo/kansas.jpg", article.getImageUrl());
+        assertEquals(0, article.getBodyTokenCount());
+        assertTrue(articleTeamRepository.findByArticleId(article.getId()).stream()
+                .anyMatch(t -> t.getTeam().getId().equals(kansas.getId())));
+    }
+
+    @Test
     void urlVerdictOverridesDedicatedFlagAndKeywordFilter() {
         // ESPN's "ncb" feed carries football items: a /college-football/ URL is
         // discarded even from a dedicated source, and a /mens-college-basketball/

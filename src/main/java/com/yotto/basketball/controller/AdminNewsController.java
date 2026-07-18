@@ -69,9 +69,10 @@ public class AdminNewsController {
     /** HTMX dry-run fragment: parse + evaluate a feed without saving anything (§7.1). */
     @GetMapping("/sources/test")
     public String testFeed(@RequestParam String feedUrl,
+                           @RequestParam(defaultValue = "RSS") com.yotto.basketball.entity.NewsSource.SourceType sourceType,
                            @RequestParam(defaultValue = "false") boolean dedicatedCbb,
                            Model model) {
-        model.addAttribute("items", scrapeService.dryRun(feedUrl, dedicatedCbb, 10));
+        model.addAttribute("items", scrapeService.dryRun(feedUrl, sourceType, dedicatedCbb, 10));
         model.addAttribute("feedUrl", feedUrl);
         return "admin/fragments/news-dryrun :: dryrun";
     }
@@ -80,12 +81,13 @@ public class AdminNewsController {
     public String createSource(@RequestParam String name,
                                @RequestParam String domain,
                                @RequestParam(required = false) String feedUrl,
+                               @RequestParam(defaultValue = "RSS") com.yotto.basketball.entity.NewsSource.SourceType sourceType,
                                @RequestParam(defaultValue = "50") int authorityWeight,
                                @RequestParam(defaultValue = "false") boolean dedicatedCbb,
                                @RequestParam(required = false) String notes,
                                RedirectAttributes redirect) {
         try {
-            adminService.createSource(name, domain, feedUrl, authorityWeight, dedicatedCbb, notes);
+            adminService.createSource(name, domain, feedUrl, sourceType, authorityWeight, dedicatedCbb, notes);
             redirect.addFlashAttribute("success", "Source added");
         } catch (IllegalArgumentException e) {
             redirect.addFlashAttribute("error", e.getMessage());
@@ -98,12 +100,13 @@ public class AdminNewsController {
                                @RequestParam String name,
                                @RequestParam String domain,
                                @RequestParam(required = false) String feedUrl,
+                               @RequestParam(defaultValue = "RSS") com.yotto.basketball.entity.NewsSource.SourceType sourceType,
                                @RequestParam int authorityWeight,
                                @RequestParam(defaultValue = "false") boolean dedicatedCbb,
                                @RequestParam(defaultValue = "false") boolean active,
                                @RequestParam(required = false) String notes,
                                RedirectAttributes redirect) {
-        adminService.updateSource(id, name, domain, feedUrl, authorityWeight, dedicatedCbb, active, notes);
+        adminService.updateSource(id, name, domain, feedUrl, sourceType, authorityWeight, dedicatedCbb, active, notes);
         redirect.addFlashAttribute("success", "Source updated");
         return "redirect:/admin/news/sources";
     }

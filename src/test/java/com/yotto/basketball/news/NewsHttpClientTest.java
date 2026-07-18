@@ -41,6 +41,17 @@ class NewsHttpClientTest {
     }
 
     @Test
+    void status202IsNotSuccess() {
+        // Akamai bot challenges answer with 202 + HTML; that must read as failure
+        var challenged = new NewsHttpClient.FetchResult(202, "https://espn.com/x",
+                "text/html", "<!DOCTYPE html>".getBytes(), null, null);
+        assertFalse(challenged.isSuccess());
+        var ok = new NewsHttpClient.FetchResult(200, "https://espn.com/x",
+                "text/xml", "<rss/>".getBytes(), null, null);
+        assertTrue(ok.isSuccess());
+    }
+
+    @Test
     void ssrfGuardBlocksInternalAddresses() throws Exception {
         // loopback
         assertTrue(NewsHttpClient.isBlockedAddress(java.net.InetAddress.getByName("127.0.0.1")));
