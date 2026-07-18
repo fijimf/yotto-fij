@@ -683,6 +683,12 @@ double-run guard pattern as the game scraper.
   via the canonical link. Related hardening: `FetchResult.isSuccess()` now
   requires status 200 exactly (202 challenge pages used to pass the 2xx
   check), and `FeedPoller` reports HTML-instead-of-feed responses explicitly.
+- **429 handling** (added after CBS's WAF IP-blocked the server during launch
+  testing): an article-page 429 aborts the whole source for that run —
+  unprocessed items retry next poll instead of being permanently ingested as
+  degraded metadata-only rows, and the host stops being hammered. Feed-level
+  and dry-run 429s report "site is rate-limiting this server" explicitly.
+  Default same-host spacing raised to 1000ms + 500ms jitter.
 - **SSRF guard**: every fetch hop (feed URLs, article links, redirect targets,
   image downloads) resolves the host and rejects loopback, link-local (cloud
   metadata), private, any-local, multicast, and IPv6 unique-local addresses —

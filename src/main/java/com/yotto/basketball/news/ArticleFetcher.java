@@ -33,6 +33,9 @@ public class ArticleFetcher {
     /** Never throws — a failed fetch returns {@link ExtractedPage#failed}. */
     public ExtractedPage fetchAndExtract(String url) {
         NewsHttpClient.FetchResult result = httpClient.fetchPage(url);
+        if (result.status() == 429) {
+            return ExtractedPage.rateLimited(result.finalUrl());
+        }
         if (!result.isSuccess()) {
             return ExtractedPage.failed(result.finalUrl());
         }
@@ -76,7 +79,7 @@ public class ArticleFetcher {
         LocalDateTime publishedTime = parsePublishedTime(
                 firstAttr(doc, "meta[property=article:published_time]", "content"));
 
-        return new ExtractedPage(true, pageUrl, canonical, ogTitle, ogDescription, ogImage,
+        return new ExtractedPage(true, false, pageUrl, canonical, ogTitle, ogDescription, ogImage,
                 publishedTime, extractBodyText(doc));
     }
 

@@ -91,6 +91,16 @@ class ArticleFetcherTest {
     }
 
     @Test
+    void rateLimitedResponseFlagged() {
+        when(mockClient.fetchPage(anyString())).thenReturn(
+                new NewsHttpClient.FetchResult(429, "https://cbs.example.com/x",
+                        "text/html", null, null, null));
+        ExtractedPage page = fetcher.fetchAndExtract("https://cbs.example.com/x");
+        assertFalse(page.fetchSucceeded());
+        assertTrue(page.rateLimited());
+    }
+
+    @Test
     void nonHtmlContentTypeRejected() {
         when(mockClient.fetchPage(anyString())).thenReturn(
                 new NewsHttpClient.FetchResult(200, "https://site.example.com/report.pdf",

@@ -388,6 +388,38 @@ class NewsScrapePipelineIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void rateLimitedArticlePagesAbortSourceAndRetryNextPoll() {
+        String url = "https://hoopsblog.example.com/kansas-hoops-notes";
+        feed(BLOG_FEED, item("Kansas basketball notes", url, hoursAgo(1)));
+        // first poll: the host 429s article fetches → abort source, ingest nothing
+        when(httpClient.fetchPage(anyString())).thenReturn(
+                new NewsHttpClient.FetchResult(429, url, "text/html", null, null, null));
+
+        ScrapeBatch first = scrapeService.pollAll(ScrapeBatch.Source.MANUAL);
+
+        assertEquals(0, articleRepository.count());
+        assertEquals(1, first.getDatesFailed());
+        assertEquals(1, sourceRepository.findById(blog.getId()).orElseThrow().getConsecutiveFailures());
+
+        // throttle clears: next poll ingests the same item with full body
+        when(httpClient.fetchPage(anyString())).thenAnswer(inv -> {
+            String pageUrl = inv.getArgument(0);
+            String html = pagesByUrl.get(pageUrl);
+            return html == null
+                    ? new NewsHttpClient.FetchResult(0, pageUrl, null, null, null, null)
+                    : new NewsHttpClient.FetchResult(200, pageUrl, "text/html; charset=utf-8",
+                            html.getBytes(StandardCharsets.UTF_8), null, null);
+        });
+        page(url, "Kansas basketball notes", KANSAS_BODY);
+
+        scrapeService.pollAll(ScrapeBatch.Source.MANUAL);
+
+        assertEquals(1, articleRepository.count());
+        assertTrue(articleRepository.findAll().get(0).getBodyTokenCount() >= 80);
+        assertEquals(0, sourceRepository.findById(blog.getId()).orElseThrow().getConsecutiveFailures());
+    }
+
+    @Test
     void espnApiSourceIngestsJsonWithChallengedArticlePages() {
         // ESPN scenario: the API returns JSON; article pages answer with a
         // 202 HTML bot challenge → metadata-only ingest, image from the API.

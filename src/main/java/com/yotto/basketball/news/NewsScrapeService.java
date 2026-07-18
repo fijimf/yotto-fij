@@ -172,9 +172,19 @@ public class NewsScrapeService {
             }
             try {
                 processItem(source, item, batch);
+            } catch (SourceRateLimitedException e) {
+                // stop hammering the host; unprocessed items retry next poll
+                throw e;
             } catch (Exception e) {
                 log.debug("Item failed ({}): {}", item.link(), e.toString());
             }
+        }
+    }
+
+    /** Thrown when a host answers 429 mid-poll — aborts the source for this run. */
+    static class SourceRateLimitedException extends RuntimeException {
+        SourceRateLimitedException(String url) {
+            super("Rate-limited (429) fetching " + url);
         }
     }
 
@@ -193,6 +203,11 @@ public class NewsScrapeService {
         }
 
         ExtractedPage page = articleFetcher.fetchAndExtract(item.link());
+        if (page.rateLimited()) {
+            // ingesting now would permanently store degraded metadata-only rows;
+            // better to abort the source and pick these items up next cycle
+            throw new SourceRateLimitedException(item.link());
+        }
         String canonical = resolveCanonicalUrl(item, page, preliminaryCanonical);
         if (!canonical.equals(preliminaryCanonical) && articleRepository.existsByUrlCanonical(canonical)) {
             return;
@@ -402,10 +417,14 @@ public class NewsScrapeService {
                                    boolean dedicatedCbb, int limit) {
         NewsHttpClient.FetchResult result = httpClient.fetchFeed(feedUrl, null, null);
         if (!result.isSuccess()) {
-            String reason = result.status() == 0
-                    ? "Feed fetch failed (network/DNS error, blocked non-public target, or too many redirects — retry once and check the URL)"
-                    : "Feed fetch failed (HTTP " + result.status()
-                            + (result.status() == 202 ? " — the site answered with a bot challenge" : "") + ")";
+            String reason = switch (result.status()) {
+                case 0 -> "Feed fetch failed (network/DNS error, blocked non-public target,"
+                        + " or too many redirects — retry once and check the URL)";
+                case 202 -> "Feed fetch failed (HTTP 202 — the site answered with a bot challenge)";
+                case 429 -> "Feed fetch failed (HTTP 429 — the site is rate-limiting this server;"
+                        + " wait a few minutes and re-test)";
+                default -> "Feed fetch failed (HTTP " + result.status() + ")";
+            };
             return List.of(new DryRunItem(null, feedUrl, null, false, reason, List.of()));
         }
         List<FeedItem> items;
@@ -468,6 +487,11 @@ public class NewsScrapeService {
         if (Boolean.FALSE.equals(urlVerdict)) {
             return new DryRunItem(title, canonical, publishedAt, false,
                     "Discarded — URL indicates another sport", tagSummaries);
+        }
+        if (page.rateLimited()) {
+            return new DryRunItem(title, canonical, publishedAt, false,
+                    "Site is rate-limiting this server (HTTP 429) — wait a few minutes and re-test",
+                    tagSummaries);
         }
         if (!page.fetchSucceeded()) {
             return new DryRunItem(title, canonical, publishedAt, true,

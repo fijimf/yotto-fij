@@ -11,8 +11,10 @@ public class NewsProperties {
     private boolean enabled = false;
 
     private String schedule = "0 */30 * * * *";
-    private int baseDelayMs = 500;
-    private int jitterMs = 250;
+    // Same-host spacing: generous by default — CBS's WAF 429-blocked the server
+    // IP after bursts of ~500ms-spaced requests during launch testing
+    private int baseDelayMs = 1000;
+    private int jitterMs = 500;
     private int timeoutMs = 10000;
     private int maxItemAgeDays = 14;
     private int pollCapPerSource = 50;
