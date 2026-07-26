@@ -85,6 +85,8 @@ features_meta = {
     "spread_model": "spread_model.onnx",
     "total_model": "total_model.onnx",
     "winprob_model": "winprob_model.onnx",
+    "train_seasons": [2021, 2022],
+    "test_season": 2026,
     "metrics": {
         "spread_rmse": 10.5,
         "spread_mae": 8.25,
@@ -94,6 +96,12 @@ features_meta = {
         "win_accuracy": 72.5,
         "in_sample": False,
     },
+    "walk_forward": [
+        {"season": 2022, "train_rows": 3702, "eval_rows": 5259,
+         "spread_rmse": 11.5, "total_rmse": 17.0, "brier": 0.195},
+        {"season": 2023, "train_rows": 8961, "eval_rows": 5499,
+         "spread_rmse": 12.5, "total_rmse": 17.5, "brier": 0.185},
+    ],
 }
 with open(os.path.join(OUT_DIR, "features.json"), "w") as f:
     json.dump(features_meta, f, indent=2)

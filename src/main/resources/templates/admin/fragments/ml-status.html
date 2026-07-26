@@ -41,8 +41,10 @@
                     <th style="text-align: left;">Model</th>
                     <th style="text-align: left;">Status</th>
                     <th style="text-align: left;">Version</th>
-                    <th style="text-align: right;" title="Test-set spread RMSE from training">Spread RMSE</th>
-                    <th style="text-align: right;" title="Test-set Brier score from training">Brier</th>
+                    <th style="text-align: right;" title="Mean spread RMSE over the trainer's walk-forward report (each season predicted using only earlier seasons) — the honest out-of-sample number; compare and promote on this">WF RMSE</th>
+                    <th style="text-align: right;" title="Mean Brier score over the walk-forward report — the honest out-of-sample number">WF Brier</th>
+                    <th style="text-align: right;" title="Spread RMSE on the single held-out test season from training">Test RMSE</th>
+                    <th style="text-align: right;" title="Brier score on the single held-out test season from training">Test Brier</th>
                     <th style="text-align: left;">Actions</th>
                 </tr>
                 </thead>
@@ -67,6 +69,10 @@
                               style="color: #991b1b; font-size: 0.7rem;">not loaded</span>
                     </td>
                     <td style="font-size: 0.8rem;" th:text="${m.version ?: '—'}">2026-07-10T14:03:22Z</td>
+                    <td style="text-align: right; font-weight: 600;" th:title="${m.wfDetail}"
+                        th:text="${m.wfSpreadRmse != null ? #numbers.formatDecimal(m.wfSpreadRmse, 1, 2) : '—'}">11.70</td>
+                    <td style="text-align: right; font-weight: 600;" th:title="${m.wfDetail}"
+                        th:text="${m.wfBrier != null ? #numbers.formatDecimal(m.wfBrier, 1, 4) : '—'}">0.1910</td>
                     <td style="text-align: right;"
                         th:text="${m.spreadRmse != null ? #numbers.formatDecimal(m.spreadRmse, 1, 2) : '—'}">10.50</td>
                     <td style="text-align: right;"

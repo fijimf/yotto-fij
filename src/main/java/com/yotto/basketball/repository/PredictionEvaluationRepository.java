@@ -200,6 +200,78 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                                               @Param("tournamentTypes") List<String> tournamentTypes,
                                               @Param("modelType") String modelType);
 
+    /**
+     * Paired model-vs-book comparison on the SAME games (inner join on the BOOK row),
+     * eliminating coverage bias, plus betting-market outcome rates:
+     *
+     * <ul>
+     *   <li>ATS: taking the model's side against the closing spread whenever it disagrees
+     *       (pushes and exact agreements excluded). Breakeven at −110 vig ≈ 52.4%.</li>
+     *   <li>O/U: same for totals against the closing over/under.</li>
+     *   <li>CLV: among games where the line moved and the model disagreed with the OPEN,
+     *       how often the close moved toward the model's side. {@code betting_odds}
+     *       spreads are handicap-oriented (negative = home favored), so the book's
+     *       expected home margin is {@code −spread} / {@code −opening_spread}.</li>
+     * </ul>
+     */
+    interface VsBookMetrics {
+        String getModelType();
+        long getSpreadN();       // games where both model and book have a spread error
+        Double getModelMae();
+        Double getBookMae();
+        long getAtsN();
+        Double getAtsRate();
+        long getOuN();
+        Double getOuRate();
+        long getClvN();
+        Double getClvRate();
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT m.model_type AS modeltype,
+                   count(CASE WHEN m.spread_error IS NOT NULL AND b.spread_error IS NOT NULL THEN 1 END) AS spreadn,
+                   avg(CASE WHEN m.spread_error IS NOT NULL AND b.spread_error IS NOT NULL
+                            THEN abs(m.spread_error) END) AS modelmae,
+                   avg(CASE WHEN m.spread_error IS NOT NULL AND b.spread_error IS NOT NULL
+                            THEN abs(b.spread_error) END) AS bookmae,
+                   count(CASE WHEN m.predicted_spread IS NOT NULL AND b.predicted_spread IS NOT NULL
+                               AND m.predicted_spread <> b.predicted_spread
+                               AND m.actual_margin <> b.predicted_spread THEN 1 END) AS atsn,
+                   avg(CASE WHEN m.predicted_spread IS NULL OR b.predicted_spread IS NULL
+                             OR m.predicted_spread = b.predicted_spread
+                             OR m.actual_margin = b.predicted_spread THEN NULL
+                            WHEN (m.predicted_spread > b.predicted_spread) = (m.actual_margin > b.predicted_spread)
+                            THEN 1.0 ELSE 0.0 END) AS atsrate,
+                   count(CASE WHEN m.predicted_total IS NOT NULL AND b.predicted_total IS NOT NULL
+                               AND m.predicted_total <> b.predicted_total
+                               AND m.actual_total <> b.predicted_total THEN 1 END) AS oun,
+                   avg(CASE WHEN m.predicted_total IS NULL OR b.predicted_total IS NULL
+                             OR m.predicted_total = b.predicted_total
+                             OR m.actual_total = b.predicted_total THEN NULL
+                            WHEN (m.predicted_total > b.predicted_total) = (m.actual_total > b.predicted_total)
+                            THEN 1.0 ELSE 0.0 END) AS ourate,
+                   count(CASE WHEN m.predicted_spread IS NOT NULL AND bo.opening_spread IS NOT NULL
+                               AND bo.spread IS NOT NULL AND bo.opening_spread <> bo.spread
+                               AND m.predicted_spread <> -bo.opening_spread THEN 1 END) AS clvn,
+                   avg(CASE WHEN m.predicted_spread IS NULL OR bo.opening_spread IS NULL
+                             OR bo.spread IS NULL OR bo.opening_spread = bo.spread
+                             OR m.predicted_spread = -bo.opening_spread THEN NULL
+                            WHEN (m.predicted_spread > -bo.opening_spread) = (-bo.spread > -bo.opening_spread)
+                            THEN 1.0 ELSE 0.0 END) AS clvrate
+            FROM prediction_evaluations m
+            JOIN prediction_evaluations b ON b.game_id = m.game_id AND b.model_type = 'BOOK'
+            JOIN games g ON g.id = m.game_id
+            LEFT JOIN betting_odds bo ON bo.game_id = m.game_id
+            WHERE m.model_type <> 'BOOK'
+              AND (:seasonId < 0 OR m.season_id = :seasonId)
+              AND m.game_date >= :fromDate
+              AND (:allSegments = true OR COALESCE(g.tournament_type, 'NONE') IN (:tournamentTypes))
+            GROUP BY m.model_type
+            """)
+    List<VsBookMetrics> vsBookMetrics(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate,
+                                      @Param("allSegments") boolean allSegments,
+                                      @Param("tournamentTypes") List<String> tournamentTypes);
+
     /** Calibration: predicted-probability deciles vs. actual home-win rate, per model. */
     interface CalibrationBucket {
         String getModelType();

@@ -237,7 +237,10 @@ public class MlPredictionService {
                     manifest.path("version").asText(null),
                     Instant.ofEpochMilli(featuresFile.lastModified()),
                     featureNames.size(),
-                    parseMetrics(manifest.path("metrics")));
+                    parseIntList(manifest.path("train_seasons")),
+                    manifest.path("test_season").isInt() ? manifest.path("test_season").asInt() : null,
+                    parseMetrics(manifest.path("metrics")),
+                    parseWalkForward(manifest.path("walk_forward")));
 
             bundles.put(slug, bundle);
             log.info("ML bundle loaded — slug={}, version={}, features={}",
@@ -259,6 +262,31 @@ public class MlPredictionService {
     }
 
     // ── Static helpers ────────────────────────────────────────────────────────
+
+    /** Integer array manifest field → immutable list; empty for absent/legacy manifests. */
+    private static List<Integer> parseIntList(JsonNode node) {
+        if (node == null || !node.isArray()) return List.of();
+        List<Integer> values = new ArrayList<>();
+        for (JsonNode v : node) {
+            if (v.isInt()) values.add(v.asInt());
+        }
+        return List.copyOf(values);
+    }
+
+    /** Trainer walk-forward report array → per-season records; empty for legacy manifests. */
+    private static List<MlBundleStatus.WalkForwardSeason> parseWalkForward(JsonNode node) {
+        if (node == null || !node.isArray()) return List.of();
+        List<MlBundleStatus.WalkForwardSeason> seasons = new ArrayList<>();
+        for (JsonNode entry : node) {
+            if (!entry.path("season").isInt()) continue;
+            seasons.add(new MlBundleStatus.WalkForwardSeason(
+                    entry.path("season").asInt(),
+                    doubleOrNull(entry, "spread_rmse"),
+                    doubleOrNull(entry, "total_rmse"),
+                    doubleOrNull(entry, "brier")));
+        }
+        return List.copyOf(seasons);
+    }
 
     private static MlBundleStatus.Metrics parseMetrics(JsonNode node) {
         if (node == null || node.isMissingNode() || !node.isObject()) return null;

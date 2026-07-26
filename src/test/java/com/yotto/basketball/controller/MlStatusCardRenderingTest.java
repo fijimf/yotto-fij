@@ -55,8 +55,12 @@ class MlStatusCardRenderingTest extends BaseIntegrationTest {
                 .andExpect(content().string(containsString("baseline")))
                 .andExpect(content().string(containsString("Active")))
                 .andExpect(content().string(containsString("test-fixture-1")))
-                .andExpect(content().string(containsString("10.50")))    // spread RMSE
-                .andExpect(content().string(containsString("0.1875"))); // Brier
+                .andExpect(content().string(containsString("10.50")))    // test spread RMSE
+                .andExpect(content().string(containsString("0.1875")))   // test Brier
+                .andExpect(content().string(containsString("WF RMSE")))
+                .andExpect(content().string(containsString("12.00")))    // wf mean of 11.5, 12.5
+                .andExpect(content().string(containsString("0.1900")))   // wf mean of 0.195, 0.185
+                .andExpect(content().string(containsString("2022: RMSE 11.5"))); // tooltip detail
     }
 
     @Test

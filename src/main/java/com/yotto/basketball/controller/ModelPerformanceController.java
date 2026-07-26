@@ -127,7 +127,56 @@ public class ModelPerformanceController {
         model.addAttribute("conferenceRows",
                 buildConferenceRows(seasonId, from, allSegments, types, confModel, allSeasons, selectedYear));
         model.addAttribute("displayNames", allDisplayNames());
+        model.addAttribute("inSampleBadges", buildInSampleBadges(allSeasons, selectedYear));
+        model.addAttribute("vsBookRows", buildVsBookRows(seasonId, from, allSegments, types));
         return "pages/model-performance";
+    }
+
+    /** Same-game model-vs-book rows; models with no spread or total overlap are dropped. */
+    private List<VsBookRow> buildVsBookRows(Long seasonId, LocalDate from, boolean allSegments,
+                                            List<String> types) {
+        return sortRows(evaluationRepository.vsBookMetrics(seasonId, from, allSegments, types),
+                PredictionEvaluationRepository.VsBookMetrics::getModelType).stream()
+                .filter(r -> r.getSpreadN() > 0 || r.getOuN() > 0)
+                .map(r -> new VsBookRow(r.getModelType(), r.getSpreadN(),
+                        r.getModelMae(), r.getBookMae(),
+                        (r.getModelMae() != null && r.getBookMae() != null)
+                                ? r.getModelMae() - r.getBookMae() : null,
+                        r.getAtsN(), r.getAtsRate(), r.getOuN(), r.getOuRate(),
+                        r.getClvN(), r.getClvRate()))
+                .toList();
+    }
+
+    /**
+     * Same-game comparison row; delta = model MAE − book MAE on identical games
+     * (negative = model closer). Rates are null when no games qualified.
+     */
+    public record VsBookRow(String modelType, long spreadN, Double modelMae, Double bookMae,
+                            Double delta, long atsN, Double atsRate, long ouN, Double ouRate,
+                            long clvN, Double clvRate) {}
+
+    /**
+     * modelType → badge tooltip for ML models whose training data overlaps the current
+     * view: rows for a trained-on season are in-sample and overstate accuracy. Empty
+     * when the selected season is genuinely out-of-sample for every model.
+     */
+    private Map<String, String> buildInSampleBadges(boolean allSeasons, Integer selectedYear) {
+        Map<String, String> badges = new java.util.LinkedHashMap<>();
+        mlModelRegistryService.trainedSeasonsBySlug().forEach((slug, seasons) -> {
+            String modelType = PredictionEvaluationService.ML_TYPE_PREFIX + slug;
+            if (allSeasons) {
+                String years = seasons.stream().sorted().map(String::valueOf)
+                        .collect(java.util.stream.Collectors.joining(", "));
+                badges.put(modelType, "Trained on " + years + ". Rows from those seasons are "
+                        + "in-sample: the model saw these games during training, so aggregate "
+                        + "numbers here flatter it.");
+            } else if (selectedYear != null && seasons.contains(selectedYear)) {
+                badges.put(modelType, "This model was trained on " + selectedYear + " games — "
+                        + "these numbers are in-sample and optimistic. Judge it on seasons it "
+                        + "was not trained on.");
+            }
+        });
+        return badges;
     }
 
     private List<ConferenceRow> buildConferenceRows(Long seasonId, LocalDate from, boolean allSegments,

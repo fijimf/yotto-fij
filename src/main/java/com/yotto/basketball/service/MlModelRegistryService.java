@@ -69,21 +69,47 @@ public class MlModelRegistryService {
         return modelRepository.findAllByOrderBySlug();
     }
 
-    /** Admin-table view row: registry state + loaded flag + headline metrics. */
+    /**
+     * slug → trained-on season years, read from the registry rows rather than the
+     * serving plan: evaluation rows outlive bundle loading (and even retirement), so
+     * in-sample badging must not depend on whether the bundle is currently loaded.
+     * Slugs with no recorded train seasons (legacy manifests) are omitted.
+     */
+    public Map<String, java.util.Set<Integer>> trainedSeasonsBySlug() {
+        Map<String, java.util.Set<Integer>> result = new LinkedHashMap<>();
+        for (MlModel m : modelRepository.findAllByOrderBySlug()) {
+            java.util.Set<Integer> seasons = parseSeasons(m.getTrainSeasons());
+            if (!seasons.isEmpty()) {
+                result.put(m.getSlug(), seasons);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Admin-table view row: registry state + loaded flag + headline metrics. Test-set
+     * metrics come from the single held-out season; the walk-forward (wf) columns are
+     * means over the trainer's expanding-window report — the honest promotion metric.
+     */
     public record MlModelView(String slug, String displayName, MlModel.Status status,
                               boolean isDefault, boolean loaded, String version,
                               LocalDateTime trainedAt, String featureSet,
-                              Double spreadRmse, Double brierScore) {}
+                              Double spreadRmse, Double brierScore,
+                              Double wfSpreadRmse, Double wfBrier, String wfDetail) {}
 
     public List<MlModelView> modelViews() {
         return modelRepository.findAllByOrderBySlug().stream()
                 .map(m -> {
-                    Double spreadRmse = null, brier = null;
+                    Double spreadRmse = null, brier = null, wfSpreadRmse = null, wfBrier = null;
+                    String wfDetail = null;
                     if (m.getMetricsJson() != null) {
                         try {
                             Map<?, ?> metrics = objectMapper.readValue(m.getMetricsJson(), Map.class);
-                            spreadRmse = asDouble(metrics.get("spreadRmse"));
-                            brier      = asDouble(metrics.get("brierScore"));
+                            spreadRmse   = asDouble(metrics.get("spreadRmse"));
+                            brier        = asDouble(metrics.get("brierScore"));
+                            wfSpreadRmse = asDouble(metrics.get("wfSpreadRmse"));
+                            wfBrier      = asDouble(metrics.get("wfBrier"));
+                            wfDetail     = metrics.get("wfDetail") instanceof String s ? s : null;
                         } catch (Exception ignored) {
                         }
                     }
@@ -92,7 +118,7 @@ public class MlModelRegistryService {
                             m.getStatus(), Boolean.TRUE.equals(m.getIsDefault()),
                             mlPredictionService.isLoaded(m.getSlug()),
                             m.getVersion(), m.getTrainedAt(), m.getFeatureSet(),
-                            spreadRmse, brier);
+                            spreadRmse, brier, wfSpreadRmse, wfBrier, wfDetail);
                 })
                 .toList();
     }
@@ -175,10 +201,32 @@ public class MlModelRegistryService {
                 model.setTrainedAt(LocalDateTime.ofInstant(status.trainedAt(), ZoneId.systemDefault()));
             }
             model.setMetricsJson(metricsJson(status));
+            model.setTrainSeasons(joinSeasons(status.trainSeasons()));
+            model.setTestSeason(status.testSeason());
             touch(model);
         }
         ensureDefaultExists();
         rebuildPlan();
+    }
+
+    /** Season years → "2021,2022,…", or null when the manifest carried none (legacy). */
+    private static String joinSeasons(List<Integer> seasons) {
+        if (seasons == null || seasons.isEmpty()) return null;
+        return seasons.stream().map(String::valueOf)
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
+    /** "2021,2022" → set of years; empty set for null/blank/malformed input. */
+    static java.util.Set<Integer> parseSeasons(String csv) {
+        if (csv == null || csv.isBlank()) return java.util.Set.of();
+        java.util.Set<Integer> years = new java.util.LinkedHashSet<>();
+        for (String part : csv.split(",")) {
+            try {
+                years.add(Integer.parseInt(part.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return java.util.Set.copyOf(years);
     }
 
     /** Guarantees a default exists whenever any loaded ACTIVE model exists. */
@@ -206,6 +254,7 @@ public class MlModelRegistryService {
         Map<String, String> active = new LinkedHashMap<>();
         Map<String, String> evaluable = new LinkedHashMap<>();
         Map<String, String> displayNames = new LinkedHashMap<>();
+        Map<String, java.util.Set<Integer>> trainSeasons = new LinkedHashMap<>();
         String defaultSlug = null;
         boolean needsExtendedStats = false;
 
@@ -216,6 +265,7 @@ public class MlModelRegistryService {
             }
             displayNames.put(slug, model.getDisplayName() != null ? model.getDisplayName() : slug);
             evaluable.put(slug, model.getVersion());
+            trainSeasons.put(slug, parseSeasons(model.getTrainSeasons()));
             if (model.getStatus() == MlModel.Status.ACTIVE) {
                 active.put(slug, model.getVersion());
                 if (model.getIsDefault()) defaultSlug = slug;
@@ -226,7 +276,7 @@ public class MlModelRegistryService {
             }
         }
         this.plan = new ServingPlan(defaultSlug, Map.copyOf(active), Map.copyOf(evaluable),
-                Map.copyOf(displayNames), needsExtendedStats);
+                Map.copyOf(displayNames), Map.copyOf(trainSeasons), needsExtendedStats);
     }
 
     private MlModel require(String slug) {
@@ -239,13 +289,48 @@ public class MlModelRegistryService {
         modelRepository.save(model);
     }
 
+    /**
+     * Serializes the bundle's test-set metrics (same keys as before) plus walk-forward
+     * means and a per-season detail string, so the admin table can show both without
+     * another manifest read.
+     */
     private String metricsJson(MlBundleStatus status) {
-        if (status.metrics() == null) return null;
+        if (status.metrics() == null && status.walkForward().isEmpty()) return null;
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (status.metrics() != null) {
+            MlBundleStatus.Metrics m = status.metrics();
+            payload.put("spreadRmse",  m.spreadRmse());
+            payload.put("spreadMae",   m.spreadMae());
+            payload.put("totalRmse",   m.totalRmse());
+            payload.put("totalMae",    m.totalMae());
+            payload.put("brierScore",  m.brierScore());
+            payload.put("winAccuracy", m.winAccuracy());
+            payload.put("inSample",    m.inSample());
+        }
+        List<MlBundleStatus.WalkForwardSeason> wf = status.walkForward();
+        if (!wf.isEmpty()) {
+            payload.put("wfSpreadRmse", meanOf(wf, MlBundleStatus.WalkForwardSeason::spreadRmse));
+            payload.put("wfTotalRmse",  meanOf(wf, MlBundleStatus.WalkForwardSeason::totalRmse));
+            payload.put("wfBrier",      meanOf(wf, MlBundleStatus.WalkForwardSeason::brier));
+            payload.put("wfDetail", wf.stream()
+                    .map(s -> s.season() + ": RMSE " + (s.spreadRmse() != null ? s.spreadRmse() : "—")
+                            + ", Brier " + (s.brier() != null ? s.brier() : "—"))
+                    .collect(java.util.stream.Collectors.joining(" · ")));
+        }
         try {
-            return objectMapper.writeValueAsString(status.metrics());
+            return objectMapper.writeValueAsString(payload);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static Double meanOf(List<MlBundleStatus.WalkForwardSeason> wf,
+                                 java.util.function.Function<MlBundleStatus.WalkForwardSeason, Double> metric) {
+        double[] values = wf.stream().map(metric)
+                .filter(java.util.Objects::nonNull)
+                .mapToDouble(Double::doubleValue).toArray();
+        if (values.length == 0) return null;
+        return java.util.Arrays.stream(values).average().orElse(Double.NaN);
     }
 
     /**
@@ -255,16 +340,19 @@ public class MlModelRegistryService {
      * @param activeVersions     slug → version for loaded ACTIVE bundles (public predictions)
      * @param evaluableVersions  slug → version for loaded ACTIVE + CANDIDATE bundles (evaluation rows)
      * @param displayNames       slug → display name for all servable bundles
+     * @param trainSeasonsBySlug slug → season years the bundle trained on (empty set for
+     *                           legacy bundles) — those seasons' evaluation rows are in-sample
      * @param needsExtendedStats true when any servable bundle uses box-score/RPI features
      */
     public record ServingPlan(String defaultSlug,
                               Map<String, String> activeVersions,
                               Map<String, String> evaluableVersions,
                               Map<String, String> displayNames,
+                              Map<String, java.util.Set<Integer>> trainSeasonsBySlug,
                               boolean needsExtendedStats) {
 
         static ServingPlan empty() {
-            return new ServingPlan(null, Map.of(), Map.of(), Map.of(), false);
+            return new ServingPlan(null, Map.of(), Map.of(), Map.of(), Map.of(), false);
         }
 
         public boolean hasServableModels() {

@@ -1136,6 +1136,11 @@ def main():
         "slug": model_name,
         "display_name": display_name_for(model_name),
         "feature_set": feature_set,
+        # What the final model actually trained on: the requested train seasons minus
+        # the held-out test season (unless the in-sample fallback kicked in).
+        "train_seasons": sorted(set(train_seasons) | {test_season}) if in_sample_metrics
+                         else sorted(set(train_seasons) - {test_season}),
+        "test_season": test_season,
         "features": feature_list,
         "spread_model":  "spread_model.onnx",
         "total_model":   "total_model.onnx",

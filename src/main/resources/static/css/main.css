@@ -1228,6 +1228,23 @@ a.team-hero__conference:hover {
     border: 1px solid rgba(217, 119, 6, 0.3);
 }
 
+/* In-sample marker on the model-performance page: the model trained on the games shown */
+.insample-badge {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(217, 119, 6, 0.08);
+    color: #d97706;
+    border: 1px solid rgba(217, 119, 6, 0.3);
+    cursor: help;
+    vertical-align: middle;
+}
+
 .qa-delta--mismatch {
     color: var(--color-danger);
     font-weight: 600;

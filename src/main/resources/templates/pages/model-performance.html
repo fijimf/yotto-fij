@@ -43,6 +43,12 @@
         betting advice.
     </p>
 
+    <p class="predictions-disclaimer" th:if="${hasData and !#maps.isEmpty(inSampleBadges)}">
+        <span class="insample-badge">in-sample</span> marks ML models that were trained on
+        games from the season(s) shown — those numbers overstate real accuracy. The book line
+        and the classical rating models are always genuine pre-game predictions.
+    </p>
+
     <!-- Empty state -->
     <div th:if="${!hasData}" class="card">
         <p style="color: var(--color-text-muted); margin: 0;">
@@ -70,7 +76,11 @@
                     <tbody>
                     <tr th:each="r : ${spreadRows}"
                         th:style="${r.modelType == 'BOOK'} ? 'color: var(--color-text-muted);'">
-                        <td th:text="${displayNames[r.modelType] ?: r.modelType}">Massey</td>
+                        <td>
+                            <span th:text="${displayNames[r.modelType] ?: r.modelType}">Massey</span>
+                            <span class="insample-badge" th:if="${inSampleBadges.containsKey(r.modelType)}"
+                                  th:title="${inSampleBadges[r.modelType]}">in-sample</span>
+                        </td>
                         <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">5,500</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.mae, 1, 2)}">8.90</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.rmse, 1, 2)}">11.30</td>
@@ -101,7 +111,11 @@
                     <tbody>
                     <tr th:each="r : ${totalRows}"
                         th:style="${r.modelType == 'BOOK'} ? 'color: var(--color-text-muted);'">
-                        <td th:text="${displayNames[r.modelType] ?: r.modelType}">Massey Totals</td>
+                        <td>
+                            <span th:text="${displayNames[r.modelType] ?: r.modelType}">Massey Totals</span>
+                            <span class="insample-badge" th:if="${inSampleBadges.containsKey(r.modelType)}"
+                                  th:title="${inSampleBadges[r.modelType]}">in-sample</span>
+                        </td>
                         <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">5,500</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.mae, 1, 2)}">13.10</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.rmse, 1, 2)}">16.60</td>
@@ -131,7 +145,11 @@
                     <tbody>
                     <tr th:each="r : ${probRows}"
                         th:style="${r.modelType == 'BOOK'} ? 'color: var(--color-text-muted);'">
-                        <td th:text="${displayNames[r.modelType] ?: r.modelType}">Bradley-Terry</td>
+                        <td>
+                            <span th:text="${displayNames[r.modelType] ?: r.modelType}">Bradley-Terry</span>
+                            <span class="insample-badge" th:if="${inSampleBadges.containsKey(r.modelType)}"
+                                  th:title="${inSampleBadges[r.modelType]}">in-sample</span>
+                        </td>
                         <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">5,500</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.brier, 1, 4)}">0.1900</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.accuracy * 100, 1, 1)} + '%'">72.0%</td>
@@ -142,6 +160,56 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- vs. Closing Line: same-game head-to-head + betting outcome rates -->
+        <div class="card" style="margin-bottom: 1.5rem;" th:if="${!#lists.isEmpty(vsBookRows)}">
+            <h2 style="margin-top: 0;">vs. Closing Line <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">identical games only — the honest head-to-head</span></h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">Model</th>
+                        <th style="text-align: right;" title="Games where both this model and the book predicted a spread">Games</th>
+                        <th style="text-align: right;" title="Model spread MAE on those games">Model MAE</th>
+                        <th style="text-align: right;" title="Book spread MAE on the same games">Book MAE</th>
+                        <th style="text-align: right;" title="Model MAE minus book MAE — negative means the model was closer">Δ</th>
+                        <th style="text-align: right;" title="Taking the model's side against the closing spread whenever it disagrees. Breakeven at standard −110 vig is 52.4%">ATS</th>
+                        <th style="text-align: right;" title="Same for totals: the model's over/under pick against the closing number">O/U</th>
+                        <th style="text-align: right;" title="Closing-line value: when the line moved and the model disagreed with the opener, how often the close moved toward the model">CLV</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${vsBookRows}">
+                        <td>
+                            <span th:text="${displayNames[r.modelType] ?: r.modelType}">Model</span>
+                            <span class="insample-badge" th:if="${inSampleBadges.containsKey(r.modelType)}"
+                                  th:title="${inSampleBadges[r.modelType]}">in-sample</span>
+                        </td>
+                        <td style="text-align: right;" th:text="${#numbers.formatInteger(r.spreadN, 0, 'COMMA')}">5,500</td>
+                        <td style="text-align: right;" th:text="${r.modelMae != null ? #numbers.formatDecimal(r.modelMae, 1, 2) : '—'}">9.29</td>
+                        <td style="text-align: right;" th:text="${r.bookMae != null ? #numbers.formatDecimal(r.bookMae, 1, 2) : '—'}">8.92</td>
+                        <td style="text-align: right;"
+                            th:style="'text-align: right;' + (${r.delta != null and r.delta < 0} ? ' color: #065f46;' : ' color: #991b1b;')"
+                            th:text="${r.delta != null ? ((r.delta >= 0 ? '+' : '') + #numbers.formatDecimal(r.delta, 1, 2)) : '—'}">+0.37</td>
+                        <td style="text-align: right;"
+                            th:text="${r.atsRate != null ? (#numbers.formatDecimal(r.atsRate * 100, 1, 1) + '% (' + #numbers.formatInteger(r.atsN, 0, 'COMMA') + ')') : '—'}">47.5% (4,890)</td>
+                        <td style="text-align: right;"
+                            th:text="${r.ouRate != null ? (#numbers.formatDecimal(r.ouRate * 100, 1, 1) + '% (' + #numbers.formatInteger(r.ouN, 0, 'COMMA') + ')') : '—'}">47.3% (4,700)</td>
+                        <td style="text-align: right;"
+                            th:text="${r.clvRate != null ? (#numbers.formatDecimal(r.clvRate * 100, 1, 1) + '% (' + #numbers.formatInteger(r.clvN, 0, 'COMMA') + ')') : '—'}">50.1% (3,200)</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0;">
+                All columns pair each model with the book closing line on the same games, so
+                coverage differences can't skew the comparison. ATS/O-U count only games where
+                the model disagrees with the closing number (pushes excluded) — 52.4% is
+                breakeven at standard −110 vig. CLV counts games where the line moved off the
+                opener and the model had taken a side against it; above 50% means the market
+                tended to move toward the model. Not betting advice.
+            </p>
         </div>
 
         <!-- Shared model-color helper for the charts below -->

@@ -93,6 +93,11 @@ class MlPredictionServiceTest {
         assertThat(status.slug()).isEqualTo("baseline");
         assertThat(status.version()).isEqualTo("test-fixture-1");
         assertThat(status.featureCount()).isEqualTo(27);
+        assertThat(status.trainSeasons()).containsExactly(2021, 2022);
+        assertThat(status.testSeason()).isEqualTo(2026);
+        assertThat(status.walkForward()).containsExactly(
+                new MlBundleStatus.WalkForwardSeason(2022, 11.5, 17.0, 0.195),
+                new MlBundleStatus.WalkForwardSeason(2023, 12.5, 17.5, 0.185));
         MlBundleStatus.Metrics m = status.metrics();
         assertThat(m).isNotNull();
         assertThat(m.spreadRmse()).isEqualTo(10.5);
@@ -149,6 +154,27 @@ class MlPredictionServiceTest {
         assertThat(alt.modelSlug()).isEqualTo("alt");
         assertThat(alt.displayName()).isEqualTo("Alt Model");
         assertThat(alt.modelVersion()).isEqualTo("alt-v9");
+    }
+
+    @Test
+    void legacyManifestWithoutTrainSeasonsLoadsWithEmptyMetadata(@TempDir Path tempDir) throws IOException {
+        copyFixturesInto(tempDir.resolve("legacy"));
+        Path manifest = tempDir.resolve("legacy/features.json");
+        String json = Files.readString(manifest)
+                .replace("\"train_seasons\": [2021, 2022],", "")
+                .replace("\"test_season\": 2026,", "")
+                .replaceAll("(?s),\\s*\"walk_forward\": \\[.*?\\]", "")
+                .replaceFirst("\\{", "{\"slug\": \"legacy\",");
+        Files.writeString(manifest, json);
+
+        service = newService(tempDir.toString(), true);
+
+        assertThat(service.loadedSlugs()).containsExactly("legacy");
+        MlBundleStatus status = service.getStatuses().get(0);
+        assertThat(status.trainSeasons()).isEmpty();
+        assertThat(status.testSeason()).isNull();
+        assertThat(status.walkForward()).isEmpty();
+        assertThat(service.predict("legacy", completeContext())).isNotNull();
     }
 
     @Test

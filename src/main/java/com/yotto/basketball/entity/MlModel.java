@@ -55,6 +55,13 @@ public class MlModel {
     @Column(name = "metrics_json", columnDefinition = "TEXT")
     private String metricsJson;
 
+    /** Comma-separated season years the bundle trained on; evaluation rows for these are in-sample. */
+    @Column(name = "train_seasons", length = 200)
+    private String trainSeasons;
+
+    @Column(name = "test_season")
+    private Integer testSeason;
+
     @NotNull
     private LocalDateTime createdAt;
 
@@ -89,6 +96,12 @@ public class MlModel {
 
     public String getMetricsJson() { return metricsJson; }
     public void setMetricsJson(String metricsJson) { this.metricsJson = metricsJson; }
+
+    public String getTrainSeasons() { return trainSeasons; }
+    public void setTrainSeasons(String trainSeasons) { this.trainSeasons = trainSeasons; }
+
+    public Integer getTestSeason() { return testSeason; }
+    public void setTestSeason(Integer testSeason) { this.testSeason = testSeason; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
