@@ -211,7 +211,15 @@ def build_db_url(args):
 
 
 def load_games(conn, season_years):
-    """Load all FINAL games for the given seasons with scores and season start dates."""
+    """
+    Load all FINAL games for the given seasons with scores and season start dates.
+
+    home/away_is_member flag whether each team has a conference membership for the
+    game's season. Membership alone is NOT a D-I test — 2021/2022 membership rows are
+    missing for whole conferences (Pac-12, C-USA) — so is_non_d1() additionally
+    requires a low season game count before skipping a game as a training target.
+    Skipped games still feed rolling windows and rating fits, mirroring serving.
+    """
     placeholders = ",".join(["%s"] * len(season_years))
     sql = f"""
         SELECT
@@ -223,11 +231,18 @@ def load_games(conn, season_years):
             g.away_score,
             g.neutral_site,
             g.conference_game,
+            g.periods,
             s.id AS season_id,
             s.year AS season_year,
-            s.start_date AS season_start_date
+            s.start_date AS season_start_date,
+            (hm.id IS NOT NULL) AS home_is_member,
+            (am.id IS NOT NULL) AS away_is_member
         FROM games g
         JOIN seasons s ON g.season_id = s.id
+        LEFT JOIN conference_memberships hm
+               ON hm.team_id = g.home_team_id AND hm.season_id = g.season_id
+        LEFT JOIN conference_memberships am
+               ON am.team_id = g.away_team_id AND am.season_id = g.season_id
         WHERE g.status = 'FINAL'
           AND g.home_score IS NOT NULL
           AND g.away_score IS NOT NULL
@@ -237,6 +252,57 @@ def load_games(conn, season_years):
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(sql, season_years)
         return pd.DataFrame(cur.fetchall())
+
+
+def is_overtime(row):
+    """True when the game went to overtime (college regulation = 2 periods).
+    Rows without a periods value (old data / fixtures) count as regulation."""
+    periods = getattr(row, "periods", None)
+    if periods is None or pd.isna(periods):
+        return False
+    return int(periods) > 2
+
+
+# Fit-time-only spread winsorization: margins beyond this are garbage-time noise.
+SPREAD_CLIP = 30.0
+
+
+def prepare_targets(y_spread, y_total, is_ot):
+    """
+    Fit-time target adjustments — NEVER applied to evaluation, which stays on raw
+    actuals for every game (apples-to-apples with the book):
+
+    - spread: winsorize the training target at ±SPREAD_CLIP,
+    - totals: mask out OT games (each OT adds ~10+ points the model should not
+      learn as regulation scoring; OT margins stay in the spread fit — their
+      small values are real information about closeness).
+
+    Returns (y_spread_fit, totals_fit_mask).
+    """
+    return np.clip(y_spread, -SPREAD_CLIP, SPREAD_CLIP), ~is_ot
+
+
+# A real D-I team plays far more games than this in a season; true non-D-I opponents
+# appear a handful of times. Applied only when a team also lacks a conference
+# membership, so membership data gaps (2021/2022) don't discard whole conferences.
+MIN_D1_GAMES = 8
+
+
+def is_non_d1(row, team_game_index):
+    """
+    True when the game should be skipped as a training target: either team is neither
+    a conference member that season NOR a regular participant (< MIN_D1_GAMES season
+    games). Rows lacking the membership columns (old fixtures) are treated as D-I.
+    """
+    season_id = int(row.season_id)
+    for member_attr, tid_attr in (("home_is_member", "home_team_id"),
+                                  ("away_is_member", "away_team_id")):
+        if bool(getattr(row, member_attr, True)):
+            continue
+        games = team_game_index.get((int(getattr(row, tid_attr)), season_id))
+        if games is None or len(games[0]) < MIN_D1_GAMES:
+            return True
+    return False
 
 
 def load_massey_snapshots(conn, season_years):
@@ -463,23 +529,27 @@ def lookup_value(index, key, cutoff_date):
 
 def build_team_game_index(games_df):
     """
-    Pre-build per-team sorted game lists for fast rolling-stats lookups.
+    Pre-build per-team-per-season sorted game lists for fast rolling-stats lookups.
 
-    Returns dict: team_id -> (dates, home_scores, away_scores, home_team_ids)
+    Returns dict: (team_id, season_id) -> (dates, home_scores, away_scores, home_team_ids)
     where each value is a quartet of parallel lists sorted by game_date.
-    Replaces O(N) full-scan + sort in rolling_stats() with O(log k) bisect lookups.
+    Season-scoped so rolling windows never cross a season boundary (mirrors the Java
+    side's findRecentFinalGamesForTeam); replaces O(N) full-scan + sort in
+    rolling_stats() with O(log k) bisect lookups.
     """
     groups = {}
     for row in games_df.itertuples(index=False):
         entry = (row.game_date, int(row.home_score), int(row.away_score), int(row.home_team_id))
+        season_id = int(row.season_id)
         for tid in (int(row.home_team_id), int(row.away_team_id)):
-            if tid not in groups:
-                groups[tid] = []
-            groups[tid].append(entry)
+            key = (tid, season_id)
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(entry)
     index = {}
-    for tid, entries in groups.items():
+    for key, entries in groups.items():
         entries.sort()
-        index[tid] = (
+        index[key] = (
             [e[0] for e in entries],
             [e[1] for e in entries],
             [e[2] for e in entries],
@@ -488,15 +558,17 @@ def build_team_game_index(games_df):
     return index
 
 
-def rolling_stats_fast(team_game_index, team_id, cutoff_date, n=5):
+def rolling_stats_fast(team_game_index, team_id, season_id, cutoff_date, n=5):
     """
-    Compute rolling stats for a team's last n games strictly before cutoff_date.
+    Compute rolling stats for a team's last n games in the given season strictly
+    before cutoff_date.
 
-    Uses binary search on a pre-sorted per-team list — O(log k) per call vs
-    the original O(total_games) full scan + sort.
-    Returns (win_pct, avg_margin, avg_total, margin_stddev, days_rest), or all-None on cold start.
+    Uses binary search on a pre-sorted per-team-per-season list — O(log k) per call
+    vs the original O(total_games) full scan + sort.
+    Returns (win_pct, avg_margin, avg_total, margin_stddev, days_rest), or all-None
+    on cold start (no earlier games in the season).
     """
-    result = team_game_index.get(team_id)
+    result = team_game_index.get((team_id, season_id))
     if result is None:
         return None, None, None, None, None
     dates, home_scores, away_scores, home_team_ids = result
@@ -571,9 +643,9 @@ def build_game_context(row, team_game_index, snapshot_index, param_index,
     bt_w_alpha   = 0.0 if neutral else lookup_param(param_index, season_id, "BRADLEY_TERRY_W", "hca", game_date)
     bt_logodds_w = theta_w_home - theta_w_away + bt_w_alpha
 
-    # ── Rolling features ───────────────────────────────────────────────────────
-    h_win_pct, h_avg_margin, h_avg_total, h_stddev, h_rest = rolling_stats_fast(team_game_index, home_id, game_date)
-    a_win_pct, a_avg_margin, a_avg_total, a_stddev, a_rest = rolling_stats_fast(team_game_index, away_id, game_date)
+    # ── Rolling features (season-scoped) ───────────────────────────────────────
+    h_win_pct, h_avg_margin, h_avg_total, h_stddev, h_rest = rolling_stats_fast(team_game_index, home_id, season_id, game_date)
+    a_win_pct, a_avg_margin, a_avg_total, a_stddev, a_rest = rolling_stats_fast(team_game_index, away_id, season_id, game_date)
     if h_win_pct is None or a_win_pct is None:
         return None, "ratings"
 
@@ -696,14 +768,15 @@ def train_regressor(X_train, y_train, monotone):
     return model, best_n
 
 
-def walk_forward_report(X, y_spread, y_total, y_win, seasons_arr,
+def walk_forward_report(X, y_spread, y_total, y_win, seasons_arr, is_ot,
                         train_seasons, mono_spread, mono_total, mono_winprob):
     """
     Expanding-window walk-forward evaluation over the train seasons: for each
     season s (except the first), train on all earlier train seasons and
     evaluate on s. Cheap fixed-size fits (n_estimators=300) — this is a
-    methodology report, not the final model. Returns a list of per-season
-    dicts (empty when <2 train seasons).
+    methodology report, not the final model, but it uses the SAME fit-time
+    target adjustments (clipped spread, OT-free totals; evaluation stays raw).
+    Returns a list of per-season dicts (empty when <2 train seasons).
     """
     wf_seasons = sorted(set(train_seasons))
     if len(wf_seasons) < 2:
@@ -722,12 +795,15 @@ def walk_forward_report(X, y_spread, y_total, y_win, seasons_arr,
             print(f"[train]   {s:>8} | skipped (train rows: {n_tr}, eval rows: {n_te})")
             continue
 
+        y_spread_fit, totals_keep = prepare_targets(y_spread, y_total, is_ot)
+
         sp = XGBRegressor(**_regressor_kwargs(DEFAULT_N_ESTIMATORS, mono_spread))
-        sp.fit(X[tr_mask], y_spread[tr_mask])
+        sp.fit(X[tr_mask], y_spread_fit[tr_mask])
         sp_rmse = float(root_mean_squared_error(y_spread[te_mask], sp.predict(X[te_mask])))
 
+        tt_mask = tr_mask & totals_keep
         tt = XGBRegressor(**_regressor_kwargs(DEFAULT_N_ESTIMATORS, mono_total))
-        tt.fit(X[tr_mask], y_total[tr_mask])
+        tt.fit(X[tt_mask], y_total[tt_mask])
         tt_rmse = float(root_mean_squared_error(y_total[te_mask], tt.predict(X[te_mask])))
 
         clf = XGBClassifier(n_estimators=DEFAULT_N_ESTIMATORS, max_depth=4, learning_rate=0.05,
@@ -912,14 +988,19 @@ def main():
     print(f"[train] Processing {len(games_df):,} games...")
     t0 = time.time()
     rows_X, rows_y_spread, rows_y_total, rows_y_win, rows_season = [], [], [], [], []
-    skipped_ratings, skipped_box = 0, 0
-    season_counts = {}   # season_year -> {"kept": n, "ratings": n, "box": n}
+    rows_is_ot = []
+    skipped_ratings, skipped_box, skipped_non_d1 = 0, 0, 0
+    season_counts = {}   # season_year -> {"kept": n, "ratings": n, "box": n, "non_d1": n}
     box_miss_counts = {}  # feature name -> count, for diagnostics
     log_interval = max(500, len(games_df) // 10)
 
     for i, row in enumerate(games_df.itertuples(index=False), 1):
         yr = int(row.season_year)
-        counts = season_counts.setdefault(yr, {"kept": 0, "ratings": 0, "box": 0})
+        counts = season_counts.setdefault(yr, {"kept": 0, "ratings": 0, "box": 0, "non_d1": 0})
+        if is_non_d1(row, team_game_index):
+            counts["non_d1"] += 1
+            skipped_non_d1 += 1
+            continue
         ctx, skip_reason = build_game_context(row, team_game_index, snapshot_index,
                                               param_index, box_stat_index, rpi_index,
                                               needs_box)
@@ -943,6 +1024,7 @@ def main():
         rows_y_total.append(row.home_score + row.away_score)
         rows_y_win.append(1 if row.home_score > row.away_score else 0)
         rows_season.append(row.season_year)
+        rows_is_ot.append(is_overtime(row))
         if i % log_interval == 0:
             pct = 100 * i / len(games_df)
             kept = len(rows_X)
@@ -952,16 +1034,17 @@ def main():
 
     feat_elapsed = time.time() - t0
     kept_total = len(rows_X)
-    skipped = skipped_ratings + skipped_box
+    skipped = skipped_ratings + skipped_box + skipped_non_d1
     print(f"[train] Feature build complete: {kept_total:,} rows kept, "
-          f"{skipped:,} skipped ({skipped_ratings:,} ratings, {skipped_box:,} box) "
-          f"in {_fmt_seconds(feat_elapsed)}")
+          f"{skipped:,} skipped ({skipped_ratings:,} ratings, {skipped_box:,} box, "
+          f"{skipped_non_d1:,} non-D-I) in {_fmt_seconds(feat_elapsed)}")
     print(f"[train] Per-season feature build:")
     for yr in sorted(season_counts):
         c = season_counts[yr]
-        total = c["kept"] + c["ratings"] + c["box"]
+        total = c["kept"] + c["ratings"] + c["box"] + c["non_d1"]
         print(f"[train]   season {yr}: kept {c['kept']:,} / {total:,} "
-              f"(ratings skips {c['ratings']:,}, box skips {c['box']:,})")
+              f"(ratings skips {c['ratings']:,}, box skips {c['box']:,}, "
+              f"non-D-I skips {c['non_d1']:,})")
     if box_miss_counts:
         top = sorted(box_miss_counts.items(), key=lambda kv: -kv[1])
         detail = ", ".join(f"{name}: {n:,}" for name, n in top)
@@ -973,7 +1056,7 @@ def main():
     BOX_WARN_PCT = 60.0
     for yr in sorted(season_counts):
         c = season_counts[yr]
-        total = c["kept"] + c["ratings"] + c["box"]
+        total = c["kept"] + c["ratings"] + c["box"] + c["non_d1"]
         if total > 0 and 100 * c["box"] / total > BOX_WARN_PCT:
             print(f"[train] WARNING: season {yr} skipped {100 * c['box'] / total:.1f}% of games "
                   f"for missing box-score stats (limit for silence {BOX_WARN_PCT:.0f}%). "
@@ -998,6 +1081,7 @@ def main():
     y_total  = np.array(rows_y_total,  dtype=np.float32)
     y_win    = np.array(rows_y_win,    dtype=np.int32)
     seasons  = np.array(rows_season)
+    is_ot    = np.array(rows_is_ot, dtype=bool)
 
     if X.shape[0] == 0:
         print("[train] ERROR: No feature rows could be built. "
@@ -1022,9 +1106,13 @@ def main():
           f"range [{y_total.min():.0f}, {y_total.max():.0f}]")
     print(f"[train] Win     — home wins {y_win.mean()*100:.1f}% "
           f"({y_win.sum():,} / {len(y_win):,})")
+    clipped_n = int((np.abs(y_spread) > SPREAD_CLIP).sum())
+    print(f"[train] OT/fit  — {int(is_ot.sum()):,} OT games excluded from the totals fit; "
+          f"{clipped_n:,} margins clipped to ±{SPREAD_CLIP:.0f} for the spread fit "
+          f"(evaluation always uses raw actuals)")
 
     # ── Walk-forward report (expanding window over train seasons) ─────────────
-    walk_forward = walk_forward_report(X, y_spread, y_total, y_win, seasons,
+    walk_forward = walk_forward_report(X, y_spread, y_total, y_win, seasons, is_ot,
                                        train_seasons, mono_spread, mono_total,
                                        mono_winprob)
 
@@ -1036,6 +1124,7 @@ def main():
     ys_train,   ys_test   = y_spread[train_mask], y_spread[test_mask]
     yt_train,   yt_test   = y_total[train_mask],  y_total[test_mask]
     yw_train,   yw_test   = y_win[train_mask],    y_win[test_mask]
+    ot_train              = is_ot[train_mask]
 
     in_sample_metrics = False
     if X_train.shape[0] == 0:
@@ -1045,7 +1134,11 @@ def main():
         ys_train, ys_test = y_spread, y_spread
         yt_train, yt_test = y_total,  y_total
         yw_train, yw_test = y_win,    y_win
+        ot_train          = is_ot
         in_sample_metrics = True
+
+    # Fit-time targets: clipped spread, OT-free totals (evaluation stays raw)
+    ys_train_fit, totals_keep = prepare_targets(ys_train, yt_train, ot_train)
 
     sample_tag = " [IN-SAMPLE]" if in_sample_metrics else ""
     print(f"\n[train] Train: {X_train.shape[0]:,} rows  |  "
@@ -1055,7 +1148,7 @@ def main():
     _sep("Spread model")
     print(f"[train] XGBRegressor(max_depth=4, lr=0.05, early stopping, monotone) ...")
     t0 = time.time()
-    spread_model, spread_n = train_regressor(X_train, ys_train, mono_spread)
+    spread_model, spread_n = train_regressor(X_train, ys_train_fit, mono_spread)
     elapsed = time.time() - t0
     spread_preds = spread_model.predict(X_test)
     spread_rmse = root_mean_squared_error(ys_test, spread_preds)
@@ -1069,9 +1162,10 @@ def main():
 
     # ── Total model ────────────────────────────────────────────────────────────
     _sep("Total model")
-    print(f"[train] XGBRegressor(max_depth=4, lr=0.05, early stopping, monotone) ...")
+    print(f"[train] XGBRegressor(max_depth=4, lr=0.05, early stopping, monotone) ... "
+          f"({int(totals_keep.sum()):,} regulation rows of {len(totals_keep):,})")
     t0 = time.time()
-    total_model, total_n = train_regressor(X_train, yt_train, mono_total)
+    total_model, total_n = train_regressor(X_train[totals_keep], yt_train[totals_keep], mono_total)
     elapsed = time.time() - t0
     total_preds = total_model.predict(X_test)
     total_rmse = root_mean_squared_error(yt_test, total_preds)

@@ -118,6 +118,53 @@ class PredictionServiceTest extends BaseIntegrationTest {
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
+    /**
+     * The rolling-form window feeding the ML feature vector must not cross season
+     * boundaries: a team's first game of a season is a cold start even when it has
+     * plenty of prior-season history (mirrors the trainer's season-scoped
+     * team_game_index).
+     */
+    @Test
+    void recentFinalGamesQuery_isSeasonScoped() {
+        Season prior = new Season();
+        prior.setYear(2024);
+        prior.setStartDate(LocalDate.of(2023, 11, 1));
+        prior.setEndDate(LocalDate.of(2024, 4, 30));
+        seasonRepo.save(prior);
+
+        // Three prior-season FINAL games and one current-season game, all before GAME_DATE
+        mkFinalGame(prior, LocalDate.of(2024, 3, 1), 80, 70);
+        mkFinalGame(prior, LocalDate.of(2024, 3, 5), 75, 60);
+        mkFinalGame(prior, LocalDate.of(2024, 3, 9), 90, 85);
+        Game currentSeasonGame = mkFinalGame(season, LocalDate.of(2025, 1, 10), 66, 61);
+
+        List<Game> recent = gameRepo.findRecentFinalGamesForTeam(
+                homeTeam.getId(), season.getId(), GAME_DATE.atTime(20, 0),
+                org.springframework.data.domain.PageRequest.of(0, 5));
+
+        assertThat(recent).hasSize(1);
+        assertThat(recent.get(0).getId()).isEqualTo(currentSeasonGame.getId());
+
+        // First game of the current season for a team with only prior-season games → cold start
+        List<Game> priorOnly = gameRepo.findRecentFinalGamesForTeam(
+                homeTeam.getId(), season.getId(), LocalDate.of(2025, 1, 5).atTime(20, 0),
+                org.springframework.data.domain.PageRequest.of(0, 5));
+        assertThat(priorOnly).isEmpty();
+    }
+
+    private Game mkFinalGame(Season s, LocalDate date, int homeScore, int awayScore) {
+        Game g = new Game();
+        g.setHomeTeam(homeTeam);
+        g.setAwayTeam(awayTeam);
+        g.setStatus(Game.GameStatus.FINAL);
+        g.setHomeScore(homeScore);
+        g.setAwayScore(awayScore);
+        g.setNeutralSite(false);
+        g.setSeason(s);
+        g.setGameDate(date.atTime(20, 0));
+        return gameRepo.save(g);
+    }
+
     @Test
     void predict_gameNotFound_throws404() {
         assertThatThrownBy(() -> service.predict(999L))

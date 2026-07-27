@@ -33,3 +33,4 @@ Thumbs.db
 models/*.onnx
 models/features.json
 /scripts/local_start_app.sh
+.venv/

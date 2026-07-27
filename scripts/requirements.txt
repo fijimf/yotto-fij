@@ -9,3 +9,6 @@ packaging
 psycopg2-binary
 pandas
 numpy
+
+# test-only (scripts/tests)
+pytest

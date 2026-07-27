@@ -138,9 +138,9 @@ public class GameDetailController {
 
         // ── Last-5-games record ─────────────────────────────────────────────────
         List<Game> homeLast5 = gameRepository.findRecentFinalGamesForTeam(
-                home.getId(), gameDateTime, PageRequest.of(0, 5));
+                home.getId(), seasonId, gameDateTime, PageRequest.of(0, 5));
         List<Game> awayLast5 = gameRepository.findRecentFinalGamesForTeam(
-                away.getId(), gameDateTime, PageRequest.of(0, 5));
+                away.getId(), seasonId, gameDateTime, PageRequest.of(0, 5));
         model.addAttribute("homeLast5Wins", countWins(homeLast5, home.getId()));
         model.addAttribute("homeLast5Losses", countLosses(homeLast5, home.getId()));
         model.addAttribute("awayLast5Wins", countWins(awayLast5, away.getId()));

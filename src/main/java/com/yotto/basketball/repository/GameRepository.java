@@ -108,12 +108,19 @@ public interface GameRepository extends JpaRepository<Game, Long> {
            "  AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL ORDER BY g.gameDate, g.id")
     List<Game> findFinalGamesForEvaluation(@Param("seasonYear") int seasonYear);
 
+    /**
+     * A team's most recent FINAL games strictly before a date, scoped to one season —
+     * rolling-form windows must not cross season boundaries (November "form" is not
+     * last March's roster). The Python trainer's team_game_index mirrors this scoping.
+     */
     @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
            "WHERE (g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId) " +
+           "  AND g.season.id = :seasonId " +
            "  AND g.status = 'FINAL' AND g.homeScore IS NOT NULL AND g.awayScore IS NOT NULL " +
            "  AND g.gameDate < :beforeDate ORDER BY g.gameDate DESC")
     List<Game> findRecentFinalGamesForTeam(
             @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId,
             @Param("beforeDate") LocalDateTime beforeDate,
             org.springframework.data.domain.Pageable pageable);
 

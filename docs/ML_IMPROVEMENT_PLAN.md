@@ -36,11 +36,11 @@ Every step ends with the same gate:
 - [ ] **0.5** Ops: flip default bundle to `baseline-plus` (server action — after deploying 0.1–0.4, retrain both bundles so manifests carry `train_seasons`, then `POST /admin/ml/models/baseline-plus/promote`)
 
 ### Phase 1 — Data hygiene (review #16–#19)
-- [ ] **1.1** Season-scoped rolling windows (Java + Python, retrain required)
-- [ ] **1.2** Non-D-I training-row filter (Python)
-- [ ] **1.3** Overtime handling: totals mask + spread winsorization (Python)
-- [ ] **1.4** Investigate 2026 totals anomaly (findings note committed)
-- [ ] **1.5** Ops: retrain `baseline` + `baseline-plus`, rebuild evaluations
+- [x] **1.1** Season-scoped rolling windows (Java + Python, retrain required) — *done 2026-07-26, full suite 827/827 + 6 pytest green; also scoped the game-page last-5 record*
+- [x] **1.2** Non-D-I training-row filter (Python) — *done 2026-07-26; rule hardened to "no membership AND < 8 season games" after discovering 2021–2022 membership rows are missing for whole conferences (see Phase-1 notes)*
+- [x] **1.3** Overtime handling: totals mask + spread winsorization (Python) — *done 2026-07-26; walk-forward uses the same fit-time targets; 13 pytest green; smoke: 315 OT games masked, 327 margins clipped*
+- [x] **1.4** Investigate 2026 totals anomaly — *done 2026-07-26: no data bug; scoring-environment shift + stale training prior (see Phase-1 notes)*
+- [ ] **1.5** Ops: retrain `baseline` + `baseline-plus`, rebuild evaluations (deploy-time, user action)
 
 ### Phase 2 — Feature set `prior-v3` (review #6, #9, #10)
 - [ ] **2.1** Preseason-prior features (prev-season final β/θ + availability flags)
@@ -662,3 +662,41 @@ before the phase). Notes:
   tooltip); single-test-season metrics are demoted to "Test" columns.
 - 0.5 (default flip to `baseline-plus`) is a deploy-time server action, deliberately
   not automated here.
+
+**Phase 1 (2026-07-26)** — steps 1.1–1.4 implemented and green (Java suite 827/827;
+13 Python tests in the new `scripts/tests/` suite; smoke training runs verified against
+the local 2026 DB). Notes:
+
+- *1.1*: `findRecentFinalGamesForTeam` and the trainer's `team_game_index` are both
+  season-scoped now; the game page's "last 5" record is scoped too. Local skip-rate
+  impact was negligible (221 skips on 5,752 games, unchanged) because rating-snapshot
+  availability was already the binding constraint for early-season games.
+- *1.2 — membership data gap discovered*: a pure membership-based D-I filter would have
+  discarded 775 games in 2021 and 1,002 in 2022 (~18–20%) because membership rows are
+  missing for entire conferences in those seasons (59/51 teams incl. the whole Pac-12
+  and C-USA — Washington St, Arizona, UCLA, USC, Oregon, Stanford, UTEP, UAB…). The
+  shipped rule skips only teams with no membership AND < 8 season appearances
+  (`MIN_D1_GAMES`); on production that matches just 8/2/0/1/0/0 games per season
+  2021→2026 — true non-D-I games are nearly absent from this dataset. **Follow-up
+  worth doing**: backfill 2021/2022 conference memberships (standings scrape) so
+  per-conference views and RPI treat those seasons correctly.
+- *1.3*: totals head now fits on regulation games only; spread target winsorized at
+  ±30 at fit time; evaluation everywhere stays on raw actuals. Walk-forward report
+  uses the same methodology.
+- *1.4 — 2026 totals anomaly root-caused, no bug*: box-score coverage is 100% in every
+  season and pace snapshots are continuous through 2026. The cause is a scoring-
+  environment shift: league average total jumped 145.65 → 149.43 (+3.8 pts, and sd
+  18.46 → 19.25) in 2026. Everyone's totals MAE rose (book 12.7 → 13.4), but the
+  model also carries a stale level prior: `ML:baseline-plus` mean totals bias
+  (actual − predicted) is **+3.68 pts in 2026** vs +1.1/+1.6 in its training seasons,
+  while the book holds at +0.6. That bias accounts for almost exactly the model's
+  ~0.5 MAE gap vs the book on totals. Direct ammunition for Phase 4: season-decay
+  weights (4.4) and residual-style totals learning off `massey_gamma_sum` (4.1's
+  totals analog), since the daily Massey-totals intercept already tracks the current
+  environment.
+
+**Phase 1 deploy checklist (step 1.5, user action)**: deploy → retrain `baseline` and
+`baseline-plus` (2021–2026, test 2026) → `POST /admin/ml/evaluate/rebuild` → record
+before/after 2026 out-of-sample metrics here. Also the moment to do step 0.5's
+default flip. Baseline numbers to beat (2026, out-of-sample, pre-hygiene):
+spread MAE 9.286 / RMSE 11.793, total MAE 13.893, Brier 0.1881, win acc 70.5%.

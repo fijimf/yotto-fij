@@ -343,8 +343,8 @@ public class PredictionService {
                                            LocalDateTime gameDatetime, LocalDate seasonStartDate,
                                            Long seasonId, boolean neutralSite, boolean conferenceGame,
                                            GameRatings r, boolean extendedStats) {
-        List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, gameDatetime, PageRequest.of(0, 5));
-        List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, gameDatetime, PageRequest.of(0, 5));
+        List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, seasonId, gameDatetime, PageRequest.of(0, 5));
+        List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, seasonId, gameDatetime, PageRequest.of(0, 5));
 
         RollingStats homeStats = computeRolling(homeId, homeRecent);
         RollingStats awayStats = computeRolling(awayId, awayRecent);
