@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Bridges the admin dashboard to the always-on trainer service (Docker-internal,
@@ -79,8 +80,22 @@ public class MlTrainingService {
      * @throws IllegalStateException with a user-displayable message when the slug is
      *         invalid or the trainer is busy, has no data, or is unreachable
      */
+    /**
+     * Optional Phase-4 training options forwarded to the trainer as CLI flags.
+     * Null fields are omitted (trainer defaults apply).
+     */
+    public record TrainingOptions(String spreadTarget, String winprobMode,
+                                  Integer tune, Double seasonDecay) {
+        public static final TrainingOptions NONE = new TrainingOptions(null, null, null, null);
+    }
+
     @Transactional
     public MlTrainingRun startTraining(String modelSlug, String featureSet) {
+        return startTraining(modelSlug, featureSet, TrainingOptions.NONE);
+    }
+
+    @Transactional
+    public MlTrainingRun startTraining(String modelSlug, String featureSet, TrainingOptions options) {
         if (modelSlug == null || !SLUG_RE.matcher(modelSlug).matches()) {
             throw new IllegalStateException(
                     "Model name must be 1-40 chars of lowercase letters, digits or hyphens");
@@ -92,6 +107,28 @@ public class MlTrainingService {
         body.put("model_name", modelSlug);
         if (featureSet != null && !featureSet.isBlank()) {
             body.put("feature_set", featureSet);
+        }
+        options = options != null ? options : TrainingOptions.NONE;
+        if (options.spreadTarget() != null && !options.spreadTarget().isBlank()) {
+            if (!Set.of("margin", "residual_massey").contains(options.spreadTarget())) {
+                throw new IllegalStateException("Spread target must be 'margin' or 'residual_massey'");
+            }
+            body.put("spread_target", options.spreadTarget());
+        }
+        if (options.winprobMode() != null && !options.winprobMode().isBlank()) {
+            if (!Set.of("classifier", "derived").contains(options.winprobMode())) {
+                throw new IllegalStateException("Winprob mode must be 'classifier' or 'derived'");
+            }
+            body.put("winprob_mode", options.winprobMode());
+        }
+        if (options.tune() != null && options.tune() > 0) {
+            body.put("tune", Math.min(options.tune(), 500));
+        }
+        if (options.seasonDecay() != null && options.seasonDecay() != 1.0) {
+            if (options.seasonDecay() <= 0 || options.seasonDecay() > 1.0) {
+                throw new IllegalStateException("Season decay must be in (0, 1]");
+            }
+            body.put("season_decay", options.seasonDecay());
         }
         TrainerStart resp;
         try {

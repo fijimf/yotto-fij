@@ -52,7 +52,8 @@ class MlFeatureRegistryTest {
                 0.7, 0.5, 6.0, -1.5,
                 prevBeta, null, prevTheta, null,
                 resid, null,
-                112.0, 104.0, 5.0, 2.0);
+                112.0, 104.0, 5.0, 2.0,
+                3.0);
     }
 
     @Test
@@ -109,7 +110,8 @@ class MlFeatureRegistryTest {
                 Map.of(), Map.of(), null, null,
                 null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                112.0, null, 5.0, 2.0);
+                112.0, null, 5.0, 2.0,
+                3.0);
         assertThat(MlFeatureRegistry.buildVector(List.of("adj_eff_diff"), missingAway)).isNull();
         assertThat(MlFeatureRegistry.buildVector(List.of("home_adj_off"), missingAway))
                 .containsExactly(112.0f);

@@ -58,8 +58,20 @@ _current_run_id: Optional[str] = None
 class TrainRequest(BaseModel):
     train_seasons: Optional[list] = None
     test_season: Optional[int] = None
-    model_name: Optional[str] = None   # slug; defaults to "baseline"
-    feature_set: Optional[str] = None  # defaults inside train_models.py
+    model_name: Optional[str] = None    # slug; defaults to "baseline"
+    feature_set: Optional[str] = None   # defaults inside train_models.py
+    spread_target: Optional[str] = None  # margin | residual_massey
+    winprob_mode: Optional[str] = None   # classifier | derived
+    tune: Optional[int] = None           # Optuna trials (0/None = off)
+    season_decay: Optional[float] = None  # sample-weight decay per season of age
+
+
+TRAIN_OPTION_FLAGS = [
+    ("spread_target", "--spread-target"),
+    ("winprob_mode", "--winprob-mode"),
+    ("tune", "--tune"),
+    ("season_decay", "--season-decay"),
+]
 
 
 def _db_url() -> str:
@@ -101,7 +113,8 @@ def _read_metrics(model_name: str) -> Optional[dict]:
 
 
 def _run_training(run_id: str, train_seasons: list, test_season: int,
-                  model_name: str, feature_set: Optional[str]) -> None:
+                  model_name: str, feature_set: Optional[str],
+                  options: Optional[dict] = None) -> None:
     global _current_run_id
     run = _runs[run_id]
     cmd = shlex.split(TRAINER_CMD) + [
@@ -111,6 +124,10 @@ def _run_training(run_id: str, train_seasons: list, test_season: int,
     ]
     if feature_set:
         cmd += ["--feature-set", feature_set]
+    for key, flag in TRAIN_OPTION_FLAGS:
+        value = (options or {}).get(key)
+        if value is not None:
+            cmd += [flag, str(value)]
     log = deque(maxlen=LOG_TAIL_LINES)
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -176,6 +193,9 @@ def train(req: Optional[TrainRequest] = None):
     if test_season is None:
         test_season = max(train_seasons)
 
+    options = {key: getattr(req, key) for key, _ in TRAIN_OPTION_FLAGS
+               if getattr(req, key) is not None}
+
     with _lock:
         if _current_run_id is not None:
             raise HTTPException(status_code=409,
@@ -189,6 +209,7 @@ def train(req: Optional[TrainRequest] = None):
             "test_season": test_season,
             "model_name": model_name,
             "feature_set": feature_set,
+            "options": options,
             "started_at": _now(),
             "finished_at": None,
             "exit_code": None,
@@ -197,10 +218,10 @@ def train(req: Optional[TrainRequest] = None):
             "error": None,
         }
     threading.Thread(target=_run_training,
-                     args=(run_id, train_seasons, test_season, model_name, feature_set),
+                     args=(run_id, train_seasons, test_season, model_name, feature_set, options),
                      daemon=True).start()
     return {"run_id": run_id, "train_seasons": train_seasons, "test_season": test_season,
-            "model_name": model_name, "feature_set": feature_set}
+            "model_name": model_name, "feature_set": feature_set, "options": options}
 
 
 @app.get("/status/{run_id}")

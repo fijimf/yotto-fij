@@ -39,6 +39,8 @@ public class MlPredictionService {
 
     private static final Logger log = LoggerFactory.getLogger(MlPredictionService.class);
     static final String LEGACY_SLUG = "baseline";
+    private static final org.apache.commons.math3.distribution.NormalDistribution STANDARD_NORMAL =
+            new org.apache.commons.math3.distribution.NormalDistribution(0.0, 1.0);
 
     @Value("${prediction.ml.model-dir:/models}")
     private String modelDir;
@@ -89,9 +91,15 @@ public class MlPredictionService {
             try (OnnxTensor tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(input), shape)) {
                 Map<String, OnnxTensor> inputs = Map.of("float_input", tensor);
                 double spread = runRegressor(bundle.spreadSession, inputs, bundle.spreadOutputName);
-                double total  = runRegressor(bundle.totalSession,  inputs, bundle.totalOutputName);
-                double pHome  = runClassifier(bundle.winprobSession, inputs, bundle.winprobProbOutputName);
-                double pAway  = 1.0 - pHome;
+                if (bundle.residualSpread) {
+                    // The model learned only the correction over the Massey prediction
+                    spread += context.masseyPredictedMargin();
+                }
+                double total = runRegressor(bundle.totalSession, inputs, bundle.totalOutputName);
+                double pHome = bundle.derivedWinprob
+                        ? STANDARD_NORMAL.cumulativeProbability(spread / bundle.marginSigma)
+                        : runClassifier(bundle.winprobSession, inputs, bundle.winprobProbOutputName);
+                double pAway = 1.0 - pHome;
                 return new PredictionResult.MlPrediction(
                         spread, total, pHome, pAway,
                         impliedMoneyline(pHome), impliedMoneyline(pAway),
@@ -199,12 +207,23 @@ public class MlPredictionService {
             File spreadFile   = new File(dir, "spread_model.onnx");
             File totalFile    = new File(dir, "total_model.onnx");
             File winprobFile  = new File(dir, "winprob_model.onnx");
-            if (!spreadFile.exists() || !totalFile.exists() || !winprobFile.exists()) {
+
+            JsonNode manifest = objectMapper.readTree(featuresFile);
+            boolean residualSpread = "residual_massey".equals(manifest.path("spread_target").asText("margin"));
+            boolean derivedWinprob = "derived".equals(manifest.path("winprob_mode").asText("classifier"));
+            double marginSigma = manifest.path("margin_sigma").asDouble(0.0);
+
+            // The classifier ONNX is only required when winprob is classifier-based
+            if (!spreadFile.exists() || !totalFile.exists()
+                    || (!derivedWinprob && !winprobFile.exists())) {
                 log.warn("ML bundle {} is missing ONNX files — skipped", dirSlug);
                 return;
             }
-
-            JsonNode manifest = objectMapper.readTree(featuresFile);
+            if (derivedWinprob && marginSigma <= 0) {
+                log.warn("ML bundle {} declares derived winprob without a positive margin_sigma — skipped",
+                        dirSlug);
+                return;
+            }
             List<String> featureNames = new ArrayList<>();
             for (JsonNode f : manifest.path("features")) {
                 featureNames.add(f.asText());
@@ -224,12 +243,17 @@ public class MlPredictionService {
             String slug = manifest.path("slug").asText(dirSlug);
             Bundle bundle = new Bundle();
             bundle.featureNames          = List.copyOf(featureNames);
+            bundle.residualSpread        = residualSpread;
+            bundle.derivedWinprob        = derivedWinprob;
+            bundle.marginSigma           = marginSigma;
             bundle.spreadSession         = env.createSession(spreadFile.getAbsolutePath());
             bundle.totalSession          = env.createSession(totalFile.getAbsolutePath());
-            bundle.winprobSession        = env.createSession(winprobFile.getAbsolutePath());
             bundle.spreadOutputName      = firstOutputName(bundle.spreadSession);
             bundle.totalOutputName       = firstOutputName(bundle.totalSession);
-            bundle.winprobProbOutputName = probOutputName(bundle.winprobSession);
+            if (!derivedWinprob) {
+                bundle.winprobSession        = env.createSession(winprobFile.getAbsolutePath());
+                bundle.winprobProbOutputName = probOutputName(bundle.winprobSession);
+            }
             bundle.status = new MlBundleStatus(
                     slug,
                     manifest.path("display_name").asText(slug),
@@ -358,9 +382,17 @@ public class MlPredictionService {
         return (int) Math.round((1.0 - p) / p * 100);
     }
 
-    /** One loaded bundle: three ONNX sessions + manifest-derived metadata. */
+    /**
+     * One loaded bundle: ONNX sessions + manifest-derived metadata. {@code winprobSession}
+     * is null in derived-winprob mode (P(home) = Φ(spread/marginSigma) instead);
+     * {@code residualSpread} bundles trained on the residual over the Massey prediction,
+     * which is added back at predict time.
+     */
     private static final class Bundle {
         List<String> featureNames;
+        boolean residualSpread;
+        boolean derivedWinprob;
+        double marginSigma;
         OrtSession spreadSession;
         OrtSession totalSession;
         OrtSession winprobSession;

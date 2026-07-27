@@ -269,9 +269,15 @@ public class AdminController {
     @PostMapping("/ml/train")
     public String mlTrain(@RequestParam(defaultValue = "baseline") String modelSlug,
                           @RequestParam(required = false) String featureSet,
+                          @RequestParam(required = false) String spreadTarget,
+                          @RequestParam(required = false) String winprobMode,
+                          @RequestParam(required = false) Integer tune,
+                          @RequestParam(required = false) Double seasonDecay,
                           RedirectAttributes redirectAttributes) {
         try {
-            var run = mlTrainingService.startTraining(modelSlug.trim(), featureSet);
+            var options = new MlTrainingService.TrainingOptions(
+                    spreadTarget, winprobMode, tune, seasonDecay);
+            var run = mlTrainingService.startTraining(modelSlug.trim(), featureSet, options);
             redirectAttributes.addFlashAttribute("success",
                     "Training '" + run.getModelSlug() + "' (seasons " + run.getTrainSeasons()
                             + ") — models reload and evaluations refresh automatically when it finishes");

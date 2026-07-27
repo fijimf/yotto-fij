@@ -57,12 +57,12 @@ Every step ends with the same gate:
 - [ ] **3.4** Ops: run Power Ratings 2021–2026 (writes ADJ series), train `eff-v4` as CANDIDATE; compare (deploy-time, user action)
 
 ### Phase 4 — Training methodology (review #8, #11–#15)
-- [ ] **4.1** Residual spread head (`spread_target: residual_massey` manifest mode)
-- [ ] **4.2** Derived win probability (`winprob_mode: derived`, fitted σ)
-- [ ] **4.3** Hyperparameter tuning (`--tune N`, Optuna, walk-forward objective)
-- [ ] **4.4** Season-recency sample weights + 2021 ablation
-- [ ] **4.5** *(stretch)* Quantile spread/total heads + UI intervals
-- [ ] **4.6** Ops: final champion selection on out-of-sample metrics only
+- [x] **4.1** Residual spread head (`spread_target: residual_massey` manifest mode) — *done 2026-07-27; Java adds the Massey baseline back via `PredictionContext.masseyPredictedMargin()`*
+- [x] **4.2** Derived win probability (`winprob_mode: derived`, fitted σ) — *done 2026-07-27; no winprob ONNX in this mode, Φ via commons-math3, spread/winprob consistent by construction*
+- [x] **4.3** Hyperparameter tuning (`--tune N`, Optuna, walk-forward spread-RMSE objective; best params into the manifest and all final fits) — *done 2026-07-27*
+- [x] **4.4** Season-recency sample weights (`--season-decay d`, applied to every fit incl. walk-forward) — *done 2026-07-27; the 2021 ablation itself is an ops experiment (4.6)*
+- [ ] **4.5** *(stretch — deferred)* Quantile spread/total heads + UI intervals
+- [ ] **4.6** Ops: A/B candidates (residual/derived/tuned/decay grid), final champion selection on out-of-sample metrics only (user action)
 
 ---
 
@@ -752,6 +752,41 @@ full Java suite **844/844**). Notes:
 each season 2021–2026** from the admin dashboard (now also writes the ADJ series;
 box coverage is 100% everywhere so all seasons fit) → train the candidate (slug
 `eff-v4`, feature set `eff-v4`) → judge exactly as in 2.6 and record here.
+
+**Phase 4 (2026-07-27)** — steps 4.1–4.4 implemented and green (pytest 29/29; full
+Java suite **851/851**; 4.5 quantile heads deliberately deferred). Notes:
+
+- **Residual spread head** (`--spread-target residual_massey`): the spread model
+  trains on the winsorized residual (margin − Massey prediction, using the per-game
+  HCA); serving reconstructs via the new `PredictionContext.masseyPredictedMargin()`.
+  Manifest-driven (`spread_target`), so existing bundles are untouched. The trainer's
+  reported RMSE/MAE and walk-forward numbers are always full-scale (reconstructed).
+- **Derived win probability** (`--winprob-mode derived`): P(home) = Φ(spread/σ) with σ
+  fit on the chronological validation slice of the final spread model's residuals.
+  No classifier is trained or exported (a stale `winprob_model.onnx` from a previous
+  training of the slug is deleted); the bundle loads without it, guarded by a
+  positive `margin_sigma`. Spread and win probability can no longer disagree.
+- **Optuna tuning** (`--tune N`): minimizes mean walk-forward spread RMSE (raw-margin
+  eval) over depth/lr/min_child_weight/subsampling/regularization; the best params are
+  applied to all three heads' final fits AND the walk-forward report, and recorded in
+  the manifest (`hyperparams`). Skips gracefully with < 2 train seasons.
+- **Season decay** (`--season-decay d`): `d^(age)` sample weights on every fit
+  (early-stop, final, classifier, walk-forward, tuning objective); recorded in the
+  manifest.
+- All four options flow through: trainer service (`POST /train` optional fields) →
+  `MlTrainingService.TrainingOptions` (validated) → admin train form (two mode selects
+  + tune/decay inputs).
+- Local smoke (in-sample, 2026 only, eff-v4): residual+derived+decay-0.9 trained and
+  exported cleanly; derived σ = 10.81.
+
+**Phase 4 ops (step 4.6, user action, after the earlier ops queue)**: A/B from the
+admin form — same feature set ± residual target, ± derived winprob, decay grid
+{1.0, 0.9, 0.8}, plus one `--tune 100` run per surviving feature set (expect roughly
+100× the fit time of an untuned run; the trainer runs async). Judge every candidate on
+walk-forward means + genuine out-of-sample evaluation rows + the vs-book card; promote
+one champion; retire the rest; update ADMIN_MANUAL.md and the review doc's §5 table
+with the new honest numbers. The 2021 ablation: train the best candidate with
+`--train-seasons 2022..2026` and compare walk-forward.
 
 **Phase 1 deploy checklist (step 1.5, user action)**: deploy → retrain `baseline` and
 `baseline-plus` (2021–2026, test 2026) → `POST /admin/ml/evaluate/rebuild` → record

@@ -115,6 +115,22 @@
                     <option value="prior-v3">prior-v3 (69 features)</option>
                     <option value="eff-v4">eff-v4 (77 features)</option>
                 </select>
+                <select name="spreadTarget" class="form-input form-input--sm" style="width: auto;"
+                        title="Spread head target: the raw home margin, or the residual over the Massey prediction (trees learn only the correction)">
+                    <option value="">target: margin</option>
+                    <option value="residual_massey">target: residual</option>
+                </select>
+                <select name="winprobMode" class="form-input form-input--sm" style="width: auto;"
+                        title="Win probability: calibrated classifier, or Φ(spread/σ) derived from the spread head (spread/winprob always consistent)">
+                    <option value="">winprob: classifier</option>
+                    <option value="derived">winprob: derived</option>
+                </select>
+                <input type="number" name="tune" class="form-input form-input--sm" style="width: 5.5rem;"
+                       min="0" max="500" placeholder="tune: 0"
+                       title="Optuna trials minimizing walk-forward spread RMSE (0 = off; tuned runs take much longer)"/>
+                <input type="number" name="seasonDecay" class="form-input form-input--sm" style="width: 6rem;"
+                       min="0.1" max="1.0" step="0.05" placeholder="decay: 1.0"
+                       title="Sample-weight decay per season of age (1.0 = none; 0.8 weights a 3-season-old game at 0.512)"/>
                 <button type="submit" class="btn btn--sm"
                         title="Train this model on the trainer service; on success it reloads and evaluations refresh automatically">
                     Train

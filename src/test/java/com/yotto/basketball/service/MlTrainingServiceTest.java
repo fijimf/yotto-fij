@@ -92,6 +92,69 @@ class MlTrainingServiceTest {
     }
 
     @Test
+    void startTraining_serializesTrainingOptionsIntoBody() {
+        when(runRepository.existsByStatus(MlTrainingRun.Status.RUNNING)).thenReturn(false);
+        when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        server.expect(requestTo(BASE + "/train")).andExpect(method(POST))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.spread_target").value("residual_massey"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.winprob_mode").value("derived"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.tune").value(50))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.season_decay").value(0.9))
+                .andRespond(withSuccess("""
+                        {"run_id": "opt1", "train_seasons": [2024, 2025], "test_season": 2025}
+                        """, MediaType.APPLICATION_JSON));
+
+        MlTrainingRun run = service.startTraining("eff-v4", "eff-v4",
+                new MlTrainingService.TrainingOptions("residual_massey", "derived", 50, 0.9));
+
+        assertThat(run.getRunId()).isEqualTo("opt1");
+        server.verify();
+    }
+
+    @Test
+    void startTraining_defaultOptionsAreOmittedFromBody() {
+        when(runRepository.existsByStatus(MlTrainingRun.Status.RUNNING)).thenReturn(false);
+        when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        server.expect(requestTo(BASE + "/train")).andExpect(method(POST))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.spread_target").doesNotExist())
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.winprob_mode").doesNotExist())
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.tune").doesNotExist())
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .jsonPath("$.season_decay").doesNotExist())
+                .andRespond(withSuccess("""
+                        {"run_id": "plain", "train_seasons": [2025], "test_season": 2025}
+                        """, MediaType.APPLICATION_JSON));
+
+        service.startTraining("baseline", null,
+                new MlTrainingService.TrainingOptions(null, null, 0, 1.0));
+        server.verify();
+    }
+
+    @Test
+    void startTraining_invalidOptions_throwWithoutHttpCall() {
+        assertThatThrownBy(() -> service.startTraining("baseline", null,
+                new MlTrainingService.TrainingOptions("bogus", null, null, null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Spread target");
+        assertThatThrownBy(() -> service.startTraining("baseline", null,
+                new MlTrainingService.TrainingOptions(null, "bogus", null, null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Winprob mode");
+        assertThatThrownBy(() -> service.startTraining("baseline", null,
+                new MlTrainingService.TrainingOptions(null, null, null, 1.5)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Season decay");
+        server.verify();
+    }
+
+    @Test
     void startTraining_alreadyRunningInDb_throwsWithoutHttpCall() {
         when(runRepository.existsByStatus(MlTrainingRun.Status.RUNNING)).thenReturn(true);
 

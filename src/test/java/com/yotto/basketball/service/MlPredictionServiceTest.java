@@ -82,7 +82,8 @@ class MlPredictionServiceTest {
                 null, null, null, null,     // rolling-10
                 null, null, null, null,     // preseason priors
                 null, null,                 // massey residual
-                null, null, null, null);    // adjusted efficiency
+                null, null, null, null,     // adjusted efficiency
+                3.0);                       // massey hca → massey pred = 7.5-2.5+3.0 = 8.0
     }
 
     @Test
@@ -142,7 +143,8 @@ class MlPredictionServiceTest {
                 null, null, null, null,
                 null, null, null, null,
                 null, null,
-                null, null, null, null);
+                null, null, null, null,
+                3.0);
         assertThat(service.predict("baseline", incomplete)).isNull();
     }
 
@@ -185,6 +187,66 @@ class MlPredictionServiceTest {
         assertThat(status.testSeason()).isNull();
         assertThat(status.walkForward()).isEmpty();
         assertThat(service.predict("legacy", completeContext())).isNotNull();
+    }
+
+    @Test
+    void residualSpreadBundle_addsMasseyBaselineBack(@TempDir Path tempDir) throws IOException {
+        copyFixturesInto(tempDir.resolve("resid"));
+        Path manifest = tempDir.resolve("resid/features.json");
+        Files.writeString(manifest, Files.readString(manifest)
+                .replaceFirst("\\{", "{\"slug\": \"resid\", \"spread_target\": \"residual_massey\","));
+
+        service = newService(tempDir.toString(), true);
+
+        PredictionResult.MlPrediction p = service.predict("resid", completeContext());
+        assertThat(p).isNotNull();
+        // fixture echoes massey_beta_home (7.5); baseline = 7.5 − 2.5 + hca 3.0 = 8.0
+        assertThat(p.spread()).isCloseTo(7.5 + 8.0, within(1e-4));
+        // totals head untouched by the spread mode
+        assertThat(p.total()).isCloseTo(138.75, within(1e-4));
+    }
+
+    @Test
+    void derivedWinprobBundle_loadsWithoutClassifierAndUsesNormalCdf(@TempDir Path tempDir) throws IOException {
+        copyFixturesInto(tempDir.resolve("derived"));
+        Files.delete(tempDir.resolve("derived/winprob_model.onnx"));
+        Path manifest = tempDir.resolve("derived/features.json");
+        Files.writeString(manifest, Files.readString(manifest)
+                .replaceFirst("\\{", "{\"slug\": \"derived\", \"winprob_mode\": \"derived\", "
+                        + "\"margin_sigma\": 10.0,"));
+
+        service = newService(tempDir.toString(), true);
+
+        assertThat(service.loadedSlugs()).containsExactly("derived");
+        PredictionResult.MlPrediction p = service.predict("derived", completeContext());
+        assertThat(p).isNotNull();
+        // P(home) = Φ(spread/σ) = Φ(7.5/10) — spread/winprob consistency by construction
+        assertThat(p.homeWinProbability()).isCloseTo(0.7733726, within(1e-4));
+        assertThat(p.spread()).isGreaterThan(0.0);
+        assertThat(p.homeWinProbability()).isGreaterThan(0.5);
+        assertThat(p.homeWinProbability() + p.awayWinProbability()).isCloseTo(1.0, within(1e-9));
+    }
+
+    @Test
+    void derivedWinprobWithoutSigma_isSkipped(@TempDir Path tempDir) throws IOException {
+        copyFixturesInto(tempDir.resolve("bad"));
+        Path manifest = tempDir.resolve("bad/features.json");
+        Files.writeString(manifest, Files.readString(manifest)
+                .replaceFirst("\\{", "{\"slug\": \"bad\", \"winprob_mode\": \"derived\","));
+
+        service = newService(tempDir.toString(), true);
+
+        assertThat(service.isEnabled()).isFalse();
+    }
+
+    @Test
+    void classifierBundleMissingWinprobFile_isSkipped(@TempDir Path tempDir) throws IOException {
+        copyFixturesInto(tempDir.resolve("broken"));
+        Files.delete(tempDir.resolve("broken/winprob_model.onnx"));
+
+        service = newService(tempDir.toString(), true);
+
+        assertThat(service.isEnabled()).isFalse();
     }
 
     @Test

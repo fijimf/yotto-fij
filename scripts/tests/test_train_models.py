@@ -138,9 +138,10 @@ class TestOvertimeHandling:
         y_spread = np.array([45.0, -35.0, 10.0], dtype=np.float32)
         y_total = np.array([150.0, 160.0, 170.0], dtype=np.float32)
         is_ot = np.array([False, True, False])
-        fit, keep = tm.prepare_targets(y_spread, y_total, is_ot)
+        fit, keep, base = tm.prepare_targets(y_spread, y_total, is_ot)
         assert fit.tolist() == [30.0, -30.0, 10.0]
         assert keep.tolist() == [True, False, True]
+        assert base.tolist() == [0.0, 0.0, 0.0]
 
 
 class TestMasseyResidualL5:
@@ -277,3 +278,66 @@ class TestAdjEfficiencyFeatures:
         assert spread.strip("()").split(",")[75] == "1"   # adj_eff_diff
         assert total.strip("()").split(",")[76] == "1"    # adj_eff_total
         assert spread.strip("()").split(",")[76] == "0"
+
+
+class TestPhase4Training:
+
+    def test_residual_target_round_trip(self):
+        import numpy as np
+        y_spread = np.array([10.0, -3.0, 45.0], dtype=np.float32)
+        y_total = np.array([150.0, 140.0, 160.0], dtype=np.float32)
+        is_ot = np.array([False, False, False])
+        massey = np.array([6.0, 0.0, 5.0], dtype=np.float32)
+        fit, _, base = tm.prepare_targets(y_spread, y_total, is_ot, massey, "residual_massey")
+        # target is the clipped residual; reconstruction restores the full margin
+        assert fit.tolist() == [4.0, -3.0, 30.0]   # 40 clips to 30
+        assert base.tolist() == [6.0, 0.0, 5.0]
+        assert (fit + base).tolist() == [10.0, -3.0, 35.0]
+
+    def test_season_weights(self):
+        import numpy as np
+        seasons = np.array([2023, 2024, 2025])
+        assert tm.season_weights(seasons, 1.0, 2025).tolist() == [1.0, 1.0, 1.0]
+        w = tm.season_weights(seasons, 0.5, 2025)
+        assert w.tolist() == [0.25, 0.5, 1.0]
+
+    def test_derived_probs_and_sigma(self):
+        import numpy as np
+        # Φ(0) = 0.5; positive spreads favor home; symmetry
+        probs = tm.derived_probs(np.array([0.0, 10.0, -10.0]), 10.0)
+        assert abs(probs[0] - 0.5) < 1e-12
+        assert abs(probs[1] - 0.8413447) < 1e-6
+        assert abs(probs[1] + probs[2] - 1.0) < 1e-12
+        # sigma from residuals; degenerate fallback
+        sigma = tm.fit_margin_sigma(np.array([0.0, 0.0]), np.array([10.0, -10.0]))
+        assert abs(sigma - np.std([10.0, -10.0], ddof=1)) < 1e-9
+        assert tm.fit_margin_sigma(np.array([1.0]), np.array([5.0])) == 11.0
+
+    def test_hyperparam_overrides_merge_into_kwargs(self):
+        kwargs = tm._regressor_kwargs(300, "(0,1)", {"max_depth": 7, "reg_alpha": 2.5})
+        assert kwargs["max_depth"] == 7
+        assert kwargs["reg_alpha"] == 2.5
+        assert kwargs["monotone_constraints"] == "(0,1)"
+        ckw = tm._classifier_kwargs(300, "(1,0)", {"learning_rate": 0.02})
+        assert ckw["learning_rate"] == 0.02
+        assert ckw["objective"] == "binary:logistic"
+
+    def test_tuning_runs_on_tiny_synthetic_data(self):
+        import numpy as np
+        rng = np.random.RandomState(0)
+        n = 120
+        X = rng.randn(n, 3).astype(np.float32)
+        y = (2.0 * X[:, 0] + rng.randn(n) * 0.1).astype(np.float32)
+        seasons = np.array([2023] * 60 + [2024] * 60)
+        base = np.zeros(n, dtype=np.float32)
+        params = tm.tune_hyperparams(X, y, y, base, seasons, [2023, 2024],
+                                     "(0,0,0)", 1.0, 2)
+        assert set(params) == {"max_depth", "learning_rate", "min_child_weight",
+                               "subsample", "colsample_bytree", "reg_alpha", "reg_lambda"}
+
+    def test_tuning_skipped_with_single_season(self):
+        import numpy as np
+        X = np.zeros((10, 2), dtype=np.float32)
+        y = np.zeros(10, dtype=np.float32)
+        assert tm.tune_hyperparams(X, y, y, y, np.array([2024] * 10), [2024],
+                                   "(0,0)", 1.0, 5) == {}

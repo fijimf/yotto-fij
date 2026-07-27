@@ -430,7 +430,8 @@ public class PredictionService {
                 homeStats10.avgMargin(), awayStats10.avgMargin(),
                 homePrevBeta, awayPrevBeta, homePrevTheta, awayPrevTheta,
                 homeMasseyResid, awayMasseyResid,
-                homeAdjOff, awayAdjOff, homeAdjDef, awayAdjDef);
+                homeAdjOff, awayAdjOff, homeAdjDef, awayAdjDef,
+                r.masseyHca());
     }
 
     private Double adjRating(Long teamId, Long seasonId, String modelType, LocalDate cutoff) {

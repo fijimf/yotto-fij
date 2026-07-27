@@ -359,19 +359,28 @@ def is_overtime(row):
 SPREAD_CLIP = 30.0
 
 
-def prepare_targets(y_spread, y_total, is_ot):
+def prepare_targets(y_spread, y_total, is_ot, massey_pred=None, spread_target="margin"):
     """
     Fit-time target adjustments — NEVER applied to evaluation, which stays on raw
     actuals for every game (apples-to-apples with the book):
 
-    - spread: winsorize the training target at ±SPREAD_CLIP,
+    - spread: in 'margin' mode winsorize the margin at ±SPREAD_CLIP; in
+      'residual_massey' mode the training target is the winsorized residual
+      (margin − Massey prediction) so the trees learn only the CORRECTION —
+      predictions are reconstructed as model output + base,
     - totals: mask out OT games (each OT adds ~10+ points the model should not
       learn as regulation scoring; OT margins stay in the spread fit — their
       small values are real information about closeness).
 
-    Returns (y_spread_fit, totals_fit_mask).
+    Returns (y_spread_fit, totals_fit_mask, spread_base) where spread_base is the
+    per-row amount to add back to spread-model outputs (zeros in 'margin' mode).
     """
-    return np.clip(y_spread, -SPREAD_CLIP, SPREAD_CLIP), ~is_ot
+    if spread_target == "residual_massey":
+        base = np.asarray(massey_pred, dtype=np.float32)
+    else:
+        base = np.zeros_like(np.asarray(y_spread, dtype=np.float32))
+    y_fit = np.clip(np.asarray(y_spread, dtype=np.float32) - base, -SPREAD_CLIP, SPREAD_CLIP)
+    return y_fit, ~is_ot, base
 
 
 # A real D-I team plays far more games than this in a season; true non-D-I opponents
@@ -790,6 +799,7 @@ def build_game_context(row, team_game_index, snapshot_index, param_index,
         return None, "ratings"
     beta_home, home_gp = snap_mh
     beta_away, away_gp = snap_ma
+    massey_hca = 0.0 if neutral else lookup_param(param_index, season_id, "MASSEY", "hca", game_date)
 
     # ── Massey total ratings ───────────────────────────────────────────────────
     snap_th = lookup_snapshot(snapshot_index, home_id, season_id, "MASSEY_TOTALS", game_date)
@@ -848,6 +858,7 @@ def build_game_context(row, team_game_index, snapshot_index, param_index,
                                         away_id, season_id, game_date)
 
     ctx = {
+        "massey_pred_margin": beta_home - beta_away + massey_hca,
         "beta_home": beta_home, "beta_away": beta_away,
         "gamma_home": gamma_home, "gamma_away": gamma_away,
         "theta_home": theta_home, "theta_away": theta_away, "bt_logodds": bt_logodds,
@@ -923,26 +934,48 @@ def export_classifier(model, output_path, n_features):
 
 # ── Model training ─────────────────────────────────────────────────────────────
 
-def _regressor_kwargs(n_estimators, monotone):
-    return dict(n_estimators=n_estimators, max_depth=4, learning_rate=0.05,
-                subsample=0.8, colsample_bytree=0.8,
-                objective="reg:squarederror", random_state=42,
-                monotone_constraints=monotone)
+def _regressor_kwargs(n_estimators, monotone, hyperparams=None):
+    kwargs = dict(n_estimators=n_estimators, max_depth=4, learning_rate=0.05,
+                  subsample=0.8, colsample_bytree=0.8,
+                  objective="reg:squarederror", random_state=42,
+                  monotone_constraints=monotone)
+    if hyperparams:
+        kwargs.update(hyperparams)
+    return kwargs
 
 
-def _fit_regressor_early_stop(X_tr, y_tr, X_val, y_val, monotone):
+def _classifier_kwargs(n_estimators, monotone, hyperparams=None):
+    kwargs = dict(n_estimators=n_estimators, max_depth=4, learning_rate=0.05,
+                  subsample=0.8, colsample_bytree=0.8,
+                  objective="binary:logistic", random_state=42,
+                  eval_metric="logloss", monotone_constraints=monotone)
+    if hyperparams:
+        kwargs.update(hyperparams)
+    return kwargs
+
+
+def season_weights(seasons_arr, decay, ref_season):
+    """
+    Per-row sample weights decaying by season age: decay^(ref_season − season).
+    decay = 1.0 → all ones (no weighting).
+    """
+    ages = ref_season - np.asarray(seasons_arr, dtype=np.float64)
+    return np.power(float(decay), ages)
+
+
+def _fit_regressor_early_stop(X_tr, y_tr, X_val, y_val, monotone, w_tr=None, hyperparams=None):
     """
     Fit an XGBRegressor with early stopping against (X_val, y_val).
     Handles both xgboost>=2.0 (constructor arg) and older (fit kwarg) APIs.
     Returns the number of boosting rounds at the best iteration.
     """
-    kwargs = _regressor_kwargs(N_ESTIMATORS_MAX, monotone)
+    kwargs = _regressor_kwargs(N_ESTIMATORS_MAX, monotone, hyperparams)
     try:
         model = XGBRegressor(early_stopping_rounds=EARLY_STOPPING_ROUNDS, **kwargs)
-        model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
+        model.fit(X_tr, y_tr, sample_weight=w_tr, eval_set=[(X_val, y_val)], verbose=False)
     except TypeError:
         model = XGBRegressor(**kwargs)
-        model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)],
+        model.fit(X_tr, y_tr, sample_weight=w_tr, eval_set=[(X_val, y_val)],
                   early_stopping_rounds=EARLY_STOPPING_ROUNDS, verbose=False)
     best_iteration = getattr(model, "best_iteration", None)
     if best_iteration is None:
@@ -950,7 +983,7 @@ def _fit_regressor_early_stop(X_tr, y_tr, X_val, y_val, monotone):
     return max(1, int(best_iteration) + 1)
 
 
-def train_regressor(X_train, y_train, monotone):
+def train_regressor(X_train, y_train, monotone, weights=None, hyperparams=None):
     """
     Train a regressor with early stopping on a chronological 85/15 split
     (rows are already in game-date order), then refit on ALL training rows
@@ -960,27 +993,99 @@ def train_regressor(X_train, y_train, monotone):
     n = X_train.shape[0]
     if n >= MIN_ROWS_FOR_EARLY_STOP:
         split = int(n * (1.0 - VALIDATION_FRACTION))
+        w_tr = weights[:split] if weights is not None else None
         best_n = _fit_regressor_early_stop(
-            X_train[:split], y_train[:split], X_train[split:], y_train[split:], monotone)
+            X_train[:split], y_train[:split], X_train[split:], y_train[split:],
+            monotone, w_tr, hyperparams)
         print(f"[train]   early stop : val rows {n - split:,}, "
               f"best_iteration → {best_n} trees (ceiling {N_ESTIMATORS_MAX})")
     else:
         best_n = DEFAULT_N_ESTIMATORS
         print(f"[train]   early stop : skipped ({n} rows < {MIN_ROWS_FOR_EARLY_STOP}), "
               f"using n_estimators={best_n}")
-    model = Pipeline([("model", XGBRegressor(**_regressor_kwargs(best_n, monotone)))])
-    model.fit(X_train, y_train)
+    model = Pipeline([("model", XGBRegressor(**_regressor_kwargs(best_n, monotone, hyperparams)))])
+    model.fit(X_train, y_train, model__sample_weight=weights)
     return model, best_n
 
 
-def walk_forward_report(X, y_spread, y_total, y_win, seasons_arr, is_ot,
-                        train_seasons, mono_spread, mono_total, mono_winprob):
+def fit_margin_sigma(spread_preds, y_spread_raw):
+    """
+    Std of the full-scale spread residuals — the σ used by winprob-mode 'derived'
+    (P(home) = Φ(spread/σ)). Guarded against degenerate tiny samples.
+    """
+    residuals = np.asarray(y_spread_raw, dtype=np.float64) - np.asarray(spread_preds, dtype=np.float64)
+    if residuals.size < 2:
+        return 11.0   # long-run college-basketball margin noise
+    return float(max(1e-6, residuals.std(ddof=1)))
+
+
+def derived_probs(spread_preds, sigma):
+    """P(home wins) = Φ(spread/σ) via the normal CDF (scipy-free erf form)."""
+    from math import erf, sqrt
+    preds = np.asarray(spread_preds, dtype=np.float64)
+    return np.array([0.5 * (1.0 + erf(p / (sigma * sqrt(2.0)))) for p in preds])
+
+
+def tune_hyperparams(X, y_fit, y_raw, spread_base, seasons_arr, train_seasons,
+                     mono_spread, decay, n_trials):
+    """
+    Optuna search minimizing mean walk-forward spread RMSE (each held-out train
+    season predicted from strictly earlier seasons, evaluated on raw margins).
+    Returns the best hyperparameter dict, or {} when tuning is not possible.
+    """
+    wf_seasons = sorted(set(train_seasons))
+    if len(wf_seasons) < 2:
+        print("[train] Tuning skipped: needs at least 2 train seasons for walk-forward.")
+        return {}
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    folds = []
+    for s in wf_seasons[1:]:
+        tr = np.isin(seasons_arr, [y for y in wf_seasons if y < s])
+        te = seasons_arr == s
+        if tr.sum() > 0 and te.sum() > 0:
+            folds.append((tr, te, max(y for y in wf_seasons if y < s)))
+    if not folds:
+        return {}
+
+    def objective(trial):
+        params = {
+            "max_depth":        trial.suggest_int("max_depth", 3, 8),
+            "learning_rate":    trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+            "subsample":        trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "reg_alpha":        trial.suggest_float("reg_alpha", 0.0, 5.0),
+            "reg_lambda":       trial.suggest_float("reg_lambda", 0.0, 5.0),
+        }
+        rmses = []
+        for tr, te, ref in folds:
+            model = XGBRegressor(**_regressor_kwargs(DEFAULT_N_ESTIMATORS, mono_spread, params))
+            model.fit(X[tr], y_fit[tr], sample_weight=season_weights(seasons_arr[tr], decay, ref))
+            preds = model.predict(X[te]) + spread_base[te]
+            rmses.append(float(root_mean_squared_error(y_raw[te], preds)))
+        return float(np.mean(rmses))
+
+    study = optuna.create_study(direction="minimize",
+                                sampler=optuna.samplers.TPESampler(seed=42))
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+    print(f"[train]   best walk-forward spread RMSE: {study.best_value:.3f} "
+          f"with {study.best_params}")
+    return dict(study.best_params)
+
+
+def walk_forward_report(X, y_spread, y_total, y_win, seasons_arr, is_ot, massey_pred,
+                        train_seasons, mono_spread, mono_total, mono_winprob,
+                        spread_target, winprob_mode, decay, hyperparams):
     """
     Expanding-window walk-forward evaluation over the train seasons: for each
     season s (except the first), train on all earlier train seasons and
     evaluate on s. Cheap fixed-size fits (n_estimators=300) — this is a
-    methodology report, not the final model, but it uses the SAME fit-time
-    target adjustments (clipped spread, OT-free totals; evaluation stays raw).
+    methodology report, not the final model, but it uses the SAME methodology:
+    fit-time target adjustments (clipped spread/residual, OT-free totals),
+    spread-target mode, winprob mode, season-decay weights, and tuned
+    hyperparameters. Evaluation always stays on raw actuals.
     Returns a list of per-season dicts (empty when <2 train seasons).
     """
     wf_seasons = sorted(set(train_seasons))
@@ -1000,23 +1105,29 @@ def walk_forward_report(X, y_spread, y_total, y_win, seasons_arr, is_ot,
             print(f"[train]   {s:>8} | skipped (train rows: {n_tr}, eval rows: {n_te})")
             continue
 
-        y_spread_fit, totals_keep = prepare_targets(y_spread, y_total, is_ot)
+        y_spread_fit, totals_keep, spread_base = prepare_targets(
+            y_spread, y_total, is_ot, massey_pred, spread_target)
+        w = season_weights(seasons_arr, decay, max(earlier))
 
-        sp = XGBRegressor(**_regressor_kwargs(DEFAULT_N_ESTIMATORS, mono_spread))
-        sp.fit(X[tr_mask], y_spread_fit[tr_mask])
-        sp_rmse = float(root_mean_squared_error(y_spread[te_mask], sp.predict(X[te_mask])))
+        sp = XGBRegressor(**_regressor_kwargs(DEFAULT_N_ESTIMATORS, mono_spread, hyperparams))
+        sp.fit(X[tr_mask], y_spread_fit[tr_mask], sample_weight=w[tr_mask])
+        sp_preds = sp.predict(X[te_mask]) + spread_base[te_mask]
+        sp_rmse = float(root_mean_squared_error(y_spread[te_mask], sp_preds))
 
         tt_mask = tr_mask & totals_keep
-        tt = XGBRegressor(**_regressor_kwargs(DEFAULT_N_ESTIMATORS, mono_total))
-        tt.fit(X[tt_mask], y_total[tt_mask])
+        tt = XGBRegressor(**_regressor_kwargs(DEFAULT_N_ESTIMATORS, mono_total, hyperparams))
+        tt.fit(X[tt_mask], y_total[tt_mask], sample_weight=w[tt_mask])
         tt_rmse = float(root_mean_squared_error(y_total[te_mask], tt.predict(X[te_mask])))
 
-        clf = XGBClassifier(n_estimators=DEFAULT_N_ESTIMATORS, max_depth=4, learning_rate=0.05,
-                            subsample=0.8, colsample_bytree=0.8,
-                            objective="binary:logistic", random_state=42,
-                            eval_metric="logloss", monotone_constraints=mono_winprob)
-        clf.fit(X[tr_mask], y_win[tr_mask])
-        brier = float(brier_score_loss(y_win[te_mask], clf.predict_proba(X[te_mask])[:, 1]))
+        if winprob_mode == "derived":
+            sp_train_preds = sp.predict(X[tr_mask]) + spread_base[tr_mask]
+            sigma = fit_margin_sigma(sp_train_preds, y_spread[tr_mask])
+            probs = derived_probs(sp_preds, sigma)
+        else:
+            clf = XGBClassifier(**_classifier_kwargs(DEFAULT_N_ESTIMATORS, mono_winprob, hyperparams))
+            clf.fit(X[tr_mask], y_win[tr_mask], sample_weight=w[tr_mask])
+            probs = clf.predict_proba(X[te_mask])[:, 1]
+        brier = float(brier_score_loss(y_win[te_mask], probs))
 
         print(f"[train]   {s:>8} | {n_tr:>10,} | {n_te:>9,} | "
               f"{sp_rmse:>11.3f} | {tt_rmse:>10.3f} | {brier:>6.4f}")
@@ -1049,6 +1160,19 @@ def parse_args():
                    help="PostgreSQL connection URL (default: built from env vars DB_HOST etc.)")
     p.add_argument("--output-dir", default="/models",
                    help="Base directory for model output (default: /models)")
+    p.add_argument("--spread-target", default="margin", choices=["margin", "residual_massey"],
+                   help="Spread head target: raw home margin, or the residual over the "
+                        "Massey prediction (trees learn only the correction; serving adds "
+                        "the Massey baseline back)")
+    p.add_argument("--winprob-mode", default="classifier", choices=["classifier", "derived"],
+                   help="Win probability: a calibrated classifier, or Φ(spread/σ) derived "
+                        "from the spread head (guarantees spread/winprob consistency)")
+    p.add_argument("--tune", default=0, type=int, metavar="N",
+                   help="Run N Optuna trials minimizing mean walk-forward spread RMSE and "
+                        "train with the best hyperparameters (0 = off)")
+    p.add_argument("--season-decay", default=1.0, type=float,
+                   help="Sample-weight decay per season of age (1.0 = no decay; e.g. 0.8 "
+                        "weights a 3-season-old game at 0.512)")
     args = p.parse_args()
     if not MODEL_NAME_RE.match(args.model_name):
         p.error(f"--model-name '{args.model_name}' is invalid: must match {MODEL_NAME_RE.pattern}")
@@ -1097,6 +1221,10 @@ def main():
     print(f"[train]   test season   : {test_season}")
     print(f"[train]   output dir    : {os.path.join(args.output_dir, model_name)}")
     print(f"[train]   features      : {n_features}")
+    print(f"[train]   spread target : {args.spread_target}")
+    print(f"[train]   winprob mode  : {args.winprob_mode}")
+    print(f"[train]   season decay  : {args.season_decay}")
+    print(f"[train]   tuning trials : {args.tune}")
 
     # ── Load data ─────────────────────────────────────────────────────────────
     _sep("Loading data")
@@ -1200,7 +1328,7 @@ def main():
     print(f"[train] Processing {len(games_df):,} games...")
     t0 = time.time()
     rows_X, rows_y_spread, rows_y_total, rows_y_win, rows_season = [], [], [], [], []
-    rows_is_ot = []
+    rows_is_ot, rows_massey_pred = [], []
     skipped_ratings, skipped_box, skipped_non_d1 = 0, 0, 0
     season_counts = {}   # season_year -> {"kept": n, "ratings": n, "box": n, "non_d1": n}
     box_miss_counts = {}  # feature name -> count, for diagnostics
@@ -1238,6 +1366,7 @@ def main():
         rows_y_win.append(1 if row.home_score > row.away_score else 0)
         rows_season.append(row.season_year)
         rows_is_ot.append(is_overtime(row))
+        rows_massey_pred.append(ctx["massey_pred_margin"])
         if i % log_interval == 0:
             pct = 100 * i / len(games_df)
             kept = len(rows_X)
@@ -1289,12 +1418,13 @@ def main():
               f"(MASSEY, MASSEY_TOTALS, BRADLEY_TERRY, BRADLEY_TERRY_W).")
         sys.exit(1)
 
-    X        = np.array(rows_X, dtype=np.float32)
-    y_spread = np.array(rows_y_spread, dtype=np.float32)
-    y_total  = np.array(rows_y_total,  dtype=np.float32)
-    y_win    = np.array(rows_y_win,    dtype=np.int32)
-    seasons  = np.array(rows_season)
-    is_ot    = np.array(rows_is_ot, dtype=bool)
+    X           = np.array(rows_X, dtype=np.float32)
+    y_spread    = np.array(rows_y_spread, dtype=np.float32)
+    y_total     = np.array(rows_y_total,  dtype=np.float32)
+    y_win       = np.array(rows_y_win,    dtype=np.int32)
+    seasons     = np.array(rows_season)
+    is_ot       = np.array(rows_is_ot, dtype=bool)
+    massey_pred = np.array(rows_massey_pred, dtype=np.float32)
 
     if X.shape[0] == 0:
         print("[train] ERROR: No feature rows could be built. "
@@ -1324,10 +1454,24 @@ def main():
           f"{clipped_n:,} margins clipped to ±{SPREAD_CLIP:.0f} for the spread fit "
           f"(evaluation always uses raw actuals)")
 
+    # ── Hyperparameter tuning (walk-forward objective over train seasons) ─────
+    hyperparams = {}
+    if args.tune > 0:
+        _sep(f"Hyperparameter tuning ({args.tune} trials)")
+        t0 = time.time()
+        y_fit_all, _, base_all = prepare_targets(y_spread, y_total, is_ot,
+                                                 massey_pred, args.spread_target)
+        hyperparams = tune_hyperparams(X, y_fit_all, y_spread, base_all, seasons,
+                                       train_seasons, mono_spread,
+                                       args.season_decay, args.tune)
+        print(f"[train]   tuning time: {_fmt_seconds(time.time() - t0)}")
+
     # ── Walk-forward report (expanding window over train seasons) ─────────────
     walk_forward = walk_forward_report(X, y_spread, y_total, y_win, seasons, is_ot,
-                                       train_seasons, mono_spread, mono_total,
-                                       mono_winprob)
+                                       massey_pred, train_seasons,
+                                       mono_spread, mono_total, mono_winprob,
+                                       args.spread_target, args.winprob_mode,
+                                       args.season_decay, hyperparams)
 
     # ── Train/test split ──────────────────────────────────────────────────────
     train_mask = seasons != test_season
@@ -1338,6 +1482,8 @@ def main():
     yt_train,   yt_test   = y_total[train_mask],  y_total[test_mask]
     yw_train,   yw_test   = y_win[train_mask],    y_win[test_mask]
     ot_train              = is_ot[train_mask]
+    mp_train,   mp_test   = massey_pred[train_mask], massey_pred[test_mask]
+    seasons_train         = seasons[train_mask]
 
     in_sample_metrics = False
     if X_train.shape[0] == 0:
@@ -1348,10 +1494,16 @@ def main():
         yt_train, yt_test = y_total,  y_total
         yw_train, yw_test = y_win,    y_win
         ot_train          = is_ot
+        mp_train, mp_test = massey_pred, massey_pred
+        seasons_train     = seasons
         in_sample_metrics = True
 
-    # Fit-time targets: clipped spread, OT-free totals (evaluation stays raw)
-    ys_train_fit, totals_keep = prepare_targets(ys_train, yt_train, ot_train)
+    # Fit-time targets (mode-aware) + season-decay sample weights
+    ys_train_fit, totals_keep, base_train = prepare_targets(
+        ys_train, yt_train, ot_train, mp_train, args.spread_target)
+    base_test = mp_test if args.spread_target == "residual_massey" \
+        else np.zeros_like(mp_test)
+    weights = season_weights(seasons_train, args.season_decay, int(seasons_train.max()))
 
     sample_tag = " [IN-SAMPLE]" if in_sample_metrics else ""
     print(f"\n[train] Train: {X_train.shape[0]:,} rows  |  "
@@ -1359,11 +1511,12 @@ def main():
 
     # ── Spread model ───────────────────────────────────────────────────────────
     _sep("Spread model")
-    print(f"[train] XGBRegressor(max_depth=4, lr=0.05, early stopping, monotone) ...")
+    print(f"[train] XGBRegressor(early stopping, monotone, target={args.spread_target}) ...")
     t0 = time.time()
-    spread_model, spread_n = train_regressor(X_train, ys_train_fit, mono_spread)
+    spread_model, spread_n = train_regressor(X_train, ys_train_fit, mono_spread,
+                                             weights, hyperparams)
     elapsed = time.time() - t0
-    spread_preds = spread_model.predict(X_test)
+    spread_preds = spread_model.predict(X_test) + base_test
     spread_rmse = root_mean_squared_error(ys_test, spread_preds)
     spread_mae  = float(np.abs(ys_test - spread_preds).mean())
     baseline_rmse = float(np.sqrt(((ys_test - ys_train.mean()) ** 2).mean()))
@@ -1375,10 +1528,11 @@ def main():
 
     # ── Total model ────────────────────────────────────────────────────────────
     _sep("Total model")
-    print(f"[train] XGBRegressor(max_depth=4, lr=0.05, early stopping, monotone) ... "
+    print(f"[train] XGBRegressor(early stopping, monotone) ... "
           f"({int(totals_keep.sum()):,} regulation rows of {len(totals_keep):,})")
     t0 = time.time()
-    total_model, total_n = train_regressor(X_train[totals_keep], yt_train[totals_keep], mono_total)
+    total_model, total_n = train_regressor(X_train[totals_keep], yt_train[totals_keep],
+                                           mono_total, weights[totals_keep], hyperparams)
     elapsed = time.time() - t0
     total_preds = total_model.predict(X_test)
     total_rmse = root_mean_squared_error(yt_test, total_preds)
@@ -1390,17 +1544,32 @@ def main():
 
     # ── Win probability model ─────────────────────────────────────────────────
     _sep("Win probability model")
-    cv_folds = min(5, X_train.shape[0] // 2)
-    print(f"[train] CalibratedClassifierCV(XGBClassifier, method=sigmoid, cv={cv_folds}) ...")
+    winprob_model = None
+    margin_sigma = None
     t0 = time.time()
-    base_clf = XGBClassifier(n_estimators=300, max_depth=4, learning_rate=0.05,
-                             subsample=0.8, colsample_bytree=0.8,
-                             objective="binary:logistic", random_state=42,
-                             eval_metric="logloss", monotone_constraints=mono_winprob)
-    winprob_model = CalibratedClassifierCV(base_clf, method="sigmoid", cv=cv_folds)
-    winprob_model.fit(X_train, yw_train)
+    if args.winprob_mode == "derived":
+        # σ from the chronological validation slice of the spread model's residuals
+        # (falls back to all training rows below the early-stop threshold)
+        n = X_train.shape[0]
+        if n >= MIN_ROWS_FOR_EARLY_STOP:
+            split = int(n * (1.0 - VALIDATION_FRACTION))
+            val_preds = spread_model.predict(X_train[split:]) + \
+                (mp_train[split:] if args.spread_target == "residual_massey" else 0.0)
+            margin_sigma = fit_margin_sigma(val_preds, ys_train[split:])
+        else:
+            all_preds = spread_model.predict(X_train) + \
+                (mp_train if args.spread_target == "residual_massey" else 0.0)
+            margin_sigma = fit_margin_sigma(all_preds, ys_train)
+        print(f"[train] Derived winprob: P(home) = Φ(spread/σ), σ = {margin_sigma:.3f}")
+        probs_test = derived_probs(spread_preds, margin_sigma)
+    else:
+        cv_folds = min(5, X_train.shape[0] // 2)
+        print(f"[train] CalibratedClassifierCV(XGBClassifier, method=sigmoid, cv={cv_folds}) ...")
+        base_clf = XGBClassifier(**_classifier_kwargs(300, mono_winprob, hyperparams))
+        winprob_model = CalibratedClassifierCV(base_clf, method="sigmoid", cv=cv_folds)
+        winprob_model.fit(X_train, yw_train, sample_weight=weights)
+        probs_test = winprob_model.predict_proba(X_test)[:, 1]
     elapsed = time.time() - t0
-    probs_test = winprob_model.predict_proba(X_test)[:, 1]
     brier = brier_score_loss(yw_test, probs_test)
     baseline_brier = float(yw_train.mean() * (1 - yw_train.mean()))
     acc = float(((probs_test > 0.5) == yw_test).mean() * 100)
@@ -1425,11 +1594,13 @@ def main():
     pending_dir = os.path.join(output_dir, ".pending")
     os.makedirs(pending_dir, exist_ok=True)
 
-    for label, fn, path in [
+    exports = [
         ("spread",   "spread_model.onnx",  os.path.join(pending_dir, "spread_model.onnx")),
         ("total",    "total_model.onnx",   os.path.join(pending_dir, "total_model.onnx")),
-        ("winprob",  "winprob_model.onnx", os.path.join(pending_dir, "winprob_model.onnx")),
-    ]:
+    ]
+    if winprob_model is not None:
+        exports.append(("winprob", "winprob_model.onnx", os.path.join(pending_dir, "winprob_model.onnx")))
+    for label, fn, path in exports:
         t0 = time.time()
         if label == "winprob":
             export_classifier(winprob_model, path, n_features)
@@ -1437,6 +1608,12 @@ def main():
             export_regressor(spread_model if label == "spread" else total_model, path, n_features)
         size_kb = os.path.getsize(path) / 1024
         print(f"[train]   {label:<8} → {fn}  ({size_kb:.0f} KB, {_fmt_seconds(time.time()-t0)})")
+    if winprob_model is None:
+        print(f"[train]   winprob  → derived from the spread head (no ONNX file)")
+        # A stale classifier from a previous training of this slug must not survive
+        stale = os.path.join(output_dir, "winprob_model.onnx")
+        if os.path.exists(stale):
+            os.remove(stale)
 
     features_meta = {
         "version": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -1451,7 +1628,12 @@ def main():
         "features": feature_list,
         "spread_model":  "spread_model.onnx",
         "total_model":   "total_model.onnx",
-        "winprob_model": "winprob_model.onnx",
+        **({"winprob_model": "winprob_model.onnx"} if winprob_model is not None else {}),
+        "spread_target": args.spread_target,
+        "winprob_mode":  args.winprob_mode,
+        **({"margin_sigma": round(float(margin_sigma), 4)} if margin_sigma is not None else {}),
+        "season_decay":  args.season_decay,
+        **({"hyperparams": hyperparams} if hyperparams else {}),
         "metrics": {
             "spread_rmse": round(float(spread_rmse), 3),
             "spread_mae":  round(float(spread_mae),  3),
@@ -1468,7 +1650,10 @@ def main():
     print(f"[train]   features.json written")
 
     # Atomic rename
-    for fname in ["spread_model.onnx", "total_model.onnx", "winprob_model.onnx", "features.json"]:
+    pending_files = ["spread_model.onnx", "total_model.onnx", "features.json"]
+    if winprob_model is not None:
+        pending_files.insert(2, "winprob_model.onnx")
+    for fname in pending_files:
         shutil.move(os.path.join(pending_dir, fname), os.path.join(output_dir, fname))
 
     # ── Summary ───────────────────────────────────────────────────────────────

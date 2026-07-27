@@ -45,5 +45,14 @@ public record PredictionContext(
         Double homeMasseyResidL5, Double awayMasseyResidL5,
 
         Double homeAdjOff, Double awayAdjOff,
-        Double homeAdjDef, Double awayAdjDef
-) {}
+        Double homeAdjDef, Double awayAdjDef,
+
+        /** Massey HCA in points (0 for neutral sites) — residual-target reconstruction. */
+        double masseyHca
+) {
+
+    /** The classical Massey margin prediction — the baseline residual-target bundles add back. */
+    public double masseyPredictedMargin() {
+        return masseyBetaHome - masseyBetaAway + masseyHca;
+    }
+}
