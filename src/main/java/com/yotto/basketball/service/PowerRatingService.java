@@ -11,11 +11,14 @@ public class PowerRatingService {
 
     private final MasseyRatingService masseyRatingService;
     private final BradleyTerryRatingService bradleyTerryRatingService;
+    private final AdjustedEfficiencyRatingService adjustedEfficiencyRatingService;
 
     public PowerRatingService(MasseyRatingService masseyRatingService,
-                              BradleyTerryRatingService bradleyTerryRatingService) {
+                              BradleyTerryRatingService bradleyTerryRatingService,
+                              AdjustedEfficiencyRatingService adjustedEfficiencyRatingService) {
         this.masseyRatingService = masseyRatingService;
         this.bradleyTerryRatingService = bradleyTerryRatingService;
+        this.adjustedEfficiencyRatingService = adjustedEfficiencyRatingService;
     }
 
     public void calculateAndStoreForSeason(int seasonYear) {
@@ -27,6 +30,7 @@ public class PowerRatingService {
         log.info("Calculating power ratings for season {}", seasonYear);
         masseyRatingService.calculateAndStoreForSeason(seasonYear, fromDate);
         bradleyTerryRatingService.calculateAndStoreForSeason(seasonYear, fromDate);
+        adjustedEfficiencyRatingService.calculateAndStoreForSeason(seasonYear, fromDate);
         log.info("Power ratings complete for season {}", seasonYear);
     }
 
@@ -35,6 +39,7 @@ public class PowerRatingService {
         log.info("Calculating power ratings for season {}", data.season().getYear());
         masseyRatingService.calculateAndStoreForSeason(data, fromDate);
         bradleyTerryRatingService.calculateAndStoreForSeason(data, fromDate);
+        adjustedEfficiencyRatingService.calculateAndStoreForSeason(data, fromDate);
         log.info("Power ratings complete for season {}", data.season().getYear());
     }
 }

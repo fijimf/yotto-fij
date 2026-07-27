@@ -20,13 +20,31 @@ public final class MlFeatureRegistry {
 
     private static final Map<String, Function<PredictionContext, Double>> SUPPLIERS = build();
 
-    /** Feature names that require box-score stats or RPI in the context (extra queries). */
+    /** Feature names that require box-score/season-snapshot stats in the context (extra queries). */
     private static final Set<String> EXTENDED_STAT_FEATURES = Set.of(
             "home_pace", "away_pace",
             "home_off_eff", "away_off_eff", "home_def_eff", "away_def_eff",
             "home_efg_pct", "away_efg_pct", "home_opp_efg_pct", "away_opp_efg_pct",
             "home_tov_rate", "away_tov_rate",
-            "home_rpi", "away_rpi");
+            "home_rpi", "away_rpi",
+            "home_orb_pct", "away_orb_pct", "home_drb_pct", "away_drb_pct",
+            "home_ft_rate", "away_ft_rate", "home_opp_ft_rate", "away_opp_ft_rate",
+            "home_opp_tov_rate", "away_opp_tov_rate", "home_fg3_rate", "away_fg3_rate",
+            "home_stddev_margin", "away_stddev_margin", "home_rpi_owp", "away_rpi_owp");
+
+    /** Feature names needing previous-season final ratings in the context (extra queries). */
+    private static final Set<String> PRIOR_RATING_FEATURES = Set.of(
+            "home_prev_beta", "away_prev_beta", "home_prev_theta", "away_prev_theta",
+            "home_prev_available", "away_prev_available");
+
+    /** Feature names needing the Massey-residual form computation (extra queries). */
+    private static final Set<String> RESIDUAL_FORM_FEATURES = Set.of(
+            "home_massey_resid_l5", "away_massey_resid_l5");
+
+    /** Feature names needing ADJ_OFF/ADJ_DEF efficiency snapshots (extra queries). */
+    private static final Set<String> ADJ_EFF_FEATURES = Set.of(
+            "home_adj_off", "away_adj_off", "home_adj_def", "away_adj_def",
+            "adj_eff_matchup_home", "adj_eff_matchup_away", "adj_eff_diff", "adj_eff_total");
 
     private MlFeatureRegistry() {}
 
@@ -38,9 +56,24 @@ public final class MlFeatureRegistry {
         return SUPPLIERS.keySet();
     }
 
-    /** True when any of the given features needs box-score/RPI context data. */
+    /** True when any of the given features needs box-score/season-snapshot context data. */
     public static boolean needsExtendedStats(List<String> featureNames) {
         return featureNames.stream().anyMatch(EXTENDED_STAT_FEATURES::contains);
+    }
+
+    /** True when any of the given features needs previous-season final ratings. */
+    public static boolean needsPriorRatings(List<String> featureNames) {
+        return featureNames.stream().anyMatch(PRIOR_RATING_FEATURES::contains);
+    }
+
+    /** True when any of the given features needs the Massey-residual form computation. */
+    public static boolean needsResidualForm(List<String> featureNames) {
+        return featureNames.stream().anyMatch(RESIDUAL_FORM_FEATURES::contains);
+    }
+
+    /** True when any of the given features needs adjusted-efficiency snapshots. */
+    public static boolean needsAdjEfficiency(List<String> featureNames) {
+        return featureNames.stream().anyMatch(ADJ_EFF_FEATURES::contains);
     }
 
     /**
@@ -115,6 +148,74 @@ public final class MlFeatureRegistry {
         m.put("home_rpi",               PredictionContext::homeRpi);
         m.put("away_rpi",               PredictionContext::awayRpi);
 
+        // ── prior-v3: preseason priors — the ONLY imputed features (0.0 with an
+        //    availability flag; the service sets beta+theta both-or-neither) ────
+        m.put("home_prev_beta",         c -> c.homePrevBeta() == null ? 0.0 : c.homePrevBeta());
+        m.put("away_prev_beta",         c -> c.awayPrevBeta() == null ? 0.0 : c.awayPrevBeta());
+        m.put("home_prev_theta",        c -> c.homePrevTheta() == null ? 0.0 : c.homePrevTheta());
+        m.put("away_prev_theta",        c -> c.awayPrevTheta() == null ? 0.0 : c.awayPrevTheta());
+        m.put("home_prev_available",    c -> c.homePrevBeta() == null ? 0.0 : 1.0);
+        m.put("away_prev_available",    c -> c.awayPrevBeta() == null ? 0.0 : 1.0);
+
+        // ── prior-v3: remaining four factors + shot profile (box stats) ───────
+        m.put("home_orb_pct",           c -> c.homeBoxStats().get("orb_pct"));
+        m.put("away_orb_pct",           c -> c.awayBoxStats().get("orb_pct"));
+        m.put("home_drb_pct",           c -> c.homeBoxStats().get("drb_pct"));
+        m.put("away_drb_pct",           c -> c.awayBoxStats().get("drb_pct"));
+        m.put("home_ft_rate",           c -> c.homeBoxStats().get("ft_rate"));
+        m.put("away_ft_rate",           c -> c.awayBoxStats().get("ft_rate"));
+        m.put("home_opp_ft_rate",       c -> c.homeBoxStats().get("opp_ft_rate"));
+        m.put("away_opp_ft_rate",       c -> c.awayBoxStats().get("opp_ft_rate"));
+        m.put("home_opp_tov_rate",      c -> c.homeBoxStats().get("opp_tov_rate"));
+        m.put("away_opp_tov_rate",      c -> c.awayBoxStats().get("opp_tov_rate"));
+        m.put("home_fg3_rate",          c -> c.homeBoxStats().get("fg3_rate"));
+        m.put("away_fg3_rate",          c -> c.awayBoxStats().get("fg3_rate"));
+
+        // ── prior-v3: season-snapshot consistency + SOS ───────────────────────
+        m.put("home_stddev_margin",     PredictionContext::homeStddevMargin);
+        m.put("away_stddev_margin",     PredictionContext::awayStddevMargin);
+        m.put("home_rpi_owp",           PredictionContext::homeRpiOwp);
+        m.put("away_rpi_owp",           PredictionContext::awayRpiOwp);
+
+        // ── prior-v3: rolling-10 form ─────────────────────────────────────────
+        m.put("home_win_pct_l10",       PredictionContext::homeWinPctL10);
+        m.put("away_win_pct_l10",       PredictionContext::awayWinPctL10);
+        m.put("home_avg_margin_l10",    PredictionContext::homeAvgMarginL10);
+        m.put("away_avg_margin_l10",    PredictionContext::awayAvgMarginL10);
+
+        // ── prior-v3: hot/cold vs rating ──────────────────────────────────────
+        m.put("home_massey_resid_l5",   PredictionContext::homeMasseyResidL5);
+        m.put("away_massey_resid_l5",   PredictionContext::awayMasseyResidL5);
+
+        // ── eff-v4: adjusted per-possession efficiency ratings + matchups ─────
+        // (derived features mirror the trainer's adj_efficiency_context: matchup =
+        // own offense vs the OPPOSING defense; null-propagating)
+        m.put("home_adj_off",           PredictionContext::homeAdjOff);
+        m.put("away_adj_off",           PredictionContext::awayAdjOff);
+        m.put("home_adj_def",           PredictionContext::homeAdjDef);
+        m.put("away_adj_def",           PredictionContext::awayAdjDef);
+        m.put("adj_eff_matchup_home",   c -> matchupHome(c));
+        m.put("adj_eff_matchup_away",   c -> matchupAway(c));
+        m.put("adj_eff_diff",           c -> combine(c, false));
+        m.put("adj_eff_total",          c -> combine(c, true));
+
         return m;
+    }
+
+    private static Double matchupHome(PredictionContext c) {
+        if (c.homeAdjOff() == null || c.awayAdjDef() == null) return null;
+        return c.homeAdjOff() - c.awayAdjDef();
+    }
+
+    private static Double matchupAway(PredictionContext c) {
+        if (c.awayAdjOff() == null || c.homeAdjDef() == null) return null;
+        return c.awayAdjOff() - c.homeAdjDef();
+    }
+
+    private static Double combine(PredictionContext c, boolean sum) {
+        Double home = matchupHome(c);
+        Double away = matchupAway(c);
+        if (home == null || away == null) return null;
+        return sum ? home + away : home - away;
     }
 }

@@ -120,7 +120,7 @@ public class PredictionService {
         MlPredictions mlPredictions = MlPredictions.none();
         if (ratings.hasAll()) {
             mlPredictions = computeMlPredictions(homeTeamId, awayTeamId, gameDate.atStartOfDay(),
-                    season.getStartDate(), season.getId(), neutralSite, false, ratings);
+                    season, neutralSite, false, ratings);
         }
 
         return new PredictionResult(
@@ -182,7 +182,7 @@ public class PredictionService {
         if (ratings.hasAll()) {
             mlPredictions = computeMlPredictions(
                     game.getHomeTeam().getId(), game.getAwayTeam().getId(),
-                    game.getGameDate(), game.getSeason().getStartDate(), seasonId,
+                    game.getGameDate(), game.getSeason(),
                     neutral, Boolean.TRUE.equals(game.getConferenceGame()), ratings);
         }
 
@@ -309,16 +309,16 @@ public class PredictionService {
      * and splits the results into public and shadow views.
      */
     private MlPredictions computeMlPredictions(Long homeId, Long awayId,
-                                               LocalDateTime gameDatetime, LocalDate seasonStartDate,
-                                               Long seasonId, boolean neutralSite, boolean conferenceGame,
+                                               LocalDateTime gameDatetime, Season season,
+                                               boolean neutralSite, boolean conferenceGame,
                                                GameRatings r) {
         MlModelRegistryService.ServingPlan plan = mlModelRegistryService.plan();
         if (!plan.hasServableModels()) {
             return MlPredictions.none();
         }
 
-        PredictionContext context = buildContext(homeId, awayId, gameDatetime, seasonStartDate,
-                seasonId, neutralSite, conferenceGame, r, plan.needsExtendedStats());
+        PredictionContext context = buildContext(homeId, awayId, gameDatetime, season,
+                neutralSite, conferenceGame, r, plan);
 
         Map<String, PredictionResult.MlPrediction> all = new LinkedHashMap<>();
         for (String slug : plan.evaluableVersions().keySet()) {
@@ -340,32 +340,78 @@ public class PredictionService {
     }
 
     private PredictionContext buildContext(Long homeId, Long awayId,
-                                           LocalDateTime gameDatetime, LocalDate seasonStartDate,
-                                           Long seasonId, boolean neutralSite, boolean conferenceGame,
-                                           GameRatings r, boolean extendedStats) {
-        List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, seasonId, gameDatetime, PageRequest.of(0, 5));
-        List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, seasonId, gameDatetime, PageRequest.of(0, 5));
+                                           LocalDateTime gameDatetime, Season season,
+                                           boolean neutralSite, boolean conferenceGame,
+                                           GameRatings r, MlModelRegistryService.ServingPlan plan) {
+        Long seasonId = season.getId();
+        // 10 most recent (newest first) feed both the 5- and 10-game windows
+        List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, seasonId, gameDatetime, PageRequest.of(0, 10));
+        List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, seasonId, gameDatetime, PageRequest.of(0, 10));
+        List<Game> homeLast5 = homeRecent.subList(0, Math.min(5, homeRecent.size()));
+        List<Game> awayLast5 = awayRecent.subList(0, Math.min(5, awayRecent.size()));
 
-        RollingStats homeStats = computeRolling(homeId, homeRecent);
-        RollingStats awayStats = computeRolling(awayId, awayRecent);
+        RollingStats homeStats   = computeRolling(homeId, homeLast5);
+        RollingStats awayStats   = computeRolling(awayId, awayLast5);
+        RollingStats homeStats10 = computeRolling(homeId, homeRecent);
+        RollingStats awayStats10 = computeRolling(awayId, awayRecent);
 
-        Integer homeDaysRest = daysRest(homeId, homeRecent, gameDatetime);
-        Integer awayDaysRest = daysRest(awayId, awayRecent, gameDatetime);
+        Integer homeDaysRest = daysRest(homeId, homeLast5, gameDatetime);
+        Integer awayDaysRest = daysRest(awayId, awayLast5, gameDatetime);
 
         int seasonWeek = (int) (ChronoUnit.DAYS.between(
-                seasonStartDate, gameDatetime.toLocalDate()) / 7) + 1;
+                season.getStartDate(), gameDatetime.toLocalDate()) / 7) + 1;
 
         Map<String, Double> homeBox = Map.of();
         Map<String, Double> awayBox = Map.of();
         Double homeRpi = null, awayRpi = null;
-        if (extendedStats) {
+        Double homeStddevMargin = null, awayStddevMargin = null;
+        Double homeRpiOwp = null, awayRpiOwp = null;
+        if (plan.needsExtendedStats()) {
             LocalDate cutoff = gameDatetime.toLocalDate();
             homeBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(homeId, seasonId, cutoff));
             awayBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(awayId, seasonId, cutoff));
-            homeRpi = teamSeasonStatSnapshotRepository.findLatestBefore(homeId, seasonId, cutoff)
-                    .map(TeamSeasonStatSnapshot::getRpi).orElse(null);
-            awayRpi = teamSeasonStatSnapshotRepository.findLatestBefore(awayId, seasonId, cutoff)
-                    .map(TeamSeasonStatSnapshot::getRpi).orElse(null);
+            TeamSeasonStatSnapshot homeSeason = teamSeasonStatSnapshotRepository
+                    .findLatestBefore(homeId, seasonId, cutoff).orElse(null);
+            TeamSeasonStatSnapshot awaySeason = teamSeasonStatSnapshotRepository
+                    .findLatestBefore(awayId, seasonId, cutoff).orElse(null);
+            if (homeSeason != null) {
+                homeRpi = homeSeason.getRpi();
+                homeStddevMargin = homeSeason.getStddevMargin();
+                homeRpiOwp = homeSeason.getRpiOwp();
+            }
+            if (awaySeason != null) {
+                awayRpi = awaySeason.getRpi();
+                awayStddevMargin = awaySeason.getStddevMargin();
+                awayRpiOwp = awaySeason.getRpiOwp();
+            }
+        }
+
+        // Preseason priors: previous season's FINAL ratings, both-or-neither per side
+        Double homePrevBeta = null, awayPrevBeta = null, homePrevTheta = null, awayPrevTheta = null;
+        if (plan.needsPriorRatings()) {
+            Long priorSeasonId = seasonRepository.findByYear(season.getYear() - 1)
+                    .map(Season::getId).orElse(null);
+            if (priorSeasonId != null) {
+                double[] homePrev = priorRatings(homeId, priorSeasonId);
+                double[] awayPrev = priorRatings(awayId, priorSeasonId);
+                if (homePrev != null) { homePrevBeta = homePrev[0]; homePrevTheta = homePrev[1]; }
+                if (awayPrev != null) { awayPrevBeta = awayPrev[0]; awayPrevTheta = awayPrev[1]; }
+            }
+        }
+
+        Double homeMasseyResid = null, awayMasseyResid = null;
+        if (plan.needsResidualForm()) {
+            homeMasseyResid = masseyResidual(homeId, seasonId, homeLast5);
+            awayMasseyResid = masseyResidual(awayId, seasonId, awayLast5);
+        }
+
+        Double homeAdjOff = null, awayAdjOff = null, homeAdjDef = null, awayAdjDef = null;
+        if (plan.needsAdjEfficiency()) {
+            LocalDate cutoff = gameDatetime.toLocalDate();
+            homeAdjOff = adjRating(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff);
+            homeAdjDef = adjRating(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff);
+            awayAdjOff = adjRating(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff);
+            awayAdjDef = adjRating(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff);
         }
 
         return new PredictionContext(
@@ -378,7 +424,58 @@ public class PredictionService {
                 r.masseyHome().getGamesPlayed(), r.masseyAway().getGamesPlayed(),
                 homeDaysRest, awayDaysRest, seasonWeek,
                 neutralSite, conferenceGame,
-                homeBox, awayBox, homeRpi, awayRpi);
+                homeBox, awayBox, homeRpi, awayRpi,
+                homeStddevMargin, awayStddevMargin, homeRpiOwp, awayRpiOwp,
+                homeStats10.winPct(), awayStats10.winPct(),
+                homeStats10.avgMargin(), awayStats10.avgMargin(),
+                homePrevBeta, awayPrevBeta, homePrevTheta, awayPrevTheta,
+                homeMasseyResid, awayMasseyResid,
+                homeAdjOff, awayAdjOff, homeAdjDef, awayAdjDef);
+    }
+
+    private Double adjRating(Long teamId, Long seasonId, String modelType, LocalDate cutoff) {
+        return ratingRepository.findLatestBefore(teamId, seasonId, modelType, cutoff)
+                .map(TeamPowerRatingSnapshot::getRating).orElse(null);
+    }
+
+    /** [β, θ] from the previous season's final snapshots, or null unless BOTH exist. */
+    private double[] priorRatings(Long teamId, Long priorSeasonId) {
+        var beta = ratingRepository.findLatest(teamId, priorSeasonId, MasseyRatingService.MODEL_TYPE)
+                .orElse(null);
+        var theta = ratingRepository.findLatest(teamId, priorSeasonId, BradleyTerryRatingService.MODEL_TYPE)
+                .orElse(null);
+        if (beta == null || theta == null) return null;
+        return new double[]{beta.getRating(), theta.getRating()};
+    }
+
+    /**
+     * Hot/cold vs rating: mean over the team's recent games of (actual margin from the
+     * team's perspective − Massey-predicted margin), each prediction using the ratings
+     * and HCA as of that PAST game's date. Past games lacking a prior snapshot for
+     * either participant are skipped; null when no usable game exists. Mirrors the
+     * trainer's massey_residual_l5 exactly.
+     */
+    private Double masseyResidual(Long teamId, Long seasonId, List<Game> recentGames) {
+        double sum = 0;
+        int n = 0;
+        for (Game g : recentGames) {
+            LocalDate date = g.getGameDate().toLocalDate();
+            var snapHome = ratingRepository.findLatestBefore(
+                    g.getHomeTeam().getId(), seasonId, MasseyRatingService.MODEL_TYPE, date).orElse(null);
+            var snapAway = ratingRepository.findLatestBefore(
+                    g.getAwayTeam().getId(), seasonId, MasseyRatingService.MODEL_TYPE, date).orElse(null);
+            if (snapHome == null || snapAway == null) {
+                continue;
+            }
+            double hca = Boolean.TRUE.equals(g.getNeutralSite()) ? 0.0
+                    : paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE, "hca", date)
+                            .map(p -> p.getParamValue()).orElse(0.0);
+            double residHome = (g.getHomeScore() - g.getAwayScore())
+                    - (snapHome.getRating() - snapAway.getRating() + hca);
+            sum += g.getHomeTeam().getId().equals(teamId) ? residHome : -residHome;
+            n++;
+        }
+        return n == 0 ? null : sum / n;
     }
 
     private static Map<String, Double> toStatMap(List<TeamStatSnapshot> snapshots) {

@@ -131,6 +131,48 @@ FEATURE_REGISTRY = OrderedDict([
     ("away_tov_rate",          _ctx("away_tov_rate")),
     ("home_rpi",               _ctx("home_rpi")),
     ("away_rpi",               _ctx("away_rpi")),
+    # ── prior-v3 extras: preseason priors (0-imputed with availability flags) ──
+    ("home_prev_beta",         _ctx("home_prev_beta")),
+    ("away_prev_beta",         _ctx("away_prev_beta")),
+    ("home_prev_theta",        _ctx("home_prev_theta")),
+    ("away_prev_theta",        _ctx("away_prev_theta")),
+    ("home_prev_available",    _ctx("home_prev_available")),
+    ("away_prev_available",    _ctx("away_prev_available")),
+    # ── prior-v3 extras: remaining four factors + shot profile ──
+    ("home_orb_pct",           _ctx("home_orb_pct")),
+    ("away_orb_pct",           _ctx("away_orb_pct")),
+    ("home_drb_pct",           _ctx("home_drb_pct")),
+    ("away_drb_pct",           _ctx("away_drb_pct")),
+    ("home_ft_rate",           _ctx("home_ft_rate")),
+    ("away_ft_rate",           _ctx("away_ft_rate")),
+    ("home_opp_ft_rate",       _ctx("home_opp_ft_rate")),
+    ("away_opp_ft_rate",       _ctx("away_opp_ft_rate")),
+    ("home_opp_tov_rate",      _ctx("home_opp_tov_rate")),
+    ("away_opp_tov_rate",      _ctx("away_opp_tov_rate")),
+    ("home_fg3_rate",          _ctx("home_fg3_rate")),
+    ("away_fg3_rate",          _ctx("away_fg3_rate")),
+    # ── prior-v3 extras: season-snapshot consistency + SOS ──
+    ("home_stddev_margin",     _ctx("home_stddev_margin")),
+    ("away_stddev_margin",     _ctx("away_stddev_margin")),
+    ("home_rpi_owp",           _ctx("home_rpi_owp")),
+    ("away_rpi_owp",           _ctx("away_rpi_owp")),
+    # ── prior-v3 extras: rolling-10 form ──
+    ("home_win_pct_l10",       _ctx("h10_win_pct")),
+    ("away_win_pct_l10",       _ctx("a10_win_pct")),
+    ("home_avg_margin_l10",    _ctx("h10_avg_margin")),
+    ("away_avg_margin_l10",    _ctx("a10_avg_margin")),
+    # ── prior-v3 extras: hot/cold vs rating (schedule-adjusted form) ──
+    ("home_massey_resid_l5",   _ctx("h_massey_resid")),
+    ("away_massey_resid_l5",   _ctx("a_massey_resid")),
+    # ── eff-v4 extras: adjusted per-possession efficiency ratings + matchups ──
+    ("home_adj_off",           _ctx("home_adj_off")),
+    ("away_adj_off",           _ctx("away_adj_off")),
+    ("home_adj_def",           _ctx("home_adj_def")),
+    ("away_adj_def",           _ctx("away_adj_def")),
+    ("adj_eff_matchup_home",   _ctx("adj_eff_matchup_home")),
+    ("adj_eff_matchup_away",   _ctx("adj_eff_matchup_away")),
+    ("adj_eff_diff",           _ctx("adj_eff_diff")),
+    ("adj_eff_total",          _ctx("adj_eff_total")),
 ])
 
 BASELINE_FEATURES = [
@@ -155,14 +197,48 @@ PACE_V2_EXTRAS = [
     "home_rpi", "away_rpi",
 ]
 
+PRIOR_V3_EXTRAS = [
+    "home_prev_beta", "away_prev_beta",
+    "home_prev_theta", "away_prev_theta",
+    "home_prev_available", "away_prev_available",
+    "home_orb_pct", "away_orb_pct",
+    "home_drb_pct", "away_drb_pct",
+    "home_ft_rate", "away_ft_rate",
+    "home_opp_ft_rate", "away_opp_ft_rate",
+    "home_opp_tov_rate", "away_opp_tov_rate",
+    "home_fg3_rate", "away_fg3_rate",
+    "home_stddev_margin", "away_stddev_margin",
+    "home_rpi_owp", "away_rpi_owp",
+    "home_win_pct_l10", "away_win_pct_l10",
+    "home_avg_margin_l10", "away_avg_margin_l10",
+    "home_massey_resid_l5", "away_massey_resid_l5",
+]
+
+EFF_V4_EXTRAS = [
+    "home_adj_off", "away_adj_off",
+    "home_adj_def", "away_adj_def",
+    "adj_eff_matchup_home", "adj_eff_matchup_away",
+    "adj_eff_diff", "adj_eff_total",
+]
+
 FEATURE_SETS = {
     "baseline": BASELINE_FEATURES,
     "pace-v2":  BASELINE_FEATURES + PACE_V2_EXTRAS,
+    "prior-v3": BASELINE_FEATURES + PACE_V2_EXTRAS + PRIOR_V3_EXTRAS,
+    "eff-v4":   BASELINE_FEATURES + PACE_V2_EXTRAS + PRIOR_V3_EXTRAS + EFF_V4_EXTRAS,
+}
+
+# Feature names that carry preseason-prior data (drive extra prior-season loads).
+PRIOR_FEATURES = {
+    "home_prev_beta", "away_prev_beta", "home_prev_theta", "away_prev_theta",
+    "home_prev_available", "away_prev_available",
 }
 
 # Features whose absence is a "box" skip (warn only), not a "ratings" skip
-# (which counts toward the MAX_SKIP_PCT hard guard).
-BOX_FEATURES = set(PACE_V2_EXTRAS)
+# (which counts toward the MAX_SKIP_PCT hard guard). Everything snapshot- or
+# history-dependent beyond the core ratings belongs here; preseason priors are
+# 0-imputed and can never be missing.
+BOX_FEATURES = set(PACE_V2_EXTRAS) | (set(PRIOR_V3_EXTRAS) - PRIOR_FEATURES) | set(EFF_V4_EXTRAS)
 
 # team_stat_snapshots stat_name → context-key suffix
 BOX_STAT_KEYS = [
@@ -172,11 +248,27 @@ BOX_STAT_KEYS = [
     ("efg_pct",        "efg_pct"),
     ("opp_efg_pct",    "opp_efg_pct"),
     ("tov_rate",       "tov_rate"),
+    ("orb_pct",        "orb_pct"),
+    ("drb_pct",        "drb_pct"),
+    ("ft_rate",        "ft_rate"),
+    ("opp_ft_rate",    "opp_ft_rate"),
+    ("opp_tov_rate",   "opp_tov_rate"),
+    ("fg3_rate",       "fg3_rate"),
 ]
 
+# team_season_stat_snapshots column → context-key suffix (long-loaded per column)
+SEASON_SNAPSHOT_KEYS = [
+    ("rpi",           "rpi"),
+    ("stddev_margin", "stddev_margin"),
+    ("rpi_owp",       "rpi_owp"),
+]
+
+# Sentinel cutoff meaning "the latest snapshot of the (prior) season".
+END_OF_SEASON = date(9999, 12, 31)
+
 # Monotonic constraints (+1 = prediction non-decreasing in the feature)
-SPREAD_MONO_POS  = {"massey_beta_diff", "bt_logodds", "bt_logodds_weighted"}
-TOTAL_MONO_POS   = {"massey_gamma_sum"}
+SPREAD_MONO_POS  = {"massey_beta_diff", "bt_logodds", "bt_logodds_weighted", "adj_eff_diff"}
+TOTAL_MONO_POS   = {"massey_gamma_sum", "adj_eff_total"}
 WINPROB_MONO_POS = SPREAD_MONO_POS
 
 # Early stopping (regressors)
@@ -306,7 +398,7 @@ def is_non_d1(row, team_game_index):
 
 
 def load_massey_snapshots(conn, season_years):
-    """Load MASSEY and MASSEY_TOTALS snapshots for the given seasons."""
+    """Load Massey and adjusted-efficiency snapshots for the given seasons."""
     placeholders = ",".join(["%s"] * len(season_years))
     sql = f"""
         SELECT
@@ -318,7 +410,7 @@ def load_massey_snapshots(conn, season_years):
             r.games_played
         FROM team_power_rating_snapshots r
         JOIN seasons s ON r.season_id = s.id
-        WHERE r.model_type IN ('MASSEY', 'MASSEY_TOTALS')
+        WHERE r.model_type IN ('MASSEY', 'MASSEY_TOTALS', 'ADJ_OFF', 'ADJ_DEF')
           AND s.year IN ({placeholders})
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -388,23 +480,37 @@ def load_box_stat_snapshots(conn, season_years):
         return pd.DataFrame(cur.fetchall())
 
 
-def load_rpi_snapshots(conn, season_years):
-    """Load RPI from the wide per-team daily snapshot table (pace-v2 feature set)."""
+def load_season_snapshot_values(conn, season_years):
+    """
+    Load the wide per-team daily snapshot columns used as features (RPI, margin
+    consistency, SOS) from team_season_stat_snapshots in one query.
+    """
+    columns = ", ".join(f"t.{col}" for col, _ in SEASON_SNAPSHOT_KEYS)
     placeholders = ",".join(["%s"] * len(season_years))
     sql = f"""
         SELECT
             t.team_id,
             t.season_id,
             t.snapshot_date,
-            t.rpi
+            {columns}
         FROM team_season_stat_snapshots t
         JOIN seasons s ON t.season_id = s.id
-        WHERE t.rpi IS NOT NULL
-          AND s.year IN ({placeholders})
+        WHERE s.year IN ({placeholders})
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(sql, season_years)
         return pd.DataFrame(cur.fetchall())
+
+
+def load_season_ids(conn, season_years):
+    """year → season id for the given years (silently omits absent seasons)."""
+    if not season_years:
+        return {}
+    placeholders = ",".join(["%s"] * len(season_years))
+    sql = f"SELECT id, year FROM seasons WHERE year IN ({placeholders})"
+    with conn.cursor() as cur:
+        cur.execute(sql, list(season_years))
+        return {int(year): int(sid) for sid, year in cur.fetchall()}
 
 
 # ── Feature engineering ────────────────────────────────────────────────────────
@@ -507,12 +613,22 @@ def build_box_stat_index(df):
     return build_value_index(df, lambda r: (int(r.team_id), int(r.season_id), r.stat_name))
 
 
-def build_rpi_index(df):
-    """(team_id, season_id) -> (dates, rpi values), sorted by snapshot_date."""
-    if df is None or df.empty:
-        return {}
-    df = df.rename(columns={"rpi": "value"})
-    return build_value_index(df, lambda r: (int(r.team_id), int(r.season_id)))
+def build_season_value_indexes(df):
+    """
+    column suffix -> {(team_id, season_id) -> (dates, values)} for each column in
+    SEASON_SNAPSHOT_KEYS. Null values for a column are dropped from that column's
+    index only.
+    """
+    indexes = {}
+    for col, suffix in SEASON_SNAPSHOT_KEYS:
+        if df is None or df.empty:
+            indexes[suffix] = {}
+            continue
+        col_df = df[df[col].notna()][["team_id", "season_id", "snapshot_date", col]] \
+            .rename(columns={col: "value"})
+        indexes[suffix] = build_value_index(
+            col_df, lambda r: (int(r.team_id), int(r.season_id)))
+    return indexes
 
 
 def lookup_value(index, key, cutoff_date):
@@ -539,7 +655,9 @@ def build_team_game_index(games_df):
     """
     groups = {}
     for row in games_df.itertuples(index=False):
-        entry = (row.game_date, int(row.home_score), int(row.away_score), int(row.home_team_id))
+        neutral = bool(row.neutral_site) if pd.notna(row.neutral_site) else False
+        entry = (row.game_date, int(row.home_score), int(row.away_score),
+                 int(row.home_team_id), int(row.away_team_id), neutral)
         season_id = int(row.season_id)
         for tid in (int(row.home_team_id), int(row.away_team_id)):
             key = (tid, season_id)
@@ -549,12 +667,7 @@ def build_team_game_index(games_df):
     index = {}
     for key, entries in groups.items():
         entries.sort()
-        index[key] = (
-            [e[0] for e in entries],
-            [e[1] for e in entries],
-            [e[2] for e in entries],
-            [e[3] for e in entries],
-        )
+        index[key] = tuple([e[i] for e in entries] for i in range(6))
     return index
 
 
@@ -571,7 +684,7 @@ def rolling_stats_fast(team_game_index, team_id, season_id, cutoff_date, n=5):
     result = team_game_index.get((team_id, season_id))
     if result is None:
         return None, None, None, None, None
-    dates, home_scores, away_scores, home_team_ids = result
+    dates, home_scores, away_scores, home_team_ids = result[0], result[1], result[2], result[3]
     pos = bisect.bisect_left(dates, cutoff_date)
     if pos == 0:
         return None, None, None, None, None
@@ -592,8 +705,71 @@ def rolling_stats_fast(team_game_index, team_id, season_id, cutoff_date, n=5):
     return wins / n_actual, avg_margin, avg_total, stddev, days_rest
 
 
+def massey_residual_l5(team_game_index, snapshot_index, param_index,
+                       team_id, season_id, cutoff_date, n=5):
+    """
+    Mean over the team's last n in-season games strictly before cutoff_date of
+    (actual margin from the team's perspective − Massey-predicted margin), where the
+    prediction uses the ratings and HCA as of each PAST game's date. Positive =
+    playing hotter than its rating; schedule-adjusted, unlike raw rolling margin.
+
+    Past games lacking a prior snapshot for either participant (season debuts in the
+    window) are skipped rather than failing the feature; None only when NO usable
+    game exists. Serving (PredictionService) mirrors this rule exactly.
+    """
+    result = team_game_index.get((team_id, season_id))
+    if result is None:
+        return None
+    dates, home_scores, away_scores, home_ids, away_ids, neutrals = result
+    pos = bisect.bisect_left(dates, cutoff_date)
+    if pos == 0:
+        return None
+    residuals = []
+    for i in range(max(0, pos - n), pos):
+        snap_h = lookup_snapshot(snapshot_index, home_ids[i], season_id, "MASSEY", dates[i])
+        snap_a = lookup_snapshot(snapshot_index, away_ids[i], season_id, "MASSEY", dates[i])
+        if snap_h is None or snap_a is None:
+            continue
+        hca = 0.0 if neutrals[i] else lookup_param(param_index, season_id, "MASSEY", "hca", dates[i])
+        resid_home = (home_scores[i] - away_scores[i]) - (snap_h[0] - snap_a[0] + hca)
+        residuals.append(resid_home if home_ids[i] == team_id else -resid_home)
+    if not residuals:
+        return None
+    return sum(residuals) / len(residuals)
+
+
+def adj_efficiency_context(snapshot_index, home_id, away_id, season_id, cutoff_date):
+    """
+    Adjusted-efficiency context values: raw off/def ratings per side plus the derived
+    matchup features (off vs the opposing def), all None-propagating. Mirrors the Java
+    MlFeatureRegistry derived suppliers exactly.
+    """
+    h_off = lookup_snapshot(snapshot_index, home_id, season_id, "ADJ_OFF", cutoff_date)
+    h_def = lookup_snapshot(snapshot_index, home_id, season_id, "ADJ_DEF", cutoff_date)
+    a_off = lookup_snapshot(snapshot_index, away_id, season_id, "ADJ_OFF", cutoff_date)
+    a_def = lookup_snapshot(snapshot_index, away_id, season_id, "ADJ_DEF", cutoff_date)
+    ctx = {
+        "home_adj_off": h_off[0] if h_off else None,
+        "home_adj_def": h_def[0] if h_def else None,
+        "away_adj_off": a_off[0] if a_off else None,
+        "away_adj_def": a_def[0] if a_def else None,
+    }
+    if h_off and h_def and a_off and a_def:
+        matchup_home = h_off[0] - a_def[0]
+        matchup_away = a_off[0] - h_def[0]
+        ctx["adj_eff_matchup_home"] = matchup_home
+        ctx["adj_eff_matchup_away"] = matchup_away
+        ctx["adj_eff_diff"]  = matchup_home - matchup_away
+        ctx["adj_eff_total"] = matchup_home + matchup_away
+    else:
+        ctx["adj_eff_matchup_home"] = ctx["adj_eff_matchup_away"] = None
+        ctx["adj_eff_diff"] = ctx["adj_eff_total"] = None
+    return ctx
+
+
 def build_game_context(row, team_game_index, snapshot_index, param_index,
-                       box_stat_index, rpi_index, needs_box):
+                       box_stat_index, season_val_indexes, season_ids_by_year,
+                       needs_box):
     """
     Build the per-game context dict feature functions read from.
     Returns (ctx, None) on success or (None, 'ratings') when a required rating
@@ -648,9 +824,28 @@ def build_game_context(row, team_game_index, snapshot_index, param_index,
     a_win_pct, a_avg_margin, a_avg_total, a_stddev, a_rest = rolling_stats_fast(team_game_index, away_id, season_id, game_date)
     if h_win_pct is None or a_win_pct is None:
         return None, "ratings"
+    h10_win_pct, h10_avg_margin, _, _, _ = rolling_stats_fast(team_game_index, home_id, season_id, game_date, n=10)
+    a10_win_pct, a10_avg_margin, _, _, _ = rolling_stats_fast(team_game_index, away_id, season_id, game_date, n=10)
 
     # ── Season week ────────────────────────────────────────────────────────────
     season_week = int((game_date - row.season_start_date).days / 7) + 1
+
+    # ── Preseason priors: last snapshot of the previous season, 0-imputed with an
+    #    availability flag (both-or-neither so the flag has one meaning) ─────────
+    prior_sid = season_ids_by_year.get(int(row.season_year) - 1)
+    prev = {"home": (0.0, 0.0, 0.0), "away": (0.0, 0.0, 0.0)}
+    if prior_sid is not None:
+        for side, tid in (("home", home_id), ("away", away_id)):
+            b = lookup_snapshot(snapshot_index, tid, prior_sid, "MASSEY", END_OF_SEASON)
+            t = lookup_snapshot(snapshot_index, tid, prior_sid, "BRADLEY_TERRY", END_OF_SEASON)
+            if b is not None and t is not None:
+                prev[side] = (b[0], t[0], 1.0)
+
+    # ── Hot/cold vs rating ─────────────────────────────────────────────────────
+    h_massey_resid = massey_residual_l5(team_game_index, snapshot_index, param_index,
+                                        home_id, season_id, game_date)
+    a_massey_resid = massey_residual_l5(team_game_index, snapshot_index, param_index,
+                                        away_id, season_id, game_date)
 
     ctx = {
         "beta_home": beta_home, "beta_away": beta_away,
@@ -665,15 +860,25 @@ def build_game_context(row, team_game_index, snapshot_index, param_index,
         "h_rest": h_rest, "a_rest": a_rest,
         "season_week": season_week,
         "neutral": neutral, "conference": conference,
+        "h10_win_pct": h10_win_pct, "h10_avg_margin": h10_avg_margin,
+        "a10_win_pct": a10_win_pct, "a10_avg_margin": a10_avg_margin,
+        "home_prev_beta": prev["home"][0], "home_prev_theta": prev["home"][1],
+        "home_prev_available": prev["home"][2],
+        "away_prev_beta": prev["away"][0], "away_prev_theta": prev["away"][1],
+        "away_prev_available": prev["away"][2],
+        "h_massey_resid": h_massey_resid, "a_massey_resid": a_massey_resid,
     }
+    ctx.update(adj_efficiency_context(snapshot_index, home_id, away_id, season_id, game_date))
 
-    # ── Box-score-derived snapshots (pace-v2) — no imputation, absence = skip ──
+    # ── Box-score/season-snapshot values — no imputation, absence = box skip ──
     if needs_box:
         for side, tid in (("home", home_id), ("away", away_id)):
             for stat_name, key_suffix in BOX_STAT_KEYS:
                 ctx[f"{side}_{key_suffix}"] = lookup_value(
                     box_stat_index, (tid, season_id, stat_name), game_date)
-            ctx[f"{side}_rpi"] = lookup_value(rpi_index, (tid, season_id), game_date)
+            for _, suffix in SEASON_SNAPSHOT_KEYS:
+                ctx[f"{side}_{suffix}"] = lookup_value(
+                    season_val_indexes.get(suffix, {}), (tid, season_id), game_date)
 
     return ctx, None
 
@@ -877,6 +1082,9 @@ def main():
     feature_list = FEATURE_SETS[feature_set]
     n_features = len(feature_list)
     needs_box = any(name in BOX_FEATURES for name in feature_list)
+    needs_prior = any(name in PRIOR_FEATURES for name in feature_list)
+    # Rating snapshots also cover each season's predecessor when priors are needed
+    snapshot_years = sorted(set(all_seasons) | ({y - 1 for y in all_seasons} if needs_prior else set()))
 
     mono_spread  = monotone_constraints_str(feature_list, SPREAD_MONO_POS)
     mono_total   = monotone_constraints_str(feature_list, TOTAL_MONO_POS)
@@ -907,31 +1115,33 @@ def main():
             label = f"(test)" if yr == test_season else "(train)"
             print(f"[train]       season {yr} {label}: {len(grp):,} games")
 
-    print(f"[train] Querying Massey snapshots...")
+    print(f"[train] Querying Massey snapshots for seasons {snapshot_years}...")
     t0 = time.time()
-    massey_df = load_massey_snapshots(conn, all_seasons)
+    massey_df = load_massey_snapshots(conn, snapshot_years)
     print(f"[train]   → {len(massey_df):,} Massey snapshots ({_fmt_seconds(time.time() - t0)})")
 
     print(f"[train] Querying Bradley-Terry snapshots...")
     t0 = time.time()
-    bt_df = load_bt_snapshots(conn, all_seasons)
+    bt_df = load_bt_snapshots(conn, snapshot_years)
     print(f"[train]   → {len(bt_df):,} BT snapshots ({_fmt_seconds(time.time() - t0)})")
+
+    season_ids_by_year = load_season_ids(conn, snapshot_years)
 
     print(f"[train] Querying HCA params...")
     t0 = time.time()
     hca_df = load_hca_params(conn, all_seasons)
     print(f"[train]   → {len(hca_df):,} HCA param rows ({_fmt_seconds(time.time() - t0)})")
 
-    box_df = rpi_df = None
+    box_df = season_vals_df = None
     if needs_box:
         print(f"[train] Querying box-score stat snapshots...")
         t0 = time.time()
         box_df = load_box_stat_snapshots(conn, all_seasons)
         print(f"[train]   → {len(box_df):,} box stat rows ({_fmt_seconds(time.time() - t0)})")
-        print(f"[train] Querying RPI snapshots...")
+        print(f"[train] Querying season snapshot values (RPI/consistency/SOS)...")
         t0 = time.time()
-        rpi_df = load_rpi_snapshots(conn, all_seasons)
-        print(f"[train]   → {len(rpi_df):,} RPI rows ({_fmt_seconds(time.time() - t0)})")
+        season_vals_df = load_season_snapshot_values(conn, all_seasons)
+        print(f"[train]   → {len(season_vals_df):,} season snapshot rows ({_fmt_seconds(time.time() - t0)})")
     conn.close()
 
     # ── Validate ──────────────────────────────────────────────────────────────
@@ -954,8 +1164,8 @@ def main():
         hca_df["snapshot_date"]  = pd.to_datetime(hca_df["snapshot_date"]).dt.date
     if box_df is not None and not box_df.empty:
         box_df["snapshot_date"]  = pd.to_datetime(box_df["snapshot_date"]).dt.date
-    if rpi_df is not None and not rpi_df.empty:
-        rpi_df["snapshot_date"]  = pd.to_datetime(rpi_df["snapshot_date"]).dt.date
+    if season_vals_df is not None and not season_vals_df.empty:
+        season_vals_df["snapshot_date"] = pd.to_datetime(season_vals_df["snapshot_date"]).dt.date
 
     # Report snapshot coverage
     massey_dates = massey_df["snapshot_date"]
@@ -975,13 +1185,15 @@ def main():
     t0 = time.time()
     team_game_index = build_team_game_index(games_df)
     print(f"[train]   team game index: {len(team_game_index):,} teams ({_fmt_seconds(time.time()-t0)})")
-    box_stat_index, rpi_index = {}, {}
+    box_stat_index, season_val_indexes = {}, {}
     if needs_box:
         t0 = time.time()
         box_stat_index = build_box_stat_index(box_df)
-        rpi_index = build_rpi_index(rpi_df)
+        season_val_indexes = build_season_value_indexes(season_vals_df)
         print(f"[train]   box stat index : {len(box_stat_index):,} keys, "
-              f"RPI index: {len(rpi_index):,} keys ({_fmt_seconds(time.time()-t0)})")
+              f"season value indexes: "
+              f"{ {k: len(v) for k, v in season_val_indexes.items()} } "
+              f"({_fmt_seconds(time.time()-t0)})")
 
     # ── Feature engineering ───────────────────────────────────────────────────
     _sep("Building features")
@@ -1002,7 +1214,8 @@ def main():
             skipped_non_d1 += 1
             continue
         ctx, skip_reason = build_game_context(row, team_game_index, snapshot_index,
-                                              param_index, box_stat_index, rpi_index,
+                                              param_index, box_stat_index,
+                                              season_val_indexes, season_ids_by_year,
                                               needs_box)
         feat = None
         if skip_reason is None:

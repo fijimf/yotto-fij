@@ -15,9 +15,11 @@ import train_models as tm  # noqa: E402
 
 
 def _games(rows):
-    return pd.DataFrame(rows, columns=[
+    """Rows are (date, home_id, away_id, home_score, away_score, season_id[, neutral])."""
+    padded = [r if len(r) == 7 else (*r, False) for r in rows]
+    return pd.DataFrame(padded, columns=[
         "game_date", "home_team_id", "away_team_id",
-        "home_score", "away_score", "season_id",
+        "home_score", "away_score", "season_id", "neutral_site",
     ])
 
 
@@ -139,3 +141,139 @@ class TestOvertimeHandling:
         fit, keep = tm.prepare_targets(y_spread, y_total, is_ot)
         assert fit.tolist() == [30.0, -30.0, 10.0]
         assert keep.tolist() == [True, False, True]
+
+
+class TestMasseyResidualL5:
+    """
+    Hand-computed contract scenario — the SAME literals are asserted through the Java
+    serving path in PriorV3PredictionIntegrationTest. Do not change one side only.
+
+    Teams H=100, A=200, O=300; season 1; hca = 3.0 (from 2025-01-02).
+    g1 2025-01-05  H 80–70 O   snapshots 01-04: H=5.0 O=2.0 A=4.0
+    g2 2025-01-12  O 75–72 H   snapshots 01-11: H=5.5 O=2.5
+    g3 2025-01-10  A 60–58 O
+    resid(H) = ((10 − (5.0−2.0+3.0)) + −(3 − (2.5−5.5+3.0))) / 2 = (4.0 − 3.0)/2 = 0.5
+    resid(A) = (2 − (4.0−2.0+3.0)) = −3.0
+    """
+
+    def _fixtures(self):
+        games = _games([
+            (dt.date(2025, 1, 5), 100, 300, 80, 70, 1),
+            (dt.date(2025, 1, 12), 300, 100, 75, 72, 1),
+            (dt.date(2025, 1, 10), 200, 300, 60, 58, 1),
+        ])
+        snaps = pd.DataFrame([
+            (100, 1, "MASSEY", dt.date(2025, 1, 4), 5.0, 5),
+            (300, 1, "MASSEY", dt.date(2025, 1, 4), 2.0, 5),
+            (200, 1, "MASSEY", dt.date(2025, 1, 4), 4.0, 5),
+            (100, 1, "MASSEY", dt.date(2025, 1, 11), 5.5, 6),
+            (300, 1, "MASSEY", dt.date(2025, 1, 11), 2.5, 6),
+        ], columns=["team_id", "season_id", "model_type", "snapshot_date", "rating", "games_played"])
+        params = pd.DataFrame([
+            (1, "MASSEY", "hca", dt.date(2025, 1, 2), 3.0),
+        ], columns=["season_id", "model_type", "param_name", "snapshot_date", "param_value"])
+        return (tm.build_team_game_index(games),
+                tm.build_snapshot_index(snaps),
+                tm.build_param_index(params))
+
+    def test_home_team_residual_matches_hand_computation(self):
+        game_idx, snap_idx, param_idx = self._fixtures()
+        resid = tm.massey_residual_l5(game_idx, snap_idx, param_idx, 100, 1, dt.date(2025, 1, 20))
+        assert resid == 0.5
+
+    def test_away_perspective_residual(self):
+        game_idx, snap_idx, param_idx = self._fixtures()
+        resid = tm.massey_residual_l5(game_idx, snap_idx, param_idx, 200, 1, dt.date(2025, 1, 20))
+        assert resid == -3.0
+
+    def test_no_usable_past_snapshot_returns_none(self):
+        game_idx, snap_idx, param_idx = self._fixtures()
+        assert tm.massey_residual_l5(game_idx, {}, param_idx, 100, 1, dt.date(2025, 1, 20)) is None
+
+    def test_unusable_past_games_are_skipped_not_fatal(self):
+        game_idx, _, param_idx = self._fixtures()
+        # Only the 01-11 snapshots exist → g1 (needs 01-04) is unusable, g2 usable:
+        # resid(H) = −(3 − (2.5−5.5+3.0)) = −3.0 over the single usable game
+        snaps = pd.DataFrame([
+            (100, 1, "MASSEY", dt.date(2025, 1, 11), 5.5, 6),
+            (300, 1, "MASSEY", dt.date(2025, 1, 11), 2.5, 6),
+        ], columns=["team_id", "season_id", "model_type", "snapshot_date", "rating", "games_played"])
+        resid = tm.massey_residual_l5(game_idx, tm.build_snapshot_index(snaps), param_idx,
+                                      100, 1, dt.date(2025, 1, 20))
+        assert resid == -3.0
+
+    def test_no_prior_games_returns_none(self):
+        game_idx, snap_idx, param_idx = self._fixtures()
+        assert tm.massey_residual_l5(game_idx, snap_idx, param_idx, 100, 1, dt.date(2025, 1, 5)) is None
+        assert tm.massey_residual_l5(game_idx, snap_idx, param_idx, 999, 1, dt.date(2025, 1, 20)) is None
+
+
+class TestPreseasonPriorLookup:
+
+    def test_end_of_season_sentinel_picks_last_snapshot(self):
+        snaps = pd.DataFrame([
+            (100, 7, "MASSEY", dt.date(2025, 1, 4), 5.0, 5),
+            (100, 7, "MASSEY", dt.date(2025, 3, 30), 9.25, 30),
+        ], columns=["team_id", "season_id", "model_type", "snapshot_date", "rating", "games_played"])
+        idx = tm.build_snapshot_index(snaps)
+        rating, gp = tm.lookup_snapshot(idx, 100, 7, "MASSEY", tm.END_OF_SEASON)
+        assert rating == 9.25 and gp == 30
+
+    def test_feature_set_registration(self):
+        assert len(tm.FEATURE_SETS["prior-v3"]) == 69
+        assert tm.FEATURE_SETS["prior-v3"][:41] == tm.FEATURE_SETS["pace-v2"]
+        # every registered set name resolves entirely to registry entries, in order
+        for name, features in tm.FEATURE_SETS.items():
+            assert all(f in tm.FEATURE_REGISTRY for f in features), name
+        # golden order of the prior-v3 extras (guards against accidental reordering)
+        assert tm.PRIOR_V3_EXTRAS[0] == "home_prev_beta"
+        assert tm.PRIOR_V3_EXTRAS[-1] == "away_massey_resid_l5"
+        assert tm.FEATURE_SETS["prior-v3"][41] == "home_prev_beta"
+        assert tm.FEATURE_SETS["prior-v3"][67] == "home_massey_resid_l5"
+
+
+class TestAdjEfficiencyFeatures:
+    """
+    Contract literals shared with EffV4PredictionIntegrationTest (Java):
+    off_H=112, def_H=5, off_A=104, def_A=2 →
+    matchup_home = 112−2 = 110, matchup_away = 104−5 = 99, diff = 11, total = 209.
+    """
+
+    def _snapshot_index(self):
+        snaps = pd.DataFrame([
+            (100, 1, "ADJ_OFF", dt.date(2025, 1, 14), 112.0, 10),
+            (100, 1, "ADJ_DEF", dt.date(2025, 1, 14), 5.0, 10),
+            (200, 1, "ADJ_OFF", dt.date(2025, 1, 14), 104.0, 10),
+            (200, 1, "ADJ_DEF", dt.date(2025, 1, 14), 2.0, 10),
+        ], columns=["team_id", "season_id", "model_type", "snapshot_date", "rating", "games_played"])
+        return tm.build_snapshot_index(snaps)
+
+    def test_matchup_math_matches_contract(self):
+        ctx = tm.adj_efficiency_context(self._snapshot_index(), 100, 200, 1, dt.date(2025, 1, 20))
+        assert ctx["home_adj_off"] == 112.0
+        assert ctx["away_adj_def"] == 2.0
+        assert ctx["adj_eff_matchup_home"] == 110.0
+        assert ctx["adj_eff_matchup_away"] == 99.0
+        assert ctx["adj_eff_diff"] == 11.0
+        assert ctx["adj_eff_total"] == 209.0
+
+    def test_missing_any_rating_nulls_derived_features(self):
+        ctx = tm.adj_efficiency_context(self._snapshot_index(), 100, 999, 1, dt.date(2025, 1, 20))
+        assert ctx["home_adj_off"] == 112.0
+        assert ctx["away_adj_off"] is None
+        assert ctx["adj_eff_diff"] is None
+        assert ctx["adj_eff_total"] is None
+
+    def test_eff_v4_registration_and_monotone(self):
+        assert len(tm.FEATURE_SETS["eff-v4"]) == 77
+        assert tm.FEATURE_SETS["eff-v4"][:69] == tm.FEATURE_SETS["prior-v3"]
+        assert tm.FEATURE_SETS["eff-v4"][69] == "home_adj_off"
+        assert tm.FEATURE_SETS["eff-v4"][75] == "adj_eff_diff"
+        assert all(f in tm.FEATURE_REGISTRY for f in tm.EFF_V4_EXTRAS)
+        assert set(tm.EFF_V4_EXTRAS) <= tm.BOX_FEATURES
+        # monotone constraint strings place +1 at the right positions
+        spread = tm.monotone_constraints_str(tm.FEATURE_SETS["eff-v4"], tm.SPREAD_MONO_POS)
+        total = tm.monotone_constraints_str(tm.FEATURE_SETS["eff-v4"], tm.TOTAL_MONO_POS)
+        assert spread.strip("()").split(",")[75] == "1"   # adj_eff_diff
+        assert total.strip("()").split(",")[76] == "1"    # adj_eff_total
+        assert spread.strip("()").split(",")[76] == "0"

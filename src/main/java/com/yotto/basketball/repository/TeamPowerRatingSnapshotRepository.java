@@ -58,6 +58,16 @@ public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPow
             @Param("modelType") String modelType,
             @Param("fromDate") LocalDate fromDate);
 
+    /** The final snapshot of a season for a team/model (no cutoff) — preseason-prior lookups. */
+    @Query(value = "SELECT * FROM team_power_rating_snapshots " +
+                   "WHERE team_id = :teamId AND season_id = :seasonId AND model_type = :modelType " +
+                   "ORDER BY snapshot_date DESC LIMIT 1",
+           nativeQuery = true)
+    Optional<TeamPowerRatingSnapshot> findLatest(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId,
+            @Param("modelType") String modelType);
+
     /** Most recent snapshot for a team/season/model strictly before the given date. */
     @Query(value = "SELECT * FROM team_power_rating_snapshots " +
                    "WHERE team_id = :teamId AND season_id = :seasonId " +

@@ -43,18 +43,18 @@ Every step ends with the same gate:
 - [ ] **1.5** Ops: retrain `baseline` + `baseline-plus`, rebuild evaluations (deploy-time, user action)
 
 ### Phase 2 — Feature set `prior-v3` (review #6, #9, #10)
-- [ ] **2.1** Preseason-prior features (prev-season final β/θ + availability flags)
-- [ ] **2.2** Complete four factors + extra box stats (orb/drb/ft_rate/fg3_rate…)
-- [ ] **2.3** Season-snapshot features (`stddev_margin`, `rpi_owp`) + rolling-10
-- [ ] **2.4** Massey-residual form feature (`*_massey_resid_l5`)
-- [ ] **2.5** Register `prior-v3` set both sides; regenerate ONNX test fixtures
-- [ ] **2.6** Ops: train `prior-v3` as CANDIDATE; compare walk-forward + shadow eval
+- [x] **2.1** Preseason-prior features (prev-season final β/θ + availability flags) — *done 2026-07-26*
+- [x] **2.2** Complete four factors + extra box stats (orb/drb/ft_rate/opp_ft_rate/opp_tov_rate/fg3_rate) — *done 2026-07-26*
+- [x] **2.3** Season-snapshot features (`stddev_margin`, `rpi_owp`) + rolling-10 — *done 2026-07-26*
+- [x] **2.4** Massey-residual form feature (`*_massey_resid_l5`) — *done 2026-07-26; rule relaxed to skip-unusable-past-games (strict version cost 12% of rows), cross-language contract test on both sides*
+- [x] **2.5** Register `prior-v3` (69 features) both sides; fixtures + end-to-end integration test — *done 2026-07-26, full suite 833/833 + 20 pytest green*
+- [ ] **2.6** Ops: train `prior-v3` as CANDIDATE; compare walk-forward + shadow eval (deploy-time, user action)
 
 ### Phase 3 — Adjusted efficiency ratings (review #7)
-- [ ] **3.1** `AdjustedEfficiencyRatingService` (ridge, off/def per team, daily series)
-- [ ] **3.2** Orchestrator + admin wiring; backfill all seasons
-- [ ] **3.3** Efficiency features + `eff-v4` set both sides; fixtures
-- [ ] **3.4** Ops: train `eff-v4` as CANDIDATE; compare
+- [x] **3.1** `AdjustedEfficiencyRatingService` (ridge, off/def per team, daily series) — *done 2026-07-26; hand-solved closed-form scenario asserts exact ratings/params*
+- [x] **3.2** Orchestrator + admin wiring — *done 2026-07-26; rides PowerRatingService fan-out (season backfill itself is the 3.4 ops step)*
+- [x] **3.3** Efficiency features + `eff-v4` set (77) both sides; fixtures + end-to-end test — *done 2026-07-26*
+- [ ] **3.4** Ops: run Power Ratings 2021–2026 (writes ADJ series), train `eff-v4` as CANDIDATE; compare (deploy-time, user action)
 
 ### Phase 4 — Training methodology (review #8, #11–#15)
 - [ ] **4.1** Residual spread head (`spread_target: residual_massey` manifest mode)
@@ -694,6 +694,64 @@ the local 2026 DB). Notes:
   weights (4.4) and residual-style totals learning off `massey_gamma_sum` (4.1's
   totals analog), since the daily Massey-totals intercept already tracks the current
   environment.
+
+**Phase 2 (2026-07-26)** — steps 2.1–2.5 implemented and green (full suite 833/833;
+pytest 20/20; local prior-v3 smoke training run keeps 5,293/5,752 rows). Notes:
+
+- New feature set **`prior-v3` = 69 features** (pace-v2 + 28): preseason priors
+  (previous season's FINAL Massey β / BT θ, 0-imputed with availability flags — the
+  only imputed features, both-or-neither per side), the remaining four factors +
+  shot profile (orb/drb/ft_rate/opp_ft_rate/opp_tov_rate/fg3_rate), season-snapshot
+  `stddev_margin` + `rpi_owp`, rolling-10 win%/margin, and `massey_resid_l5`
+  (hot/cold vs rating, schedule-adjusted).
+- **Residual rule was relaxed during implementation**: the strict "any past game
+  missing a snapshot fails the feature" version skipped 1,015 games (12% of the
+  season, concentrated in Nov/Dec — exactly the window priors target). Shipped rule:
+  skip unusable past games, require ≥1 usable; box-skips fell to 238 (4%).
+- **Cross-language contract test**: the residual scenario (resid(H)=0.5, resid(A)=−3.0)
+  is asserted with identical literals in pytest AND through the full Java pipeline
+  (`PriorV3PredictionIntegrationTest`, using fixture ONNX models whose spread/total
+  outputs echo `home_prev_beta`/`home_massey_resid_l5`). `MlFeatureRegistryTest` holds
+  the 69-name golden order against the Python registry.
+- Serving gates: `ServingPlan` gains `needsPriorRatings`/`needsResidualForm` so the
+  extra queries only run when a loaded bundle's manifest requires them. Rolling
+  windows now fetch 10 games and derive both l5 and l10 from one query.
+
+**Phase 2 deploy checklist (step 2.6, user action)**: after the Phase-1 deploy/retrain,
+train the candidate — admin form: model slug `prior-v3`, feature set `prior-v3`
+(2021–2026, test 2026). It arrives as CANDIDATE and shadow-evaluates automatically.
+Judge vs the retrained `baseline-plus` on: (a) walk-forward means (admin table),
+(b) 2026 out-of-sample rows, (c) the vs-book card. Promote only if (a) and (b) both
+improve; record numbers here.
+
+**Phase 3 (2026-07-26)** — steps 3.1–3.3 implemented and green (pytest 23/23;
+full Java suite **844/844**). Notes:
+
+- **`AdjustedEfficiencyRatingService`**: each box-scored game yields two per-100-
+  possession observations (`μ + off_att − def_def ± η·home_ind`); ridge (λ=1) on the
+  2T team params, unpenalized intercept μ and home-edge η; possessions use
+  `FGA − ORB + TO + 0.475·FTA` (identical to BoxScoreStatCalculator). Daily
+  incremental series persisted as **`ADJ_OFF`/`ADJ_DEF`** snapshot model types with
+  params `eff_intercept`/`eff_hca` (under ADJ_OFF). Games without usable box scores
+  are excluded from the fit but dates carry forward. The test suite pins a
+  hand-solved closed form: symmetric 2-team scenario ⇒ μ=100, η=2.5, off/def=±3.0
+  exactly (to the solver's 1e-6 stability nudge).
+- **`eff-v4` = 77 features** (prior-v3 + 8): raw `home/away_adj_off/def` plus derived
+  `adj_eff_matchup_home/away` (own offense vs opposing defense), `adj_eff_diff`
+  (spread driver, monotone +), `adj_eff_total` (totals driver, monotone +). Derived
+  features are null-propagating and mirrored exactly (pytest `adj_efficiency_context`
+  ↔ Java registry suppliers; contract literals 110/99/11/209 asserted on both sides
+  and end-to-end through `EffV4PredictionIntegrationTest`'s echo bundle).
+- Serving gate `needsAdjEfficiency` keeps the 4 extra snapshot queries off unless an
+  eff-v4 bundle is loaded. Trainer loads ADJ series through the existing snapshot
+  loader; missing ADJ data = box-skip semantics (warn, not fail).
+- Local smoke: ADJ snapshots backfilled into the dev DB via a scratchpad replica of
+  the model, then eff-v4 trained end-to-end — 5,293/5,752 rows kept, no extra skips.
+
+**Phase 3 deploy checklist (step 3.4, user action)**: deploy → run **Power Ratings for
+each season 2021–2026** from the admin dashboard (now also writes the ADJ series;
+box coverage is 100% everywhere so all seasons fit) → train the candidate (slug
+`eff-v4`, feature set `eff-v4`) → judge exactly as in 2.6 and record here.
 
 **Phase 1 deploy checklist (step 1.5, user action)**: deploy → retrain `baseline` and
 `baseline-plus` (2021–2026, test 2026) → `POST /admin/ml/evaluate/rebuild` → record

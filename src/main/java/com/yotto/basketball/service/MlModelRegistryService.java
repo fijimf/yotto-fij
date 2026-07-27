@@ -257,6 +257,9 @@ public class MlModelRegistryService {
         Map<String, java.util.Set<Integer>> trainSeasons = new LinkedHashMap<>();
         String defaultSlug = null;
         boolean needsExtendedStats = false;
+        boolean needsPriorRatings = false;
+        boolean needsResidualForm = false;
+        boolean needsAdjEfficiency = false;
 
         for (MlModel model : modelRepository.findAllByOrderBySlug()) {
             String slug = model.getSlug();
@@ -271,12 +274,16 @@ public class MlModelRegistryService {
                 if (model.getIsDefault()) defaultSlug = slug;
             }
             List<String> features = mlPredictionService.featureNames(slug);
-            if (features != null && MlFeatureRegistry.needsExtendedStats(features)) {
-                needsExtendedStats = true;
+            if (features != null) {
+                needsExtendedStats |= MlFeatureRegistry.needsExtendedStats(features);
+                needsPriorRatings  |= MlFeatureRegistry.needsPriorRatings(features);
+                needsResidualForm  |= MlFeatureRegistry.needsResidualForm(features);
+                needsAdjEfficiency |= MlFeatureRegistry.needsAdjEfficiency(features);
             }
         }
         this.plan = new ServingPlan(defaultSlug, Map.copyOf(active), Map.copyOf(evaluable),
-                Map.copyOf(displayNames), Map.copyOf(trainSeasons), needsExtendedStats);
+                Map.copyOf(displayNames), Map.copyOf(trainSeasons),
+                needsExtendedStats, needsPriorRatings, needsResidualForm, needsAdjEfficiency);
     }
 
     private MlModel require(String slug) {
@@ -342,17 +349,24 @@ public class MlModelRegistryService {
      * @param displayNames       slug → display name for all servable bundles
      * @param trainSeasonsBySlug slug → season years the bundle trained on (empty set for
      *                           legacy bundles) — those seasons' evaluation rows are in-sample
-     * @param needsExtendedStats true when any servable bundle uses box-score/RPI features
+     * @param needsExtendedStats true when any servable bundle uses box-score/season-snapshot features
+     * @param needsPriorRatings  true when any servable bundle uses previous-season prior features
+     * @param needsResidualForm  true when any servable bundle uses the Massey-residual form feature
+     * @param needsAdjEfficiency true when any servable bundle uses adjusted-efficiency features
      */
     public record ServingPlan(String defaultSlug,
                               Map<String, String> activeVersions,
                               Map<String, String> evaluableVersions,
                               Map<String, String> displayNames,
                               Map<String, java.util.Set<Integer>> trainSeasonsBySlug,
-                              boolean needsExtendedStats) {
+                              boolean needsExtendedStats,
+                              boolean needsPriorRatings,
+                              boolean needsResidualForm,
+                              boolean needsAdjEfficiency) {
 
         static ServingPlan empty() {
-            return new ServingPlan(null, Map.of(), Map.of(), Map.of(), Map.of(), false);
+            return new ServingPlan(null, Map.of(), Map.of(), Map.of(), Map.of(),
+                    false, false, false, false);
         }
 
         public boolean hasServableModels() {

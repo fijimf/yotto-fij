@@ -77,7 +77,12 @@ class MlPredictionServiceTest {
                 12, 11,
                 3, 4, 9,
                 false, true,
-                Map.of(), Map.of(), null, null);
+                Map.of(), Map.of(), null, null,
+                null, null, null, null,     // stddev margin / rpi_owp
+                null, null, null, null,     // rolling-10
+                null, null, null, null,     // preseason priors
+                null, null,                 // massey residual
+                null, null, null, null);    // adjusted efficiency
     }
 
     @Test
@@ -132,7 +137,12 @@ class MlPredictionServiceTest {
                 null, null, null, null,          // home rolling features missing
                 0.4, -2.6, 150.2, 11.3,
                 12, 11, 3, 4, 9, false, true,
-                Map.of(), Map.of(), null, null);
+                Map.of(), Map.of(), null, null,
+                null, null, null, null,
+                null, null, null, null,
+                null, null, null, null,
+                null, null,
+                null, null, null, null);
         assertThat(service.predict("baseline", incomplete)).isNull();
     }
 
@@ -161,7 +171,7 @@ class MlPredictionServiceTest {
         copyFixturesInto(tempDir.resolve("legacy"));
         Path manifest = tempDir.resolve("legacy/features.json");
         String json = Files.readString(manifest)
-                .replace("\"train_seasons\": [2021, 2022],", "")
+                .replaceAll("(?s)\"train_seasons\": \\[.*?\\],\\s*", "")
                 .replace("\"test_season\": 2026,", "")
                 .replaceAll("(?s),\\s*\"walk_forward\": \\[.*?\\]", "")
                 .replaceFirst("\\{", "{\"slug\": \"legacy\",");

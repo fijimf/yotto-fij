@@ -12,7 +12,13 @@ import java.util.Map;
  * snapshot); whether that aborts a prediction is decided per feature by its supplier.
  * {@code homeBoxStats}/{@code awayBoxStats} are the latest pre-game
  * {@code team_stat_snapshots} values keyed by stat name (empty when not fetched or not
- * available); {@code homeRpi}/{@code awayRpi} come from {@code team_season_stat_snapshots}.
+ * available); {@code homeRpi}/{@code awayRpi}, {@code *StddevMargin}/{@code *RpiOwp}
+ * come from {@code team_season_stat_snapshots}.
+ *
+ * <p>Prior-v3 fields: {@code *PrevBeta}/{@code *PrevTheta} are the previous season's
+ * FINAL Massey/BT ratings, set both-or-neither per side (their suppliers 0-impute with
+ * an availability flag); {@code *MasseyResidL5} is the hot/cold-vs-rating form feature;
+ * {@code *L10} fields are the 10-game rolling window.
  */
 public record PredictionContext(
         double masseyBetaHome, double masseyBetaAway,
@@ -28,5 +34,16 @@ public record PredictionContext(
         boolean isNeutralSite, boolean isConferenceGame,
 
         Map<String, Double> homeBoxStats, Map<String, Double> awayBoxStats,
-        Double homeRpi, Double awayRpi
+        Double homeRpi, Double awayRpi,
+
+        Double homeStddevMargin, Double awayStddevMargin,
+        Double homeRpiOwp, Double awayRpiOwp,
+        Double homeWinPctL10, Double awayWinPctL10,
+        Double homeAvgMarginL10, Double awayAvgMarginL10,
+        Double homePrevBeta, Double awayPrevBeta,
+        Double homePrevTheta, Double awayPrevTheta,
+        Double homeMasseyResidL5, Double awayMasseyResidL5,
+
+        Double homeAdjOff, Double awayAdjOff,
+        Double homeAdjDef, Double awayAdjDef
 ) {}
