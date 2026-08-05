@@ -28,15 +28,6 @@ export DEPLOY_HOST=your-server
 ./scripts/deploy.sh
 ```
 
-## Architecture
-
-Standard layered Spring Boot: Controller -> Service -> Repository -> Entity
-
-Additional layers:
-- **Scraping** (`scraping/`) - ESPN API client + per-entity scrapers + orchestrator
-- **Security** (`security/`) - Admin authentication with Spring Security
-- **Config** (`config/`) - Configuration properties, security config, async config
-
 ## UI
 - Thymeleaf templates in `src/main/resources/templates`
 - HTMX for AJAX requests and live scrape status polling
@@ -45,7 +36,7 @@ Additional layers:
 - Admin panel at `/admin` (requires authentication)
 See [UI.md](UI.md) for more details and guidelines.
 
-### Entities (9)
+### Entities
 - **Conference** - name (unique), abbreviation, division, espnId (unique), logoUrl — always the CURRENT branding
 - **ConferenceNameHistory** - superseded conference brandings (name/abbr/logo) + lastSeasonYear (inclusive), e.g. WAC through 2026 before the UAC rebrand; display code resolves per-season names via `ConferenceNamingService` (see docs/CONFERENCE_RENAME_PROPOSAL.md)
 - **Season** - year (unique), startDate, endDate
@@ -66,13 +57,6 @@ See [UI.md](UI.md) for more details and guidelines.
 - **News entities** (V29, docs/NEWS_MODULE.md) - NewsSource (RSS feeds: authority weight, dedicated-CBB flag, health/auto-disable state), NewsArticle (link/title/snippet/thumbnail only — body text is NEVER persisted; simhash + duplicate_of self-reference for wire-story clustering; hidden flag), NewsArticleTeam/NewsArticleConference (tags with confidence + matched_via; manual rows survive retags), NewsAlias (gazetteer: AUTO seeded from teams/conferences + MANUAL/BLOCK curation; ambiguous aliases need corroboration). Pipeline: NewsScrapeService polls feeds every 30 min (`news.enabled`, default false) → canonicalize → sport filter (WBB/football excluded) → Aho-Corasick tagging → SimHash dedup (threshold 10) → thumbnail cache. Public: `/news`, front-page panel, team/conference sections, `/news/img/{id}`
 - **MlModel** - registry of named ML bundles (`/models/<slug>/` = 3 ONNX files + features.json manifest whose ordered feature list drives vector assembly via `MlFeatureRegistry`): status ACTIVE (public) / CANDIDATE (shadow-evaluated only) / RETIRED + is_default. First model auto-promotes; later ones arrive as candidates. Feature sets: baseline (27), pace-v2 (41, adds box-score/RPI features), prior-v3 (69, adds preseason priors, full four factors, SOS/consistency, rolling-10, Massey-residual form), eff-v4 (77, adds ADJ_OFF/ADJ_DEF adjusted-efficiency ratings + matchup features) — mirrored by name in `scripts/train_models.py`'s registry; adding a feature = one supplier entry on each side (order is append-only; `MlFeatureRegistryTest` holds the golden list)
 
-### API Endpoints
-All REST controllers are at `/api/{resource}` with standard CRUD. Notable custom endpoints:
-- `GET /api/teams/search?name=` - case-insensitive search
-- `GET /api/conference-memberships/team/{id}/current` - latest membership
-- `GET /api/games/date-range?start=&end=` - date range query
-- `PUT /api/games/{id}/score?homeScore=&awayScore=` - update score (sets FINAL)
-
 ### Admin Endpoints
 - `GET /admin` - dashboard with season management and scrape controls
 - `POST /admin/seasons` - add a season
@@ -86,13 +70,6 @@ All REST controllers are at `/api/{resource}` with standard CRUD. Notable custom
 - `POST /admin/ml/models/{slug}/promote|activate|retire|reinstate` - model lifecycle (ml_models registry, V27)
 - `GET /admin/users` - user management (search, lock/unlock, role, resend verification, trigger reset, delete)
 - `/admin/news/*` - news module admin: `sources` (CRUD + feed dry-run test + Poll Now), `tagging` (untagged queue with tag-and-create-alias, near-miss review, alias browser + reseed), `articles` (browse/hide/break-cluster/refetch), `POST retag` (async, add-only over titles/snippets)
-
-### Error Handling
-`GlobalExceptionHandler` returns consistent JSON with timestamp, status, error, message:
-- EntityNotFoundException -> 404
-- IllegalArgumentException -> 400
-- Validation errors -> 400 with field-level details
-- Generic exceptions -> 500
 
 ## ESPN Scraping System
 
@@ -145,28 +122,9 @@ Full user account system — see [docs/USER_SYSTEM_SPEC.md](docs/USER_SYSTEM_SPE
 - **Server port**: 8080
 - **Scraping config**: `espn.scraping.*` properties (base-delay-ms, jitter-ms, season dates, schedule cron)
 
-## Deployment
+## Deployment & Monitoring
 
-Docker Compose services:
-- **db**: PostgreSQL 16-alpine
-- **app**: Spring Boot (built with `--platform linux/amd64` for x86 server)
-- **trainer**: always-on ML trainer service (FastAPI, `scripts/trainer_service.py`) on the internal network only — the app POSTs `http://trainer:8000/train`; training runs `train_models.py` as a subprocess, writing ONNX models to the shared `model_data` volume
-- **nginx**: Reverse proxy on ports 80/443 with Let's Encrypt SSL
-- **goaccess**: real-time analytics from the nginx access log (port 8888, TLS + basic auth)
-- **netdata**: monitoring (see below)
-- **logrotate**: alpine sidecar running `scripts/rotate-logs.sh` — copy-truncate rotation of `goaccess.log`/`access_timed.log` at 50MB, 3 gzipped generations (no signals needed; nginx/goaccess/netdata tolerate truncation)
-
-Files to copy to server: `.env`, `config/mysite`, `docker-compose.yml`, `netdata/`. The `deploy.sh` script handles the full build-transfer-restart cycle.
-
-## Monitoring (Netdata)
-
-Spec: `docs/monitoring-spec-netdata.md`. Netdata runs as a compose service; configs live in `netdata/` (go.d collector configs, `health.d/` alarms, ntfy notification override). Key invariants:
-- Actuator/Micrometer metrics are on management port **8081** — internal-only, scraped by netdata's prometheus collector; never publish or proxy it. Public `/actuator/` is 404'd in nginx.
-- The `netdata` Postgres role (pg_monitor, no table access) is created by Flyway **V21**; its password comes from `NETDATA_DB_PASSWORD` via a Flyway placeholder. Changing the password later requires a manual `ALTER ROLE`.
-- `netdata/go.d/postgres.conf` is **rendered from postgres.conf.template by deploy.sh** on the server (embeds the DB password; gitignored).
-- nginx writes a second timed access log (`access.log` with `rt=`/`urt=` fields) for netdata's web_log collector; `goaccess.log` must stay strict COMBINED for goaccess.
-- Dashboard: `127.0.0.1:19999` on the server (ssh tunnel), or remotely via nginx on port **9999** (TLS + basic auth via existing htpasswd; port must be open in the Hetzner firewall).
-- Alerts push to ntfy.sh (`NETDATA_NTFY_TOPIC_URL` in `.env`); subscribe to the topic in the ntfy phone app.
+Deploy/monitoring runbook lives in the `server-ops` skill (`.claude/skills/server-ops/SKILL.md`): Docker Compose topology, `deploy.sh`, Netdata configs and invariants. Safety invariant that always applies: management port **8081** (Actuator/Micrometer) is internal-only — never publish or proxy it.
 
 ## Testing
 
