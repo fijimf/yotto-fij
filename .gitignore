@@ -34,3 +34,6 @@ models/*.onnx
 models/features.json
 /scripts/local_start_app.sh
 .venv/
+
+# Claude Code local settings (per-machine, not shared)
+.claude/settings.local.json
