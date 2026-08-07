@@ -1,11 +1,11 @@
 package com.yotto.basketball.controller;
 
 import com.yotto.basketball.entity.Game;
-import com.yotto.basketball.news.NewsQueryService;
 import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamRepository;
+import com.yotto.basketball.service.HomePageService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,32 +13,38 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class HomeController {
 
+    private final HomePageService homePageService;
     private final TeamRepository teamRepository;
     private final GameRepository gameRepository;
     private final SeasonRepository seasonRepository;
     private final ConferenceRepository conferenceRepository;
-    private final NewsQueryService newsQueryService;
 
-    public HomeController(TeamRepository teamRepository,
+    public HomeController(HomePageService homePageService,
+                          TeamRepository teamRepository,
                           GameRepository gameRepository,
                           SeasonRepository seasonRepository,
-                          ConferenceRepository conferenceRepository,
-                          NewsQueryService newsQueryService) {
+                          ConferenceRepository conferenceRepository) {
+        this.homePageService = homePageService;
         this.teamRepository = teamRepository;
         this.gameRepository = gameRepository;
         this.seasonRepository = seasonRepository;
         this.conferenceRepository = conferenceRepository;
-        this.newsQueryService = newsQueryService;
     }
 
     @GetMapping("/")
     public String home(Model model) {
         model.addAttribute("currentPage", "home");
+        model.addAttribute("homePage", homePageService.build());
+        return "pages/home";
+    }
+
+    @GetMapping("/about")
+    public String about(Model model) {
+        model.addAttribute("currentPage", "about");
         model.addAttribute("teamCount", teamRepository.count());
         model.addAttribute("gameCount", gameRepository.countByStatus(Game.GameStatus.FINAL));
         model.addAttribute("seasonCount", seasonRepository.count());
         model.addAttribute("conferenceCount", conferenceRepository.count());
-        model.addAttribute("newsCards", newsQueryService.frontPage());
-        return "pages/home";
+        return "pages/about";
     }
 }

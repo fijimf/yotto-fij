@@ -50,10 +50,19 @@ public class SeasonPhaseService {
 
     public SeasonPhaseService(SeasonRepository seasonRepository,
                               GameRepository gameRepository,
-                              Clock clock) {
+                              Clock clock,
+                              @org.springframework.beans.factory.annotation.Value("${app.home.force-phase:}") String initialForcePhase,
+                              @org.springframework.beans.factory.annotation.Value("${app.home.force-date:}") String initialForceDate) {
         this.seasonRepository = seasonRepository;
         this.gameRepository = gameRepository;
         this.clock = clock;
+        // dev/QA convenience: boot straight into a forced phase without touching /admin
+        if (!initialForcePhase.isBlank()) {
+            this.forcedPhase = SeasonPhase.Phase.valueOf(initialForcePhase.trim());
+        }
+        if (!initialForceDate.isBlank()) {
+            this.forcedDate = LocalDate.parse(initialForceDate.trim());
+        }
     }
 
     /** The phase as of now (Eastern), honoring any admin override. Cached briefly. */

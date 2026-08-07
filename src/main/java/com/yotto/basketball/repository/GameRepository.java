@@ -199,6 +199,10 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT MAX(g.gameDate) FROM Game g WHERE g.status = 'FINAL'")
     Optional<LocalDateTime> findMaxFinalGameDate();
 
+    /** Latest FINAL game instant strictly before the window end — "most recent results" as of a date. */
+    @Query("SELECT MAX(g.gameDate) FROM Game g WHERE g.status = 'FINAL' AND g.gameDate < :endUtc")
+    Optional<LocalDateTime> findMaxFinalGameDateBefore(@Param("endUtc") LocalDateTime endUtc);
+
     /** Count of a season's games of one tournament type in a UTC window — drives phase flair flags. */
     @Query("SELECT COUNT(g) FROM Game g WHERE g.season.id = :seasonId AND g.tournamentType = :type " +
            "AND g.gameDate >= :startUtc AND g.gameDate < :endUtc")

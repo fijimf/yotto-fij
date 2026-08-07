@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>About</title>
+</head>
+<body>
+
+<main layout:fragment="content">
+
+    <h1 class="page-title">About DeepFij</h1>
+
+    <div class="card about-card">
+        <p>
+            DeepFij is college basketball, quantified: scores, schedules, box scores, power ratings,
+            and machine-learning game predictions for every Division I program, updated daily
+            through the season.
+        </p>
+        <p>
+            Predictions come from a family of models — classical Massey and Bradley-Terry ratings
+            alongside gradient-boosted ML models — and every pre-game prediction is scored against
+            the final result and the closing line, in public, on the
+            <a th:href="@{/predictions/performance}">model performance page</a>.
+        </p>
+        <p class="about-card__attribution">
+            Game data is sourced from ESPN's public APIs. DeepFij is an independent analytics
+            project and is not affiliated with ESPN or the NCAA. This is not betting advice.
+        </p>
+    </div>
+
+    <div class="about-stats">
+        <div class="about-stats__stat">
+            <span class="about-stats__num" th:text="${#numbers.formatInteger(teamCount, 1, 'COMMA')}">361</span>
+            <span class="about-stats__label">Teams</span>
+        </div>
+        <div class="about-stats__stat">
+            <span class="about-stats__num" th:text="${#numbers.formatInteger(gameCount, 1, 'COMMA')}">50,000</span>
+            <span class="about-stats__label">Final games</span>
+        </div>
+        <div class="about-stats__stat">
+            <span class="about-stats__num" th:text="${seasonCount}">10</span>
+            <span class="about-stats__label">Seasons</span>
+        </div>
+        <div class="about-stats__stat">
+            <span class="about-stats__num" th:text="${conferenceCount}">32</span>
+            <span class="about-stats__label">Conferences</span>
+        </div>
+    </div>
+
+</main>
+
+</body>
+</html>

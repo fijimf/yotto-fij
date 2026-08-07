@@ -272,6 +272,38 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                                       @Param("allSegments") boolean allSegments,
                                       @Param("tournamentTypes") List<String> tournamentTypes);
 
+    /**
+     * One day's straight-up and against-the-spread record for a model (front-page report card).
+     * SU comes from win-prob when the model has one, else from the predicted-spread side.
+     * ATS pairs against the BOOK row's predicted spread (home-margin oriented), excluding
+     * pushes and exact agreements, mirroring {@link #vsBookMetrics}.
+     */
+    interface DailyRecord {
+        long getSuN();
+        long getSuWins();
+        long getAtsN();
+        long getAtsWins();
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT count(CASE WHEN m.predicted_home_win_prob IS NOT NULL OR m.predicted_spread IS NOT NULL THEN 1 END) AS sun,
+                   count(CASE WHEN (m.predicted_home_win_prob IS NOT NULL AND (m.predicted_home_win_prob >= 0.5) = m.home_won)
+                               OR (m.predicted_home_win_prob IS NULL AND m.predicted_spread IS NOT NULL
+                                   AND (m.predicted_spread >= 0) = (m.actual_margin > 0)) THEN 1 END) AS suwins,
+                   count(CASE WHEN m.predicted_spread IS NOT NULL AND b.predicted_spread IS NOT NULL
+                               AND m.predicted_spread <> b.predicted_spread
+                               AND m.actual_margin <> b.predicted_spread THEN 1 END) AS atsn,
+                   count(CASE WHEN m.predicted_spread IS NOT NULL AND b.predicted_spread IS NOT NULL
+                               AND m.predicted_spread <> b.predicted_spread
+                               AND m.actual_margin <> b.predicted_spread
+                               AND (m.predicted_spread > b.predicted_spread) = (m.actual_margin > b.predicted_spread)
+                               THEN 1 END) AS atswins
+            FROM prediction_evaluations m
+            LEFT JOIN prediction_evaluations b ON b.game_id = m.game_id AND b.model_type = 'BOOK'
+            WHERE m.model_type = :modelType AND m.game_date = :date
+            """)
+    DailyRecord dailyRecord(@Param("modelType") String modelType, @Param("date") LocalDate date);
+
     /** Calibration: predicted-probability deciles vs. actual home-win rate, per model. */
     interface CalibrationBucket {
         String getModelType();

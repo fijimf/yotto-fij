@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Front-page upcoming-games panel: top games by interest. m: title, date, rows, total, modelLabel -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="${m.title}">Tonight</span>
+            <span class="home-panel__date" th:text="${#temporals.format(m.date, 'EEE MMM d')}">Sat Mar 14</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{/predictions}"
+           th:text="'All ' + ${m.total} + ' predictions →'">All 63 predictions →</a>
+    </div>
+    <div class="home-rows">
+        <a th:each="r : ${m.rows}" class="home-row" th:href="@{'/games/' + ${r.v.gameId}}">
+            <span class="home-row__time" th:text="${#temporals.format(r.tipEastern, 'h:mm a')}">7:00 PM</span>
+            <span class="home-row__team">
+                <img th:if="${r.v.awayTeam.logoUrl}" th:src="${r.v.awayTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.awayTeam.name}">Auburn</span>
+            </span>
+            <span class="home-row__at">@</span>
+            <span class="home-row__team">
+                <img th:if="${r.v.homeTeam.logoUrl}" th:src="${r.v.homeTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.homeTeam.name}">Alabama</span>
+            </span>
+            <!-- Model pick: favored side of the model's spread (home-margin oriented) + win prob -->
+            <span class="home-row__pick" th:if="${r.v.predSpread != null}"
+                  th:with="fav=${r.v.predSpread >= 0 ? r.v.homeTeam : r.v.awayTeam}">
+                <span th:text="${fav.abbreviation ?: fav.name} + ' −' +
+                               ${#numbers.formatDecimal(T(java.lang.Math).abs(r.v.predSpread), 1, 1)}">ALA −4.5</span>
+                <span class="home-row__prob" th:if="${r.v.predHomeWinProb != null}"
+                      th:text="${#numbers.formatDecimal(T(java.lang.Math).max(r.v.predHomeWinProb, 1 - r.v.predHomeWinProb) * 100, 1, 0)} + '%'">68%</span>
+            </span>
+            <!-- Book line: betting_odds.spread is a handicap, negative = home favored -->
+            <span class="home-row__line" th:if="${r.v.bookSpread != null}"
+                  th:text="${r.v.bookSpread.signum() < 0
+                            ? (r.v.homeTeam.abbreviation ?: r.v.homeTeam.name) + ' ' + r.v.bookSpread
+                            : (r.v.awayTeam.abbreviation ?: r.v.awayTeam.name) + ' -' + r.v.bookSpread}">ALA -3.5</span>
+        </a>
+    </div>
+</section>
+
+</body>
+</html>

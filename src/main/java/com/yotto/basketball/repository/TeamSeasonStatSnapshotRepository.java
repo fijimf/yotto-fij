@@ -20,6 +20,17 @@ public interface TeamSeasonStatSnapshotRepository extends JpaRepository<TeamSeas
     @Query("SELECT s FROM TeamSeasonStatSnapshot s JOIN FETCH s.team WHERE s.season.id = :seasonId AND s.snapshotDate = :date ORDER BY s.rpi DESC NULLS LAST, s.winPct DESC NULLS LAST")
     List<TeamSeasonStatSnapshot> findBySeasonAndDate(@Param("seasonId") Long seasonId, @Param("date") LocalDate date);
 
+    @Query("SELECT MAX(s.snapshotDate) FROM TeamSeasonStatSnapshot s WHERE s.season.id = :seasonId AND s.snapshotDate <= :date")
+    LocalDate findMaxSnapshotDateOnOrBefore(@Param("seasonId") Long seasonId, @Param("date") LocalDate date);
+
+    /** Team ids of the RPI top-N as of one snapshot date (front-page marquee filter). */
+    @Query(value = "SELECT team_id FROM team_season_stat_snapshots " +
+                   "WHERE season_id = :seasonId AND snapshot_date = :date AND rpi IS NOT NULL " +
+                   "ORDER BY rpi DESC LIMIT :limit", nativeQuery = true)
+    List<Long> findTopRpiTeamIds(@Param("seasonId") Long seasonId,
+                                 @Param("date") LocalDate date,
+                                 @Param("limit") int limit);
+
     @Query("SELECT MAX(s.snapshotDate) FROM TeamSeasonStatSnapshot s WHERE s.season.id = :seasonId")
     Optional<LocalDate> findLatestSnapshotDate(@Param("seasonId") Long seasonId);
 

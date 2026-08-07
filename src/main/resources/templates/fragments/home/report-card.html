@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Model report card strip. m: date, modelLabel, suWins, suLosses, atsWins, atsLosses, hasAts -->
+<section th:fragment="panel(m)" class="home-report">
+    <span class="home-report__label" th:text="${#temporals.format(m.date, 'EEE')} + ' — ' + ${m.modelLabel}">Sat — eff-v4</span>
+    <span class="home-report__record">
+        <strong th:text="${m.suWins} + '–' + ${m.suLosses}">41–12</strong> straight up<th:block
+        th:if="${m.hasAts}"> · <strong th:text="${m.atsWins} + '–' + ${m.atsLosses}">29–24</strong> against the spread</th:block>
+    </span>
+    <a class="home-report__link" th:href="@{/predictions/performance}">Full model performance →</a>
+</section>
+
+</body>
+</html>

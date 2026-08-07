@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Front-page results panel: top games by interest for one date. m: title, date, rows, total -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="${m.title}">Last Night</span>
+            <span class="home-panel__date" th:text="${#temporals.format(m.date, 'EEE MMM d')}">Sat Mar 14</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{/games(date=${m.date})}"
+           th:text="'All ' + ${m.total} + ' scores →'">All 63 scores →</a>
+    </div>
+    <div class="home-rows">
+        <a th:each="r : ${m.rows}" class="home-row" th:href="@{'/games/' + ${r.v.gameId}}">
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == false} ? ' home-row__team--won'">
+                <img th:if="${r.v.awayTeam.logoUrl}" th:src="${r.v.awayTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.awayTeam.name}">Auburn</span>
+                <span class="home-row__score" th:text="${r.v.awayScore}">72</span>
+            </span>
+            <span class="home-row__at">@</span>
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == true} ? ' home-row__team--won'">
+                <img th:if="${r.v.homeTeam.logoUrl}" th:src="${r.v.homeTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.homeTeam.name}">Alabama</span>
+                <span class="home-row__score" th:text="${r.v.homeScore}">85</span>
+            </span>
+            <span class="home-row__badges">
+                <span th:if="${r.v.winnerCorrect() == true}" class="home-badge home-badge--hit" title="Model picked the winner">W</span>
+                <span th:if="${r.v.winnerCorrect() == false}" class="home-badge home-badge--miss" title="Model missed the winner">W</span>
+                <span th:if="${r.v.spreadCorrect() == true}" class="home-badge home-badge--hit" title="Result landed on the model's side of its spread">ATS</span>
+                <span th:if="${r.v.spreadCorrect() == false}" class="home-badge home-badge--miss" title="Result landed against the model's spread">ATS</span>
+            </span>
+        </a>
+    </div>
+</section>
+
+</body>
+</html>

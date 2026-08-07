@@ -36,6 +36,13 @@ public interface ConferenceMembershipRepository extends JpaRepository<Conference
 
     long countBySeasonId(Long seasonId);
 
+    /** Team ids belonging to any of the named conferences (by current abbreviation) in a season. */
+    @Query("SELECT cm.team.id FROM ConferenceMembership cm " +
+           "WHERE cm.season.id = :seasonId AND cm.conference.abbreviation IN :abbreviations")
+    java.util.List<Long> findTeamIdsBySeasonAndConferenceAbbreviations(
+            @Param("seasonId") Long seasonId,
+            @Param("abbreviations") java.util.Collection<String> abbreviations);
+
     @Query("SELECT COUNT(DISTINCT cm.conference.id) FROM ConferenceMembership cm WHERE cm.season.id = :seasonId")
     long countDistinctConferencesBySeasonId(@Param("seasonId") Long seasonId);
 

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Front-page news panel. m: cards, compact (true = headline list, false = thumbnail grid) -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">Latest News</h2>
+        <a class="home-panel__more" th:href="@{/news}">All news →</a>
+    </div>
+
+    <!-- Compact: headline list, no thumbnails -->
+    <div th:if="${m.compact}" class="home-news-list">
+        <a th:each="card : ${m.cards}" class="home-news-list__item"
+           th:href="${card.url}" target="_blank" rel="noopener">
+            <span class="home-news-list__title" th:text="${card.title}">Headline</span>
+            <span class="home-news-list__meta">
+                <span th:if="${card.sourceName}" th:text="${card.sourceName}">ESPN</span>
+                <span th:if="${card.sourceName}"> · </span>
+                <span th:text="${#temporals.format(card.publishedAt, 'MMM d, HH:mm')}">—</span>
+                <span> ↗</span>
+            </span>
+        </a>
+    </div>
+
+    <!-- Wide: thumbnail card grid -->
+    <div th:unless="${m.compact}" class="home-news-grid">
+        <article class="card home-news-grid__card" th:each="card : ${m.cards}">
+            <img th:if="${card.hasThumbnail}" th:src="@{/news/img/{id}(id=${card.id})}" alt=""
+                 loading="lazy" class="home-news-grid__thumb"
+                 onerror="this.style.display='none'"/>
+            <h3 class="home-news-grid__title">
+                <a th:href="${card.url}" th:text="${card.title}" target="_blank" rel="noopener"></a>
+            </h3>
+            <div class="home-news-grid__meta">
+                <span th:if="${card.sourceName}" th:text="${card.sourceName}">ESPN</span>
+                <span th:if="${card.sourceName}"> · </span>
+                <span th:text="${#temporals.format(card.publishedAt, 'MMM d, HH:mm')}">—</span>
+                <span> ↗</span>
+            </div>
+        </article>
+    </div>
+</section>
+
+</body>
+</html>

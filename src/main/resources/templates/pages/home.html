@@ -14,79 +14,18 @@
         <div class="home-hero__inner">
             <p class="home-hero__eyebrow">Yotto FIJ</p>
             <h1 class="home-hero__title">DeepFij</h1>
-            <p class="home-hero__tagline">College Basketball &middot; Quantified</p>
-            <div class="home-hero__stats">
-                <div class="home-hero__stat">
-                    <span class="home-hero__stat-num" th:text="${#numbers.formatInteger(teamCount, 1, 'COMMA')}">361</span>
-                    <span class="home-hero__stat-label">Teams</span>
-                </div>
-                <div class="home-hero__stat">
-                    <span class="home-hero__stat-num" th:text="${#numbers.formatInteger(gameCount, 1, 'COMMA')}">50,000</span>
-                    <span class="home-hero__stat-label">Games</span>
-                </div>
-                <div class="home-hero__stat">
-                    <span class="home-hero__stat-num" th:text="${seasonCount}">10</span>
-                    <span class="home-hero__stat-label">Seasons</span>
-                </div>
-                <div class="home-hero__stat">
-                    <span class="home-hero__stat-num" th:text="${conferenceCount}">32</span>
-                    <span class="home-hero__stat-label">Conferences</span>
-                </div>
-            </div>
+            <p class="home-hero__tagline" th:text="${homePage.heroTagline}">College Basketball &middot; Quantified</p>
         </div>
     </section>
 
-    <nav class="home-nav" aria-label="Site sections">
-        <a th:href="@{/teams}" class="home-nav__item">
-            <h2 class="home-nav__title">Teams</h2>
-            <p class="home-nav__desc">Every program, every season record, every schedule.</p>
-        </a>
-        <a th:href="@{/rankings}" class="home-nav__item">
-            <h2 class="home-nav__title">Rankings</h2>
-            <p class="home-nav__desc">Power ratings and strength-of-schedule analysis.</p>
-        </a>
-        <a th:href="@{/rankings/comprehensive}" class="home-nav__item">
-            <h2 class="home-nav__title">Full Rankings</h2>
-            <p class="home-nav__desc">All metrics — record, scoring, ratings — in one sortable table.</p>
-        </a>
-        <a th:href="@{/predictions}" class="home-nav__item">
-            <h2 class="home-nav__title">Predictions</h2>
-            <p class="home-nav__desc">ML-driven win probabilities for upcoming games.</p>
-        </a>
-        <a th:href="@{/predictions/matchup}" class="home-nav__item">
-            <h2 class="home-nav__title">Matchup</h2>
-            <p class="home-nav__desc">Simulate any head-to-head across multiple models.</p>
-        </a>
-        <a th:href="@{/conferences}" class="home-nav__item">
-            <h2 class="home-nav__title">Conferences</h2>
-            <p class="home-nav__desc">Conference standings and historical membership.</p>
-        </a>
-    </nav>
-
-    <!-- News panel: intentionally below the section nav (front page redesign may revisit) -->
-    <section th:unless="${#lists.isEmpty(newsCards)}" style="margin-top: 2.5rem;">
-        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.75rem;">
-            <h2 style="margin: 0;">Latest News</h2>
-            <a th:href="@{/news}" style="font-size: 0.85rem;">All news &#8594;</a>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem;">
-            <article class="card" th:each="card : ${newsCards}"
-                     style="display: flex; flex-direction: column; gap: 0.4rem;">
-                <img th:if="${card.hasThumbnail}" th:src="@{/news/img/{id}(id=${card.id})}" alt=""
-                     loading="lazy" style="width: 100%; border-radius: 4px;"
-                     onerror="this.style.display='none'"/>
-                <h3 style="font-size: 0.95rem; margin: 0;">
-                    <a th:href="${card.url}" th:text="${card.title}" target="_blank" rel="noopener"></a>
-                </h3>
-                <div style="margin-top: auto; font-size: 0.78rem; color: var(--color-text-muted);">
-                    <span th:if="${card.sourceName}" th:text="${card.sourceName}">ESPN</span>
-                    <span th:if="${card.sourceName}"> · </span>
-                    <span th:text="${#temporals.format(card.publishedAt, 'MMM d, HH:mm')}">—</span>
-                    <span> ↗</span>
-                </div>
-            </article>
-        </div>
-    </section>
+    <!-- Phase-aware panel composition — order and content decided by HomePageService.
+         th:insert must sit on a NESTED block: it outranks th:each on the same element,
+         so the iteration variable wouldn't exist yet. -->
+    <div class="home-panels">
+        <th:block th:each="p : ${homePage.panels}">
+            <th:block th:insert="~{fragments/home/__${p.fragment}__ :: panel(${p.model})}"/>
+        </th:block>
+    </div>
 
 </main>
 

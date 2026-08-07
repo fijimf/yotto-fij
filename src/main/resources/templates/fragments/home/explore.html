@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Slim explore row — the old six nav cards, demoted to chips. m: (none) -->
+<section th:fragment="panel(m)" class="home-explore" aria-label="Site sections">
+    <a th:href="@{/teams}" class="home-explore__chip">Teams</a>
+    <a th:href="@{/conferences}" class="home-explore__chip">Conferences</a>
+    <a th:href="@{/rankings}" class="home-explore__chip">Rankings</a>
+    <a th:href="@{/rankings/comprehensive}" class="home-explore__chip">Full Rankings</a>
+    <a th:href="@{/predictions}" class="home-explore__chip">Predictions</a>
+    <a th:href="@{/predictions/matchup}" class="home-explore__chip">Matchup</a>
+    <a th:href="@{/seasons/stats}" class="home-explore__chip">Season Stats</a>
+    <a th:href="@{/about}" class="home-explore__chip">About</a>
+</section>
+
+</body>
+</html>

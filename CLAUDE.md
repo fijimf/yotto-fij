@@ -139,6 +139,7 @@ Deploy/monitoring runbook lives in the `server-ops` skill (`.claude/skills/serve
 
 ## Key Conventions
 
+- The front page is composed by `HomePageService` per phase: an ordered list of `HomePanel(fragment, model)` rendered from `templates/fragments/home/`; panel builders return empty (never an empty shell) on missing data. Game panels rank by `HomeInterestScore` (top-6, marquee-filtered to power conferences + RPI top 50, falling back to all games when the filter would empty a panel). `/about` holds the count tiles + attribution. Dev preview: boot with `--app.home.force-phase=` / `--app.home.force-date=` or use the /admin override
 - `SeasonPhaseService` is the single source of truth for "where are we in the basketball calendar" (OFFSEASON/PRESEASON/IN_SEASON/POSTSEASON/EPILOGUE + confTourneyWeek/selectionSunday flairs, cached ~10 min, exposed to every view as `seasonPhase` via `SeasonPhaseModelAdvice`); only NCAA_TOURNAMENT games drive postseason detection — NIT/CBI/Crown are ignored. Don't re-derive season/date logic in controllers. Landing-page redesign spec: docs/LANDING_PAGE_SPEC.md + docs/LANDING_PAGE_IMPLEMENTATION_PLAN.md
 - Inject the Eastern-zoned `Clock` bean (`ClockConfig`) instead of calling `LocalDate.now()` in new code so tests can pin time
 - Entities use `@NotNull`/`@NotBlank` for validation; service layer enforces business rules

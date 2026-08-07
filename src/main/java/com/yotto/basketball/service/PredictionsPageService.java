@@ -85,6 +85,19 @@ public class PredictionsPageService {
                 results, upcoming, options, selected, selectedLabel);
     }
 
+    /** The model key the site defaults to (default ML model when one exists, else classical). */
+    public String defaultModelKey() {
+        return resolveSelected(null, modelOptions());
+    }
+
+    /** Display label for a model key. */
+    public String modelLabel(String key) {
+        return modelOptions().stream()
+                .filter(o -> o.key().equals(key))
+                .map(ModelOption::label)
+                .findFirst().orElse(key);
+    }
+
     // ── Reference date ──────────────────────────────────────────────────────────
 
     private LocalDate resolveRefDate(String dateParam, int days) {
