@@ -198,4 +198,15 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     /** Latest FINAL game instant (UTC) across all seasons — drives the off-season default date. */
     @Query("SELECT MAX(g.gameDate) FROM Game g WHERE g.status = 'FINAL'")
     Optional<LocalDateTime> findMaxFinalGameDate();
+
+    /** Count of a season's games of one tournament type in a UTC window — drives phase flair flags. */
+    @Query("SELECT COUNT(g) FROM Game g WHERE g.season.id = :seasonId AND g.tournamentType = :type " +
+           "AND g.gameDate >= :startUtc AND g.gameDate < :endUtc")
+    long countTournamentGamesInWindow(@Param("seasonId") Long seasonId,
+                                      @Param("type") Game.TournamentType type,
+                                      @Param("startUtc") LocalDateTime startUtc,
+                                      @Param("endUtc") LocalDateTime endUtc);
+
+    /** A season's games of one tournament type, lightweight (no fetch joins) — drives phase detection. */
+    List<Game> findBySeasonIdAndTournamentType(Long seasonId, Game.TournamentType tournamentType);
 }

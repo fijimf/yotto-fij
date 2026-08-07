@@ -13,6 +13,8 @@ import com.yotto.basketball.service.ScrapeHistoryEntry;
 import com.yotto.basketball.service.ScrapeHistoryService;
 import com.yotto.basketball.service.SeasonHealth;
 import com.yotto.basketball.service.SeasonHealthService;
+import com.yotto.basketball.service.SeasonPhase;
+import com.yotto.basketball.service.SeasonPhaseService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +38,7 @@ public class AdminController {
     private final AutomationService automationService;
     private final TournamentReclassifier tournamentReclassifier;
     private final com.yotto.basketball.news.NewsAdminService newsAdminService;
+    private final SeasonPhaseService seasonPhaseService;
 
     public AdminController(SeasonRepository seasonRepository,
                            AsyncScrapeService asyncScrapeService,
@@ -45,7 +48,8 @@ public class AdminController {
                            ScrapeHistoryService scrapeHistoryService,
                            AutomationService automationService,
                            TournamentReclassifier tournamentReclassifier,
-                           com.yotto.basketball.news.NewsAdminService newsAdminService) {
+                           com.yotto.basketball.news.NewsAdminService newsAdminService,
+                           SeasonPhaseService seasonPhaseService) {
         this.seasonRepository    = seasonRepository;
         this.asyncScrapeService  = asyncScrapeService;
         this.mlModelRegistryService = mlModelRegistryService;
@@ -55,6 +59,7 @@ public class AdminController {
         this.automationService = automationService;
         this.tournamentReclassifier = tournamentReclassifier;
         this.newsAdminService = newsAdminService;
+        this.seasonPhaseService = seasonPhaseService;
     }
 
     @GetMapping
@@ -79,7 +84,41 @@ public class AdminController {
         model.addAttribute("trainingRuns", mlTrainingService.recentRuns());
         model.addAttribute("trainingInProgress", mlTrainingService.isTrainingInProgress());
         model.addAttribute("news", newsAdminService.dashboard());
+        model.addAttribute("phaseOptions", SeasonPhase.Phase.values());
+        model.addAttribute("phaseOverridden", seasonPhaseService.isOverridden());
+        model.addAttribute("forcedPhase", seasonPhaseService.getForcedPhase());
+        model.addAttribute("forcedDate", seasonPhaseService.getForcedDate());
         return "admin/dashboard";
+    }
+
+    @PostMapping("/phase")
+    public String forcePhase(@RequestParam(required = false) String phase,
+                             @RequestParam(required = false) String date,
+                             RedirectAttributes redirectAttributes) {
+        SeasonPhase.Phase parsedPhase = null;
+        LocalDate parsedDate = null;
+        try {
+            if (phase != null && !phase.isBlank()) {
+                parsedPhase = SeasonPhase.Phase.valueOf(phase);
+            }
+            if (date != null && !date.isBlank()) {
+                parsedDate = LocalDate.parse(date);
+            }
+        } catch (IllegalArgumentException | java.time.format.DateTimeParseException e) {
+            redirectAttributes.addFlashAttribute("error", "Invalid phase override: " + e.getMessage());
+            return "redirect:/admin";
+        }
+
+        if (parsedPhase == null && parsedDate == null) {
+            seasonPhaseService.clearOverride();
+            redirectAttributes.addFlashAttribute("success", "Season phase override cleared");
+        } else {
+            seasonPhaseService.setOverride(parsedPhase, parsedDate);
+            redirectAttributes.addFlashAttribute("success", "Season phase override set: "
+                    + (parsedPhase != null ? parsedPhase : "(computed)")
+                    + (parsedDate != null ? " as of " + parsedDate : ""));
+        }
+        return "redirect:/admin";
     }
 
     @PostMapping("/seasons")

@@ -23,4 +23,8 @@ public interface SeasonRepository extends JpaRepository<Season, Long> {
 
     @Query("SELECT s FROM Season s WHERE s.startDate <= :date AND s.endDate >= :date")
     Optional<Season> findByDate(@Param("date") LocalDate date);
+
+    /** All seasons whose date range covers the given date, newest first — tolerant of overlapping rows. */
+    @Query("SELECT s FROM Season s WHERE s.startDate <= :date AND s.endDate >= :date ORDER BY s.year DESC")
+    List<Season> findAllByDate(@Param("date") LocalDate date);
 }

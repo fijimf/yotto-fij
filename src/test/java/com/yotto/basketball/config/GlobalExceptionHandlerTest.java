@@ -34,11 +34,13 @@ class GlobalExceptionHandlerTest {
     @Autowired MockMvc mockMvc;
 
     // WebConfig (loaded by @WebMvcTest) instantiates PasswordChangeInterceptor,
-    // which needs UserRepository. The QuoteModelAdvice @ControllerAdvice needs
-    // QuoteService, and the slice's Filter scan pulls in LoginRateLimitFilter,
-    // which needs RateLimitService. We don't exercise any of them — stub them out.
+    // which needs UserRepository. The QuoteModelAdvice/SeasonPhaseModelAdvice
+    // @ControllerAdvice beans need their services, and the slice's Filter scan pulls
+    // in LoginRateLimitFilter, which needs RateLimitService. We don't exercise any
+    // of them — stub them out.
     @MockBean UserRepository userRepository;
     @MockBean QuoteService quoteService;
+    @MockBean com.yotto.basketball.service.SeasonPhaseService seasonPhaseService;
     @MockBean com.yotto.basketball.security.RateLimitService rateLimitService;
 
     @Test

@@ -68,6 +68,7 @@ See [UI.md](UI.md) for more details and guidelines.
 - `POST /admin/ml/reload` - rescan/reload all model bundles; `POST /admin/ml/evaluate[/rebuild]` - (re)build prediction evaluations (async, all seasons)
 - `POST /admin/ml/train` (params modelSlug, featureSet; optional spreadTarget margin|residual_massey, winprobMode classifier|derived, tune (Optuna trials), seasonDecay) - train a named model on the trainer service; `GET /admin/ml/training-status` - HTMX-polled run history (completion auto-reloads bundles + re-runs evaluation). Runs recorded in ml_training_runs
 - `POST /admin/ml/models/{slug}/promote|activate|retire|reinstate` - model lifecycle (ml_models registry, V27)
+- `POST /admin/phase` - force/clear a season-phase override for previewing phase-aware UI (in-memory, resets on restart); current phase shown on the dashboard
 - `GET /admin/users` - user management (search, lock/unlock, role, resend verification, trigger reset, delete)
 - `/admin/news/*` - news module admin: `sources` (CRUD + feed dry-run test + Poll Now), `tagging` (untagged queue with tag-and-create-alias, near-miss review, alias browser + reseed), `articles` (browse/hide/break-cluster/refetch), `POST retag` (async, add-only over titles/snippets)
 
@@ -138,6 +139,8 @@ Deploy/monitoring runbook lives in the `server-ops` skill (`.claude/skills/serve
 
 ## Key Conventions
 
+- `SeasonPhaseService` is the single source of truth for "where are we in the basketball calendar" (OFFSEASON/PRESEASON/IN_SEASON/POSTSEASON/EPILOGUE + confTourneyWeek/selectionSunday flairs, cached ~10 min, exposed to every view as `seasonPhase` via `SeasonPhaseModelAdvice`); only NCAA_TOURNAMENT games drive postseason detection — NIT/CBI/Crown are ignored. Don't re-derive season/date logic in controllers. Landing-page redesign spec: docs/LANDING_PAGE_SPEC.md + docs/LANDING_PAGE_IMPLEMENTATION_PLAN.md
+- Inject the Eastern-zoned `Clock` bean (`ClockConfig`) instead of calling `LocalDate.now()` in new code so tests can pin time
 - Entities use `@NotNull`/`@NotBlank` for validation; service layer enforces business rules
 - ESPN IDs stored as `espnId` (String) with unique constraints for idempotent upserts
 - Lazy loading on all `@ManyToOne` and `@OneToOne` relationships

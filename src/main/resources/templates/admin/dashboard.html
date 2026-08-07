@@ -21,6 +21,75 @@
     <div th:if="${success}" class="alert alert--success" th:text="${success}"></div>
     <div th:if="${error}" class="alert alert--danger" th:text="${error}"></div>
 
+    <!-- Season phase -->
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2 class="admin-section__title">Season Phase</h2>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <form th:action="@{/admin/phase}" method="post" class="inline-form"
+                  style="display: flex; gap: 0.5rem; align-items: center;">
+                <select name="phase" class="form-input" style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem;">
+                    <option value="">(computed)</option>
+                    <option th:each="p : ${phaseOptions}" th:value="${p}" th:text="${p}"
+                            th:selected="${p == forcedPhase}">IN_SEASON</option>
+                </select>
+                <input type="date" name="date" class="form-input" th:value="${forcedDate}"
+                       style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem;"
+                       title="Optional as-of date for the preview" />
+                <button type="submit" class="btn btn--outline btn--sm"
+                        title="Force a phase (and optionally an as-of date) to preview it site-wide. In-memory only — clears on restart.">
+                    Apply
+                </button>
+            </form>
+            <form th:action="@{/admin/phase}" method="post" class="inline-form" th:if="${phaseOverridden}">
+                <button type="submit" class="btn btn--outline btn--sm">Clear override</button>
+            </form>
+            </div>
+        </div>
+
+        <div class="card" th:if="${seasonPhase != null}"
+             style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem 1.5rem; font-size: 0.9rem;">
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Phase</div>
+                <div>
+                    <strong th:text="${seasonPhase.phase}">IN_SEASON</strong>
+                    <span th:if="${phaseOverridden}" style="color: var(--color-warning, #b8860b); font-size: 0.8rem;">forced</span>
+                </div>
+            </div>
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">As of</div>
+                <div th:text="${seasonPhase.today}">2026-08-07</div>
+            </div>
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Season</div>
+                <div th:text="${seasonPhase.season != null ? seasonPhase.season.year : '—'}">2026</div>
+            </div>
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">First / last game</div>
+                <div>
+                    <span th:text="${seasonPhase.firstGameDate != null ? seasonPhase.firstGameDate : '—'}">Nov 3</span>
+                    · <span th:text="${seasonPhase.lastGameDate != null ? seasonPhase.lastGameDate : '—'}">Apr 6</span>
+                </div>
+            </div>
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Championship</div>
+                <div th:text="${seasonPhase.championshipDate != null ? seasonPhase.championshipDate : '—'}">—</div>
+            </div>
+            <div>
+                <div style="color: var(--color-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;">Flairs</div>
+                <div>
+                    <span th:if="${seasonPhase.confTourneyWeek}">conf-tourney week</span>
+                    <span th:if="${seasonPhase.selectionSunday}">Selection Sunday</span>
+                    <span th:if="${!seasonPhase.confTourneyWeek and !seasonPhase.selectionSunday}"
+                          style="color: var(--color-text-muted);">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="card" th:if="${seasonPhase == null}" style="color: var(--color-text-muted); font-size: 0.9rem;">
+            Phase unavailable (resolution failed — check logs).
+        </div>
+    </section>
+
     <!-- Automation -->
     <section class="admin-section" th:if="${automation != null}">
         <div class="admin-section__header">
