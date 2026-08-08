@@ -17,9 +17,13 @@
     * ~~disable user~~
     * ~~profile~~
 10) Simple model creation
-11) Scrape and summarize news.
-11) 
-    
+11) ~~Scrape and~~ summarize news.
+12) Better landing page
+    * Off season
+    * Pre season 10/15 through 1st game
+    * In season
+    * NCAA Tourney
+13) Personalization    
 
 
 # Random thoughts
