@@ -4,6 +4,7 @@ import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Game.GameStatus;
 import com.yotto.basketball.news.NewsQueryService;
 import com.yotto.basketball.entity.Season;
+import com.yotto.basketball.entity.SeasonStatistics;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
 import com.yotto.basketball.repository.ConferenceMembershipRepository;
@@ -76,6 +77,7 @@ public class HomePageService {
     private final SeasonRepository seasonRepository;
     private final com.yotto.basketball.config.NewsProperties newsProperties;
     private final FavoriteTeamService favoriteTeamService;
+    private final com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepository;
 
     public HomePageService(SeasonPhaseService seasonPhaseService,
                            GameRepository gameRepository,
@@ -88,7 +90,8 @@ public class HomePageService {
                            TeamPowerRatingSnapshotRepository teamPowerRatingSnapshotRepository,
                            SeasonRepository seasonRepository,
                            com.yotto.basketball.config.NewsProperties newsProperties,
-                           FavoriteTeamService favoriteTeamService) {
+                           FavoriteTeamService favoriteTeamService,
+                           com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepository) {
         this.seasonPhaseService = seasonPhaseService;
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
@@ -101,6 +104,7 @@ public class HomePageService {
         this.seasonRepository = seasonRepository;
         this.newsProperties = newsProperties;
         this.favoriteTeamService = favoriteTeamService;
+        this.seasonStatisticsRepository = seasonStatisticsRepository;
     }
 
     /** Anonymous build. */
@@ -508,7 +512,7 @@ public class HomePageService {
 
     /** One followed-team row; nullable fields simply don't render. */
     public record YourTeamRow(Long teamId, String name, String logoUrl, Integer rank,
-                              String lastResult, Long lastGameId,
+                              String record, String streak,
                               String nextGame, Long nextGameId, String pick,
                               String newsTitle, String newsUrl) {}
 
@@ -542,8 +546,8 @@ public class HomePageService {
         LocalDateTime nowUtc = EasternDates.dayWindowUtc(phase.today())[0];
 
         Integer rank = null;
-        String lastResult = null;
-        Long lastGameId = null;
+        String record = null;
+        String streak = null;
         String nextGame = null;
         Long nextGameId = null;
         String pick = null;
@@ -557,18 +561,19 @@ public class HomePageService {
             rank = teamPowerRatingSnapshotRepository
                     .findLatestForTeam(team.getId(), seasonId, "MASSEY", org.springframework.data.domain.PageRequest.of(0, 1))
                     .stream().findFirst().map(TeamPowerRatingSnapshot::getRank).orElse(null);
-            Game last = gameRepository.findRecentFinalGamesForTeam(team.getId(), seasonId,
-                            EasternDates.dayWindowUtc(phase.today())[1],
-                            org.springframework.data.domain.PageRequest.of(0, 1))
-                    .stream().findFirst().orElse(null);
-            if (last != null) {
-                boolean home = last.getHomeTeam().getId().equals(team.getId());
-                int us = home ? last.getHomeScore() : last.getAwayScore();
-                int them = home ? last.getAwayScore() : last.getHomeScore();
-                Team opp = home ? last.getAwayTeam() : last.getHomeTeam();
-                lastResult = (us > them ? "W " : "L ") + us + "–" + them
-                        + (home ? " vs " : " at ") + opp.getName();
-                lastGameId = last.getId();
+            SeasonStatistics stats = seasonStatisticsRepository
+                    .findByTeamIdAndSeasonId(team.getId(), seasonId).orElse(null);
+            if (stats != null) {
+                // calc values (from our own game rows) preferred over scraped standings
+                Integer wins = stats.getCalcWins() != null ? stats.getCalcWins() : stats.getWins();
+                Integer losses = stats.getCalcLosses() != null ? stats.getCalcLosses() : stats.getLosses();
+                if (wins != null && losses != null) {
+                    record = wins + "–" + losses;
+                }
+                Integer s = stats.getCalcStreak() != null ? stats.getCalcStreak() : stats.getStreak();
+                if (s != null && s != 0) {
+                    streak = (s > 0 ? "W" : "L") + Math.abs(s);
+                }
             }
         }
         if (live || phase.phase() == SeasonPhase.Phase.PRESEASON) {
@@ -600,7 +605,7 @@ public class HomePageService {
             }
         }
         return new YourTeamRow(team.getId(), team.getName(), team.getLogoUrl(), rank,
-                lastResult, lastGameId, nextGame, nextGameId, pick, newsTitle, newsUrl);
+                record, streak, nextGame, nextGameId, pick, newsTitle, newsUrl);
     }
 
     // ── Shared panels ─────────────────────────────────────────────────────────

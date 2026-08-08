@@ -25,18 +25,23 @@
                          class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
                     <span class="home-row__name" th:text="${r.name}">Alabama</span>
                 </a>
+                <span class="home-team-row__record" th:if="${r.record != null}">
+                    <span th:text="${r.record}">18–4</span>
+                    <!-- modifier classes deliberately not BEM: "__" inside a th: expression literal
+                         triggers Thymeleaf preprocessing and breaks template parsing -->
+                    <span class="home-team-row__streak" th:if="${r.streak != null}"
+                          th:classappend="${#strings.startsWith(r.streak, 'W')} ? ' streak-win' : ' streak-loss'"
+                          th:text="${r.streak}">W5</span>
+                </span>
                 <span class="home-team-row__detail">
-                    <a th:if="${r.lastResult != null}" th:href="@{'/games/' + ${r.lastGameId}}"
-                       th:text="${r.lastResult}">W 85–69 vs Auburn</a>
-                    <th:block th:if="${r.lastResult != null and r.nextGame != null}"> · </th:block>
                     <a th:if="${r.nextGame != null}" th:href="@{'/games/' + ${r.nextGameId}}">
-                        <span th:text="${r.nextGame}">Sat 7:00 PM vs Duke</span><span
+                        <span th:text="'Next: ' + ${r.nextGame}">Next: Sat 7:00 PM vs Duke</span><span
                             th:if="${r.pick != null}" class="home-row__pick"
                             th:text="' · ' + ${r.pick}"> · ALA −4.5</span>
                     </a>
                     <a th:if="${r.newsTitle != null}" th:href="${r.newsUrl}" target="_blank" rel="noopener"
                        th:text="${r.newsTitle}">Latest team story</a>
-                    <th:block th:if="${r.lastResult == null and r.nextGame == null and r.newsTitle == null}">
+                    <th:block th:if="${r.record == null and r.nextGame == null and r.newsTitle == null}">
                         <span>Quiet for now.</span>
                     </th:block>
                 </span>

@@ -41,6 +41,7 @@ class HomePageServiceTest extends BaseIntegrationTest {
     @Autowired PredictionEvaluationRepository evaluationRepo;
     @Autowired com.yotto.basketball.repository.UserRepository userRepository;
     @Autowired FavoriteTeamService favoriteTeamService;
+    @Autowired com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepo;
 
     static final LocalDate JAN_16 = LocalDate.of(2026, 1, 16);
 
@@ -204,10 +205,11 @@ class HomePageServiceTest extends BaseIntegrationTest {
     }
 
     @Test
-    void yourTeams_inSeason_showsRankLastResultAndNextGame() {
+    void yourTeams_inSeason_showsRankRecordStreakAndNextGame() {
         Long userId = mkUser("strip-user");
         favoriteTeamService.follow(userId, a.getId());
         mkRating(a, 12, 18.0, JAN_16.minusDays(1));
+        mkSeasonStats(a, 18, 4, 5);
         mkFinal(a, b, 85, 69, JAN_16.minusDays(1));
         mkScheduled(a, d, JAN_16.plusDays(1));
         seasonPhaseService.setOverride(null, JAN_16);
@@ -222,8 +224,27 @@ class HomePageServiceTest extends BaseIntegrationTest {
         HomePageService.YourTeamRow row = rows.get(0);
         assertThat(row.name()).isEqualTo("Alabama");
         assertThat(row.rank()).isEqualTo(12);
-        assertThat(row.lastResult()).isEqualTo("W 85–69 vs Auburn");
+        assertThat(row.record()).isEqualTo("18–4");
+        assertThat(row.streak()).isEqualTo("W5");
         assertThat(row.nextGame()).contains("vs Duke");
+    }
+
+    @Test
+    void yourTeams_losingStreak_rendersAsL() {
+        Long userId = mkUser("streak-user");
+        favoriteTeamService.follow(userId, a.getId());
+        mkSeasonStats(a, 10, 12, -3);
+        mkFinal(a, b, 60, 70, JAN_16.minusDays(1));
+        seasonPhaseService.setOverride(null, JAN_16);
+
+        var strip = service.build(userId).panels().stream()
+                .filter(p -> p.fragment().equals("your-teams")).findFirst().orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<HomePageService.YourTeamRow> rows =
+                (List<HomePageService.YourTeamRow>) strip.model().get("rows");
+        assertThat(rows.get(0).record()).isEqualTo("10–12");
+        assertThat(rows.get(0).streak()).isEqualTo("L3");
+        assertThat(rows.get(0).nextGame()).isNull(); // no upcoming game → nothing rendered
     }
 
     @Test
@@ -397,6 +418,25 @@ class HomePageServiceTest extends BaseIntegrationTest {
     }
 
     // ── fixtures ──
+
+    /** Season-stats row via the calc-preferred path (calc fields set, scraped fields left null). */
+    private void mkSeasonStats(Team team, int wins, int losses, int streak) {
+        Conference conf = conferenceRepo.findAll().stream().findFirst().orElseGet(() -> {
+            Conference c = new Conference();
+            c.setName("Test Conference");
+            c.setAbbreviation("TC");
+            c.setEspnId("tc-espn");
+            return conferenceRepo.save(c);
+        });
+        com.yotto.basketball.entity.SeasonStatistics ss = new com.yotto.basketball.entity.SeasonStatistics();
+        ss.setTeam(team);
+        ss.setSeason(season);
+        ss.setConference(conf);
+        ss.setCalcWins(wins);
+        ss.setCalcLosses(losses);
+        ss.setCalcStreak(streak);
+        seasonStatisticsRepo.save(ss);
+    }
 
     private void mkRating(Team team, int rank, double rating, LocalDate snapshotDate) {
         TeamPowerRatingSnapshot s = new TeamPowerRatingSnapshot();
