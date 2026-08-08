@@ -21,6 +21,8 @@ import java.util.Set;
  * into {@link FeedItem}s. Exists because ESPN's classic RSS endpoint serves a
  * bot-challenge page to server-side Java clients (Akamai TLS fingerprinting),
  * while this API — the same family the game scrapers use — stays open.
+ * Since ~2026-07-27 the API also 403s unrecognized User-Agents; the fetch UA
+ * must stay a recognized product token (see {@code NewsProperties.userAgent}).
  */
 @Component
 public class EspnNewsApiParser {

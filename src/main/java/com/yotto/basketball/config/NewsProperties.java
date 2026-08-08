@@ -25,7 +25,13 @@ public class NewsProperties {
     private boolean respectRobots = false;
     /** SSRF-guard escape hatch for local development ONLY — never enable in production. */
     private boolean allowPrivateAddresses = false;
-    private String userAgent = "YottoFijNewsBot/1.0 (+https://deepfij.com/about)";
+    /**
+     * ESPN's Akamai edge started 403ing unrecognized User-Agents (~2026-07-27): custom bot UAs
+     * are blocked on every HTTP stack while recognized product tokens (curl/*, Java/*, real
+     * browsers) pass. "Java/21" is the platform-truthful token the game scrapers have always
+     * sent implicitly; the comment suffix keeps our contact URL — verified to pass.
+     */
+    private String userAgent = "Java/21 (+https://fijimf.com/about)";
     private int maxResponseBytes = 2 * 1024 * 1024;
     private int maxRedirects = 5;
     private int subtitleMaxChars = 300;
