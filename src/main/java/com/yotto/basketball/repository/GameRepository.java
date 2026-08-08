@@ -203,6 +203,19 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT MAX(g.gameDate) FROM Game g WHERE g.status = 'FINAL' AND g.gameDate < :endUtc")
     Optional<LocalDateTime> findMaxFinalGameDateBefore(@Param("endUtc") LocalDateTime endUtc);
 
+    /**
+     * The closest, highest-scoring FINAL game ever played on a calendar month/day, across all
+     * seasons — the off-season "this day in season history" pick. Month/day extraction is on the
+     * stored UTC instant (late-tip games may credit the next calendar day; acceptable for archive
+     * flavor).
+     */
+    @Query(value = "SELECT id FROM games WHERE status = 'FINAL' " +
+                   "AND home_score IS NOT NULL AND away_score IS NOT NULL " +
+                   "AND EXTRACT(MONTH FROM game_date) = :month AND EXTRACT(DAY FROM game_date) = :day " +
+                   "ORDER BY abs(home_score - away_score) ASC, (home_score + away_score) DESC LIMIT 1",
+           nativeQuery = true)
+    Optional<Long> findClosestGameIdOnMonthDay(@Param("month") int month, @Param("day") int day);
+
     /** Count of a season's games of one tournament type in a UTC window — drives phase flair flags. */
     @Query("SELECT COUNT(g) FROM Game g WHERE g.season.id = :seasonId AND g.tournamentType = :type " +
            "AND g.gameDate >= :startUtc AND g.gameDate < :endUtc")

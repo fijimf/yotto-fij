@@ -304,6 +304,24 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
             """)
     DailyRecord dailyRecord(@Param("modelType") String modelType, @Param("date") LocalDate date);
 
+    /** A model's single worst spread miss ever recorded on a calendar month/day (archive panel). */
+    interface ArchiveMissRow {
+        Long getGameId();
+        Double getPredictedSpread();
+        Double getSpreadError();
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT pe.game_id AS gameid, pe.predicted_spread AS predictedspread, pe.spread_error AS spreaderror
+            FROM prediction_evaluations pe
+            WHERE pe.model_type = :modelType AND pe.spread_error IS NOT NULL
+              AND EXTRACT(MONTH FROM pe.game_date) = :month AND EXTRACT(DAY FROM pe.game_date) = :day
+            ORDER BY abs(pe.spread_error) DESC LIMIT 1
+            """)
+    java.util.Optional<ArchiveMissRow> findBiggestMissOnMonthDay(@Param("modelType") String modelType,
+                                                                 @Param("month") int month,
+                                                                 @Param("day") int day);
+
     /** Calibration: predicted-probability deciles vs. actual home-win rate, per model. */
     interface CalibrationBucket {
         String getModelType();

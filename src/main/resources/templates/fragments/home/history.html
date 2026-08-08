@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Off-season archive panel. m: title, view (HistoryView) -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="${m.title}">This Day in Season History</span>
+            <span class="home-panel__date"
+                  th:text="${#temporals.format(m.view.gameDate, 'MMMM d, yyyy')}">January 17, 2024</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{'/games/' + ${m.view.gameId}}">Game details →</a>
+    </div>
+    <a class="home-history card" th:href="@{'/games/' + ${m.view.gameId}}">
+        <span class="home-history__matchup">
+            <span class="home-history__team">
+                <img th:if="${m.view.awayLogo}" th:src="${m.view.awayLogo}"
+                     class="home-history__logo" loading="lazy" width="28" height="28" alt=""/>
+                <span th:text="${m.view.awayName}">Auburn</span>
+                <strong th:text="${m.view.awayScore}">72</strong>
+            </span>
+            <span class="home-row__at">@</span>
+            <span class="home-history__team">
+                <img th:if="${m.view.homeLogo}" th:src="${m.view.homeLogo}"
+                     class="home-history__logo" loading="lazy" width="28" height="28" alt=""/>
+                <span th:text="${m.view.homeName}">Alabama</span>
+                <strong th:text="${m.view.homeScore}">85</strong>
+            </span>
+        </span>
+        <span class="home-history__framing" th:text="${m.view.framing}">Decided by 1 point.</span>
+    </a>
+</section>
+
+</body>
+</html>

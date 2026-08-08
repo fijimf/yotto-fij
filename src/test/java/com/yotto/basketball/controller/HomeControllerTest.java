@@ -71,6 +71,23 @@ class HomeControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    void home_offseason_rendersHistoryPanel() throws Exception {
+        Season season = mkSeason();
+        Team a = mkTeam("Alabama", "ALA");
+        Team b = mkTeam("Auburn", "AUB");
+        LocalDate wednesday = LocalDate.of(2026, 7, 15);
+        java.time.MonthDay md = com.yotto.basketball.service.HomePageService.archiveMonthDay(wednesday);
+        LocalDate gameDay = md.atYear(md.getMonthValue() >= 11 ? 2025 : 2026);
+        mkGame(season, a, b, 71, 70, Game.GameStatus.FINAL, gameDay);
+        seasonPhaseService.setOverride(null, wednesday);
+
+        MvcResult res = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn();
+        assertThat(res.getResponse().getContentAsString())
+                .contains("This Day in Season History")
+                .contains("Decided by 1 point");
+    }
+
+    @Test
     void about_rendersCounts() throws Exception {
         mkSeason();
         mockMvc.perform(get("/about"))
@@ -107,7 +124,7 @@ class HomeControllerTest extends BaseIntegrationTest {
         g.setAwayScore(as);
         g.setStatus(status);
         g.setSeason(s);
-        g.setGameDate(easternDate.atTime(19, 0).atZone(ZoneId.of("America/New_York"))
+        g.setGameDate(easternDate.atTime(14, 0).atZone(ZoneId.of("America/New_York"))
                 .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
         gameRepo.save(g);
     }

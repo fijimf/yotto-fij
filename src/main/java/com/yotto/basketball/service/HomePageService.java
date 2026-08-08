@@ -3,14 +3,20 @@ package com.yotto.basketball.service;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Game.GameStatus;
 import com.yotto.basketball.news.NewsQueryService;
+import com.yotto.basketball.entity.Season;
+import com.yotto.basketball.entity.Team;
+import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
 import com.yotto.basketball.repository.ConferenceMembershipRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.PredictionEvaluationRepository;
+import com.yotto.basketball.repository.SeasonRepository;
+import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
 import com.yotto.basketball.util.EasternDates;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -50,6 +56,14 @@ public class HomePageService {
             List.of("ACC", "SEC", "Big Ten", "Big 12", "Big East");
     private static final int MARQUEE_RPI_TOP_N = 50;
 
+    /** Off-season news: widen count and decay so the panel stays full when volume drops ~10×. */
+    private static final int OFFSEASON_NEWS_COUNT_MULTIPLIER = 2;
+    private static final double OFFSEASON_NEWS_HALF_LIFE_MULTIPLIER = 3.0;
+    private static final int RANKINGS_PANEL_SIZE = 10;
+    private static final int OPENING_NIGHT_HEADLINERS = 3;
+    /** The archive chooser cycles through this many days starting Nov 1 (through early April). */
+    private static final int ARCHIVE_SEASON_SPAN_DAYS = 158;
+
     private final SeasonPhaseService seasonPhaseService;
     private final GameRepository gameRepository;
     private final PredictionService predictionService;
@@ -58,6 +72,9 @@ public class HomePageService {
     private final NewsQueryService newsQueryService;
     private final ConferenceMembershipRepository conferenceMembershipRepository;
     private final TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository;
+    private final TeamPowerRatingSnapshotRepository teamPowerRatingSnapshotRepository;
+    private final SeasonRepository seasonRepository;
+    private final com.yotto.basketball.config.NewsProperties newsProperties;
 
     public HomePageService(SeasonPhaseService seasonPhaseService,
                            GameRepository gameRepository,
@@ -66,7 +83,10 @@ public class HomePageService {
                            PredictionEvaluationRepository predictionEvaluationRepository,
                            NewsQueryService newsQueryService,
                            ConferenceMembershipRepository conferenceMembershipRepository,
-                           TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository) {
+                           TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
+                           TeamPowerRatingSnapshotRepository teamPowerRatingSnapshotRepository,
+                           SeasonRepository seasonRepository,
+                           com.yotto.basketball.config.NewsProperties newsProperties) {
         this.seasonPhaseService = seasonPhaseService;
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
@@ -75,6 +95,9 @@ public class HomePageService {
         this.newsQueryService = newsQueryService;
         this.conferenceMembershipRepository = conferenceMembershipRepository;
         this.teamSeasonStatSnapshotRepository = teamSeasonStatSnapshotRepository;
+        this.teamPowerRatingSnapshotRepository = teamPowerRatingSnapshotRepository;
+        this.seasonRepository = seasonRepository;
+        this.newsProperties = newsProperties;
     }
 
     @Transactional(readOnly = true)
@@ -249,11 +272,23 @@ public class HomePageService {
         return "College Basketball · Quantified";
     }
 
-    // ── PRESEASON / EPILOGUE / OFFSEASON (fallback until plan Phases 2 and 4) ─
+    // ── PRESEASON / OFFSEASON / EPILOGUE ──────────────────────────────────────
 
     private HomePage quietComposition(SeasonPhase phase) {
         List<HomePanel> panels = new ArrayList<>();
-        newsPanel(false).ifPresent(panels::add);
+        switch (phase.phase()) {
+            case PRESEASON -> {
+                preseasonSplitPanel(phase).ifPresent(panels::add);
+                openingNightPanel(phase).ifPresent(panels::add);
+                newsPanel(false).ifPresent(panels::add);
+            }
+            case OFFSEASON -> {
+                offseasonNewsPanel().ifPresent(panels::add);
+                historyPanel(phase).ifPresent(panels::add);
+            }
+            default -> // EPILOGUE keeps the news-forward fallback until the wrap module (plan Phase 4)
+                    newsPanel(false).ifPresent(panels::add);
+        }
         panels.add(explorePanel());
         return new HomePage(phase, quietTagline(phase), panels);
     }
@@ -273,7 +308,186 @@ public class HomePageService {
         if (phase.phase() == SeasonPhase.Phase.PRESEASON) {
             return "The season is almost here.";
         }
-        return "College Basketball · Quantified";
+        // deep off-season: rotate a few archive-flavored lines, stable per day
+        return switch ((int) (today.toEpochDay() % 3)) {
+            case 0 -> "The archive never sleeps.";
+            case 1 -> "See you in November.";
+            default -> "College Basketball · Quantified";
+        };
+    }
+
+    /** One row of the never-too-early rankings panel. */
+    public record RankRow(int rank, Long teamId, String name, String logoUrl, Double rating) {}
+
+    private record RankingsData(List<RankRow> rows, int year) {}
+
+    /**
+     * The preseason lead panel: never-too-early top 10 on the left, a live countdown clock to the
+     * opening tip on the right. Present when either half has data.
+     */
+    private Optional<HomePanel> preseasonSplitPanel(SeasonPhase phase) {
+        Optional<RankingsData> rankings = rankingRows(phase);
+        Long tipMs = null;
+        String tipLabel = null;
+        if (phase.season() != null && phase.firstGameDate() != null
+                && phase.firstGameDate().isAfter(phase.today())) {
+            Optional<LocalDateTime> tipUtc = gameRepository.findMinGameDate(phase.season().getId());
+            if (tipUtc.isPresent()) {
+                tipMs = tipUtc.get().toInstant(java.time.ZoneOffset.UTC).toEpochMilli();
+                LocalDateTime tipEastern = EasternDates.toEasternTime(tipUtc.get());
+                tipLabel = tipEastern.format(java.time.format.DateTimeFormatter
+                        .ofPattern("EEEE, MMMM d · h:mm a 'ET'", java.util.Locale.US));
+            }
+        }
+        if (rankings.isEmpty() && tipMs == null) return Optional.empty();
+        return Optional.of(new HomePanel("preseason-split", model(
+                "title", "Never-Too-Early Top " + rankings.map(r -> r.rows().size()).orElse(0),
+                "subtitle", rankings.map(r ->
+                        "Where last season left off — final " + r.year() + " Massey ratings").orElse(""),
+                "rows", rankings.map(RankingsData::rows).orElse(List.of()),
+                "tipInstantMs", tipMs,
+                "tipLabel", tipLabel)));
+    }
+
+    /**
+     * The most recent completed Massey ratings, labeled honestly as where last season left off.
+     * Prefers the phase's season (a just-finished one during forced previews), else the season
+     * before it (the real preseason case, where the upcoming season has no data).
+     */
+    private Optional<RankingsData> rankingRows(SeasonPhase phase) {
+        if (phase.season() == null) return Optional.empty();
+        for (Integer year : List.of(phase.season().getYear(), phase.season().getYear() - 1)) {
+            Optional<Season> s = seasonRepository.findByYear(year);
+            if (s.isEmpty()) continue;
+            Optional<LocalDate> snap = teamPowerRatingSnapshotRepository
+                    .findLatestSnapshotDate(s.get().getId(), "MASSEY");
+            if (snap.isEmpty()) continue;
+            List<RankRow> rows = teamPowerRatingSnapshotRepository
+                    .findBySeasonModelAndDate(s.get().getId(), "MASSEY", snap.get()).stream()
+                    .limit(RANKINGS_PANEL_SIZE)
+                    .map(HomePageService::toRankRow)
+                    .toList();
+            if (rows.isEmpty()) continue;
+            return Optional.of(new RankingsData(rows, year));
+        }
+        return Optional.empty();
+    }
+
+    private static RankRow toRankRow(TeamPowerRatingSnapshot s) {
+        Team t = s.getTeam();
+        int rank = s.getRank() != null ? s.getRank() : 0;
+        return new RankRow(rank, t.getId(), t.getName(), t.getLogoUrl(), s.getRating());
+    }
+
+    /** Opening-night teaser once the upcoming schedule is scraped: date, game count, headliners. */
+    private Optional<HomePanel> openingNightPanel(SeasonPhase phase) {
+        LocalDate opener = phase.firstGameDate();
+        if (opener == null || !opener.isAfter(phase.today())) return Optional.empty();
+        LocalDateTime[] w = EasternDates.dayWindowUtc(opener);
+        List<HomeGameRow> games = new ArrayList<>();
+        for (Game game : gameRepository.findInUtcWindow(w[0], w[1])) {
+            if (!isPlayable(game)) continue;
+            PredictionCardView v = PredictionCardView.from(
+                    predictionService.buildPrediction(game), predictionsPageService.defaultModelKey());
+            games.add(new HomeGameRow(v, EasternDates.toEasternTime(game.getGameDate()), 0));
+        }
+        if (games.isEmpty()) return Optional.empty();
+        int total = games.size();
+        List<HomeGameRow> headliners = marqueeFilter(games, marqueeHeadlinerIds(phase));
+        headliners = headliners.subList(0, Math.min(OPENING_NIGHT_HEADLINERS, headliners.size()));
+        headliners = new ArrayList<>(headliners);
+        headliners.sort(Comparator.comparing(HomeGameRow::tipEastern));
+        return Optional.of(new HomePanel("opening-night", model(
+                "date", opener, "total", total, "rows", headliners)));
+    }
+
+    /** Headliner filter for the opener: last completed season's Massey top 25. */
+    private java.util.Set<Long> marqueeHeadlinerIds(SeasonPhase phase) {
+        if (phase.season() == null) return java.util.Set.of();
+        for (Integer year : List.of(phase.season().getYear(), phase.season().getYear() - 1)) {
+            Optional<Season> s = seasonRepository.findByYear(year);
+            if (s.isEmpty()) continue;
+            Optional<LocalDate> snap = teamPowerRatingSnapshotRepository
+                    .findLatestSnapshotDate(s.get().getId(), "MASSEY");
+            if (snap.isEmpty()) continue;
+            return teamPowerRatingSnapshotRepository
+                    .findBySeasonModelAndDate(s.get().getId(), "MASSEY", snap.get()).stream()
+                    .limit(25)
+                    .map(r -> r.getTeam().getId())
+                    .collect(java.util.stream.Collectors.toSet());
+        }
+        return java.util.Set.of();
+    }
+
+    private Optional<HomePanel> offseasonNewsPanel() {
+        List<NewsQueryService.NewsCard> cards = newsQueryService.frontPage(
+                newsProperties.getRanking().getFrontPageCount() * OFFSEASON_NEWS_COUNT_MULTIPLIER,
+                newsProperties.getRanking().getHalfLifeHours() * OFFSEASON_NEWS_HALF_LIFE_MULTIPLIER);
+        if (cards.isEmpty()) return Optional.empty();
+        return Optional.of(new HomePanel("news", model("cards", cards, "compact", false)));
+    }
+
+    /** The archive view backing the "this day in season history" panel. */
+    public record HistoryView(int seasonYear, LocalDate gameDate, Long gameId,
+                              String homeName, String awayName, String homeLogo, String awayLogo,
+                              Integer homeScore, Integer awayScore, String framing) {}
+
+    /**
+     * Off-season days have no basketball history of their own, so the chooser walks the archive:
+     * today's epoch day picks a stable in-season month/day (Nov 1 → early April span).
+     */
+    public static java.time.MonthDay archiveMonthDay(LocalDate today) {
+        LocalDate reference = LocalDate.of(2025, 11, 1)
+                .plusDays(Math.floorMod(today.toEpochDay(), ARCHIVE_SEASON_SPAN_DAYS));
+        return java.time.MonthDay.of(reference.getMonth(), reference.getDayOfMonth());
+    }
+
+    /** Sundays feature the model's biggest miss on the chosen date; other days, the closest game. */
+    private Optional<HomePanel> historyPanel(SeasonPhase phase) {
+        java.time.MonthDay md = archiveMonthDay(phase.today());
+        boolean missDay = phase.today().getDayOfWeek() == DayOfWeek.SUNDAY;
+
+        Optional<HistoryView> view = Optional.empty();
+        if (missDay) {
+            view = predictionEvaluationRepository
+                    .findBiggestMissOnMonthDay("MASSEY", md.getMonthValue(), md.getDayOfMonth())
+                    .flatMap(miss -> gameRepository.findByIdWithDetails(miss.getGameId())
+                            .map(g -> toHistoryView(g, "The model missed this one by "
+                                    + String.format(java.util.Locale.US, "%.1f", Math.abs(miss.getSpreadError()))
+                                    + " points.")));
+        }
+        if (view.isEmpty()) {
+            view = gameRepository.findClosestGameIdOnMonthDay(md.getMonthValue(), md.getDayOfMonth())
+                    .flatMap(gameRepository::findByIdWithDetails)
+                    .map(g -> toHistoryView(g, closestFraming(g)));
+        }
+        return view.map(v -> new HomePanel("history", model(
+                "title", "This Day in Season History", "view", v)));
+    }
+
+    private HistoryView toHistoryView(Game g, String framing) {
+        return new HistoryView(
+                g.getSeason() != null ? g.getSeason().getYear() : 0,
+                EasternDates.toEasternDate(g.getGameDate()), g.getId(),
+                g.getHomeTeam().getName(), g.getAwayTeam().getName(),
+                g.getHomeTeam().getLogoUrl(), g.getAwayTeam().getLogoUrl(),
+                g.getHomeScore(), g.getAwayScore(), framing);
+    }
+
+    private String closestFraming(Game g) {
+        int margin = Math.abs(g.getHomeScore() - g.getAwayScore());
+        String base = margin == 0 ? "Decided at the wire."
+                : "Decided by " + margin + (margin == 1 ? " point." : " points.");
+        return predictionEvaluationRepository.findByGameId(g.getId()).stream()
+                .filter(pe -> "MASSEY".equals(pe.getModelType()) && pe.getPredictedSpread() != null)
+                .findFirst()
+                .map(pe -> {
+                    String fav = pe.getPredictedSpread() >= 0
+                            ? g.getHomeTeam().getName() : g.getAwayTeam().getName();
+                    return base + " The model had " + fav + " by "
+                            + String.format(java.util.Locale.US, "%.1f", Math.abs(pe.getPredictedSpread())) + ".";
+                })
+                .orElse(base);
     }
 
     // ── Shared panels ─────────────────────────────────────────────────────────

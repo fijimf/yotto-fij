@@ -67,16 +67,29 @@ public class NewsQueryService {
 
     private double halfLifeToLambdaSeconds() {
         // decay uses exp(-age/τ); convert the configured half-life to τ = t½ / ln 2
-        return properties.getRanking().getHalfLifeHours() * 3600.0 / Math.log(2);
+        return halfLifeToLambdaSeconds(properties.getRanking().getHalfLifeHours());
+    }
+
+    private static double halfLifeToLambdaSeconds(double halfLifeHours) {
+        return halfLifeHours * 3600.0 / Math.log(2);
     }
 
     /** Front-page panel: top N with a per-source cap so one outlet can't own it (§5.10). */
     public List<NewsCard> frontPage() {
-        int want = properties.getRanking().getFrontPageCount();
+        return frontPage(properties.getRanking().getFrontPageCount(),
+                properties.getRanking().getHalfLifeHours());
+    }
+
+    /**
+     * Front-page panel with explicit count and decay half-life — the off-season front page widens
+     * both so the panel stays full when news volume drops ~10× (§5.10 staleness note).
+     */
+    public List<NewsCard> frontPage(int count, double halfLifeHours) {
+        int want = count;
         int perSourceCap = properties.getRanking().getFrontPagePerSourceCap();
         List<CardRow> rows = jdbcTemplate.query(
                 BASE_SELECT + " ORDER BY display_score DESC, a.published_at DESC LIMIT ?",
-                CARD_ROW_MAPPER, halfLifeToLambdaSeconds(), want * 5);
+                CARD_ROW_MAPPER, halfLifeToLambdaSeconds(halfLifeHours), want * 5);
 
         Map<Long, Integer> perSource = new HashMap<>();
         List<NewsCard> out = new ArrayList<>();

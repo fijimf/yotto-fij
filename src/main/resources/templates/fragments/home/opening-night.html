@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Opening-night teaser. m: date, total, rows (headliner HomeGameRows) -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            Opening Night
+            <span class="home-panel__date"
+                  th:text="${#temporals.format(m.date, 'EEEE, MMMM d')} + ' — ' + ${m.total} + (${m.total == 1} ? ' game' : ' games')">Monday, November 3 — 180 games</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{/games(date=${m.date})}">Full schedule →</a>
+    </div>
+    <div class="home-rows">
+        <a th:each="r : ${m.rows}" class="home-row" th:href="@{'/games/' + ${r.v.gameId}}">
+            <span class="home-row__time" th:text="${#temporals.format(r.tipEastern, 'h:mm a')}">7:00 PM</span>
+            <span class="home-row__team">
+                <img th:if="${r.v.awayTeam.logoUrl}" th:src="${r.v.awayTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.awayTeam.name}">Auburn</span>
+            </span>
+            <span class="home-row__at">@</span>
+            <span class="home-row__team">
+                <img th:if="${r.v.homeTeam.logoUrl}" th:src="${r.v.homeTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.homeTeam.name}">Alabama</span>
+            </span>
+        </a>
+    </div>
+</section>
+
+</body>
+</html>
