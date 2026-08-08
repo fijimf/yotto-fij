@@ -13,8 +13,12 @@
 *.swp
 
 
-# Server config (nginx/deploy config at project root — NOT the Java config package)
-/config/
+# Server config (nginx/deploy config at project root — NOT the Java config package).
+# Contents ignored rather than the directory itself so single files can be re-included.
+/config/*
+# ...except the nginx site config: no secrets (paths only), and its routing rules
+# (bracket.txt over plain HTTP, actuator 404) deserve history
+!/config/mysite
 
 # OS
 .DS_Store

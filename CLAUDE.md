@@ -149,4 +149,4 @@ Deploy/monitoring runbook lives in the `server-ops` skill (`.claude/skills/serve
 - ESPN IDs stored as `espnId` (String) with unique constraints for idempotent upserts
 - Lazy loading on all `@ManyToOne` and `@OneToOne` relationships
 - Services throw `EntityNotFoundException` (-> 404) or `IllegalArgumentException` (-> 400)
-- `config/` and `.env` are gitignored — contain server-specific config and secrets
+- `config/` and `.env` are gitignored — contain server-specific config and secrets. Exception: `config/mysite` (nginx site config) is tracked — it holds routing rules worth versioning and no secrets, only server paths
