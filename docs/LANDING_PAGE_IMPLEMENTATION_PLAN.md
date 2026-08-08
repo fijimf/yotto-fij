@@ -207,7 +207,7 @@ work, 3 test classes.
 | Panel | Content | Source / notes |
 |---|---|---|
 | `hero-preseason` | Countdown: "Tip-off in 62 days — Nov 3" (real `firstGameDate`; if schedule not yet scraped, "The season returns in November"). | `SeasonPhase.firstGameDate` |
-| `preseason-rankings` | "Way-too-early top 10": latest power ratings. v1 = final ratings of last completed season, labeled honestly ("where last season left off"); upgrade to model priors when preseason priors are queryable standalone. | `rankings-table` fragment, top-10 slice |
+| `preseason-split` *(shipped)* | Split lead: "Never-Too-Early top 10" (left) + live-ticking countdown clock to the opener's exact tip instant (right; big display-font D/H/M/S, 1s JS tick). v1 ratings = final ratings of last completed season, labeled honestly; upgrade to model priors when queryable standalone. | min `gameDate` of upcoming season |
 | `news` | Full-width prominent. | existing fragment |
 | `schedule-teaser` | "Opening night: N games — headliners: X vs Y" once games exist; else omitted (Optional-empty). | `GameRepository.findScheduledBetween(firstGameDate, firstGameDate)` |
 

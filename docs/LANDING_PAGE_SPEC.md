@@ -96,7 +96,7 @@ hero (counts can survive as a small footer strip — they're charming, just not 
 | Phase | Content |
 |-------|---------|
 | OFFSEASON | Rotating "from the archive" line + brand statement. Ex: "147 days until tip-off. Meanwhile: the 2019 shot chart you forgot about." |
-| PRESEASON | **Countdown to first game** (real date from schedule, not hardcoded). Preseason model priors teaser: "The model's way-too-early top 10." |
+| PRESEASON | **Countdown to first game** (real date from schedule, not hardcoded), plus a live-ticking countdown clock (days/hours/minutes/seconds to the opener's tip instant) split-screen beside the "Never-Too-Early top 10" (naming note: "way-too-early" is overused elsewhere). |
 | IN_SEASON | One-line daily summary, generated from data: "63 games tonight. The model likes 4 upsets." Rotation of 2–3 variants max. |
 | POSTSEASON | Bracket-centric: "Sweet 16 starts Thursday. Model survival odds inside." |
 | EPILOGUE | "That's a wrap on 2025–26." + single biggest stat of the season. |
