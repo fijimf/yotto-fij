@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -268,6 +269,131 @@ class HomePageServiceTest extends BaseIntegrationTest {
         var strip = service.build(userId).panels().stream()
                 .filter(p -> p.fragment().equals("your-teams")).findFirst().orElseThrow();
         assertThat(strip.model().get("teaser")).isEqualTo("no-favorites");
+    }
+
+    // ── Phase 4: postseason + epilogue ──
+
+    @Autowired SeasonWrapService seasonWrapService;
+
+    /** NCAA schedule: R64 FINAL Mar 19, R32 SCHEDULED Mar 21, championship placeholder later. */
+    private void seedTournament() {
+        mkFinal(a, b, 80, 70, LocalDate.of(2026, 3, 8)); // regular-season tail
+        mkTourney(a, b, 85, 60, Game.GameStatus.FINAL, LocalDate.of(2026, 3, 19),
+                Game.TournamentType.NCAA_TOURNAMENT, "1st Round", "NCAA Tournament", 3, 14);
+        mkTourney(c, d, 71, 70, Game.GameStatus.FINAL, LocalDate.of(2026, 3, 19),
+                Game.TournamentType.NCAA_TOURNAMENT, "1st Round", "NCAA Tournament", 6, 11);
+        mkTourney(a, c, null, null, Game.GameStatus.SCHEDULED, LocalDate.of(2026, 3, 21),
+                Game.TournamentType.NCAA_TOURNAMENT, "2nd Round", "NCAA Tournament", 3, 6);
+        mkTourney(b, d, 90, 80, Game.GameStatus.FINAL, LocalDate.of(2026, 3, 19),
+                Game.TournamentType.NIT, "1st Round", "NIT", null, null);
+    }
+
+    @Test
+    void postseason_composesTourneyResultsAndSlate_withSeedsAndCollapsedNit() {
+        seedTournament();
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 3, 20));
+
+        HomePageService.HomePage page = service.build();
+        assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.POSTSEASON);
+        var fragments = page.panels().stream().map(HomePageService.HomePanel::fragment).toList();
+        assertThat(fragments).contains("tourney-results", "tourney-slate");
+        assertThat(fragments).doesNotContain("conf-champ-day", "results", "slate");
+
+        var results = page.panels().stream()
+                .filter(p -> p.fragment().equals("tourney-results")).findFirst().orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<HomePageService.TourneyRow> rows =
+                (List<HomePageService.TourneyRow>) results.model().get("rows");
+        assertThat(rows).hasSize(2); // NIT game excluded from the main rows
+        assertThat(rows.get(0).homeSeed()).isEqualTo(3);
+        assertThat(rows.get(0).round()).isEqualTo("1st Round");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> other = (List<Map<String, Object>>) results.model().get("otherRows");
+        assertThat(other).hasSize(1);
+        assertThat(other.get(0).get("label").toString()).startsWith("NIT:");
+
+        var slate = page.panels().stream()
+                .filter(p -> p.fragment().equals("tourney-slate")).findFirst().orElseThrow();
+        assertThat(slate.model().get("date")).isEqualTo(LocalDate.of(2026, 3, 21));
+        // next playable round drives the tagline
+        assertThat(page.heroTagline()).isEqualTo("2nd Round starts Saturday.");
+    }
+
+    @Test
+    void selectionSunday_addsConfChampPanel_withAutoBidBadgeAndSeed() {
+        seedTournament(); // gives Alabama seed 3 via its NCAA games
+        mkTourney(a, b, 77, 70, Game.GameStatus.FINAL, LocalDate.of(2026, 3, 15),
+                Game.TournamentType.CONFERENCE_TOURNAMENT, "Final", "SEC Tournament", null, null);
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 3, 15));
+
+        HomePageService.HomePage page = service.build();
+        assertThat(page.phase().selectionSunday()).isTrue();
+        var panel = page.panels().stream()
+                .filter(p -> p.fragment().equals("conf-champ-day")).findFirst().orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<HomePageService.ConfChampRow> rows =
+                (List<HomePageService.ConfChampRow>) panel.model().get("rows");
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).winnerName()).isEqualTo("Alabama");
+        assertThat(rows.get(0).winnerSeed()).isEqualTo(3);
+        assertThat(rows.get(0).tournamentName()).isEqualTo("SEC Tournament");
+    }
+
+    @Test
+    void epilogue_composesSeasonWrapAndChampionshipResult() {
+        seedTournament();
+        Game title = mkTourney(a, d, 78, 70, Game.GameStatus.FINAL, LocalDate.of(2026, 4, 6),
+                Game.TournamentType.NCAA_TOURNAMENT, "National Championship", "NCAA Tournament", 3, 11);
+        PredictionEvaluation pe = new PredictionEvaluation();
+        pe.setGame(title);
+        pe.setSeason(season);
+        pe.setModelType("BRADLEY_TERRY");
+        pe.setGameDate(LocalDate.of(2026, 4, 6));
+        pe.setPredictedHomeWinProb(0.12); // home (Alabama) won at 12% → most improbable win
+        pe.setActualMargin(8);
+        pe.setActualTotal(148);
+        pe.setHomeWon(true);
+        pe.setEvaluatedAt(java.time.LocalDateTime.of(2026, 4, 7, 6, 0));
+        evaluationRepo.save(pe);
+
+        seasonWrapService.clearCache();
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 4, 10));
+
+        HomePageService.HomePage page = service.build();
+        assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.EPILOGUE);
+        var fragments = page.panels().stream().map(HomePageService.HomePanel::fragment).toList();
+        assertThat(fragments).containsSubsequence("season-wrap", "championship-result", "explore");
+
+        var wrapPanel = page.panels().stream()
+                .filter(p -> p.fragment().equals("season-wrap")).findFirst().orElseThrow();
+        SeasonWrapService.SeasonWrap wrap = (SeasonWrapService.SeasonWrap) wrapPanel.model().get("wrap");
+        assertThat(wrap.stats()).anySatisfy(s -> {
+            assertThat(s.label()).isEqualTo("National Champions");
+            assertThat(s.headline()).isEqualTo("Alabama");
+        });
+        assertThat(wrap.stats()).anySatisfy(s -> {
+            assertThat(s.label()).isEqualTo("Most Improbable Win");
+            assertThat(s.detail()).contains("12%");
+        });
+    }
+
+    private Game mkTourney(Team home, Team away, Integer hs, Integer as, Game.GameStatus status,
+                           LocalDate easternDate, Game.TournamentType type, String round,
+                           String name, Integer homeSeed, Integer awaySeed) {
+        Game g = new Game();
+        g.setHomeTeam(home);
+        g.setAwayTeam(away);
+        g.setHomeScore(hs);
+        g.setAwayScore(as);
+        g.setStatus(status);
+        g.setSeason(season);
+        g.setGameDate(easternAfternoonUtc(easternDate));
+        g.setTournamentType(type);
+        g.setTournamentRound(round);
+        g.setTournamentName(name);
+        g.setHomeSeed(homeSeed);
+        g.setAwaySeed(awaySeed);
+        return gameRepo.save(g);
     }
 
     // ── Phase 2: quiet-phase compositions ──

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -78,6 +79,8 @@ public class HomePageService {
     private final com.yotto.basketball.config.NewsProperties newsProperties;
     private final FavoriteTeamService favoriteTeamService;
     private final com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepository;
+    private final BracketService bracketService;
+    private final SeasonWrapService seasonWrapService;
 
     public HomePageService(SeasonPhaseService seasonPhaseService,
                            GameRepository gameRepository,
@@ -91,7 +94,9 @@ public class HomePageService {
                            SeasonRepository seasonRepository,
                            com.yotto.basketball.config.NewsProperties newsProperties,
                            FavoriteTeamService favoriteTeamService,
-                           com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepository) {
+                           com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepository,
+                           BracketService bracketService,
+                           SeasonWrapService seasonWrapService) {
         this.seasonPhaseService = seasonPhaseService;
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
@@ -105,6 +110,8 @@ public class HomePageService {
         this.newsProperties = newsProperties;
         this.favoriteTeamService = favoriteTeamService;
         this.seasonStatisticsRepository = seasonStatisticsRepository;
+        this.bracketService = bracketService;
+        this.seasonWrapService = seasonWrapService;
     }
 
     /** Anonymous build. */
@@ -117,10 +124,11 @@ public class HomePageService {
     @Transactional(readOnly = true)
     public HomePage build(Long userId) {
         SeasonPhase phase = seasonPhaseService.current();
-        // POSTSEASON rides the live composition until the bracket takeover ships (plan Phase 4)
         return switch (phase.phase()) {
-            case IN_SEASON, POSTSEASON -> liveComposition(phase, userId);
-            case PRESEASON, EPILOGUE, OFFSEASON -> quietComposition(phase, userId);
+            case IN_SEASON -> liveComposition(phase, userId);
+            case POSTSEASON -> postseasonComposition(phase, userId);
+            case EPILOGUE -> epilogueComposition(phase);
+            case PRESEASON, OFFSEASON -> quietComposition(phase, userId);
         };
     }
 
@@ -299,16 +307,221 @@ public class HomePageService {
                 newsPanel(false).ifPresent(panels::add);
                 yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
             }
-            case OFFSEASON -> {
+            default -> { // OFFSEASON
                 offseasonNewsPanel().ifPresent(panels::add);
                 historyPanel(phase).ifPresent(panels::add);
                 yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
             }
-            default -> // EPILOGUE keeps the news-forward fallback until the wrap module (plan Phase 4)
-                    newsPanel(false).ifPresent(panels::add);
         }
         panels.add(explorePanel());
         return new HomePage(phase, quietTagline(phase), panels);
+    }
+
+    // ── POSTSEASON ────────────────────────────────────────────────────────────
+
+    /** A tournament game row: prediction card + tip + seeds + round. */
+    public record TourneyRow(PredictionCardView v, LocalDateTime tipEastern,
+                             Integer homeSeed, Integer awaySeed, String round, double interest) {}
+
+    /** A conference-title-game row for Selection Sunday. */
+    public record ConfChampRow(PredictionCardView v, LocalDateTime tipEastern, String tournamentName,
+                               String winnerName, Integer winnerSeed, String pick) {}
+
+    private HomePage postseasonComposition(SeasonPhase phase, Long userId) {
+        LocalDate today = phase.today();
+        String modelKey = predictionsPageService.defaultModelKey();
+        String modelLabel = predictionsPageService.modelLabel(modelKey);
+        List<Game> ncaa = phase.season() == null ? List.of()
+                : gameRepository.findBySeasonIdAndTournamentTypeWithDetails(
+                        phase.season().getId(), Game.TournamentType.NCAA_TOURNAMENT);
+
+        List<HomePanel> panels = new ArrayList<>();
+        resultsDate(today).flatMap(d -> reportCardPanel(d, modelKey, modelLabel)).ifPresent(panels::add);
+        yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
+        bracketPanel(phase).ifPresent(panels::add);
+        if (phase.selectionSunday()) {
+            confChampDayPanel(phase, modelKey, seedByTeam(ncaa)).ifPresent(panels::add);
+        }
+        tourneyResultsPanel(phase, ncaa, modelKey).ifPresent(panels::add);
+        tourneySlatePanel(phase, ncaa, modelKey, modelLabel).ifPresent(panels::add);
+        newsPanel(true).ifPresent(panels::add);
+        panels.add(explorePanel());
+
+        return new HomePage(phase, postseasonTagline(today, ncaa), panels);
+    }
+
+    private Optional<HomePanel> bracketPanel(SeasonPhase phase) {
+        if (phase.season() == null) return Optional.empty();
+        return bracketService.buildBracket(phase.season().getYear())
+                .map(b -> new HomePanel("bracket", model("bracket", b, "year", phase.season().getYear())));
+    }
+
+    /** Most recent day (≤ today) with FINAL NCAA games, plus that day's other-postseason scores. */
+    private Optional<HomePanel> tourneyResultsPanel(SeasonPhase phase, List<Game> ncaa, String modelKey) {
+        LocalDate today = phase.today();
+        Optional<LocalDate> day = ncaa.stream()
+                .filter(g -> g.getStatus() == GameStatus.FINAL)
+                .map(g -> EasternDates.toEasternDate(g.getGameDate()))
+                .filter(d -> !d.isAfter(today))
+                .max(LocalDate::compareTo);
+        if (day.isEmpty()) return Optional.empty();
+
+        List<TourneyRow> rows = ncaa.stream()
+                .filter(g -> g.getStatus() == GameStatus.FINAL
+                        && EasternDates.toEasternDate(g.getGameDate()).equals(day.get()))
+                .sorted(Comparator.comparing(Game::getGameDate))
+                .map(g -> toTourneyRow(g, modelKey))
+                .toList();
+
+        // NIT/CBI/Crown etc.: scores reported, nothing else — collapsed below the NCAA results
+        LocalDateTime[] w = EasternDates.dayWindowUtc(day.get());
+        List<Game> other = gameRepository.findInUtcWindow(w[0], w[1]).stream()
+                .filter(g -> g.getStatus() == GameStatus.FINAL && isOtherPostseason(g))
+                .sorted(Comparator.comparing(Game::getGameDate))
+                .toList();
+        List<Map<String, Object>> otherRows = other.stream()
+                .map(g -> Map.<String, Object>of(
+                        "label", (g.getTournamentName() != null ? g.getTournamentName() + ": " : "")
+                                + g.getAwayTeam().getName() + " " + g.getAwayScore()
+                                + ", " + g.getHomeTeam().getName() + " " + g.getHomeScore(),
+                        "gameId", g.getId()))
+                .toList();
+
+        String title = day.get().equals(today) ? "Today's Tournament Scores" : "Tournament Scores";
+        return Optional.of(new HomePanel("tourney-results", model(
+                "title", title, "date", day.get(), "rows", rows, "otherRows", otherRows)));
+    }
+
+    /** Next day (≥ today) with playable NCAA games: the survival slate, v1. */
+    private Optional<HomePanel> tourneySlatePanel(SeasonPhase phase, List<Game> ncaa,
+                                                  String modelKey, String modelLabel) {
+        LocalDate today = phase.today();
+        Optional<LocalDate> day = ncaa.stream()
+                .filter(HomePageService::isPlayable)
+                .map(g -> EasternDates.toEasternDate(g.getGameDate()))
+                .filter(d -> !d.isBefore(today))
+                .min(LocalDate::compareTo);
+        if (day.isEmpty()) return Optional.empty();
+        List<TourneyRow> rows = ncaa.stream()
+                .filter(g -> isPlayable(g) && EasternDates.toEasternDate(g.getGameDate()).equals(day.get()))
+                .sorted(Comparator.comparing(Game::getGameDate))
+                .map(g -> toTourneyRow(g, modelKey))
+                .toList();
+        String title = day.get().equals(today) ? "Tournament Tonight" : "Next Round";
+        return Optional.of(new HomePanel("tourney-slate", model(
+                "title", title, "date", day.get(), "rows", rows, "modelLabel", modelLabel)));
+    }
+
+    /** Selection Sunday only: today's conference title games, winners badged with their auto-bid. */
+    private Optional<HomePanel> confChampDayPanel(SeasonPhase phase, String modelKey,
+                                                  Map<Long, Integer> seedByTeam) {
+        LocalDateTime[] w = EasternDates.dayWindowUtc(phase.today());
+        List<ConfChampRow> rows = new ArrayList<>();
+        for (Game g : gameRepository.findInUtcWindow(w[0], w[1])) {
+            if (g.getTournamentType() != Game.TournamentType.CONFERENCE_TOURNAMENT) continue;
+            String round = g.getTournamentRound() == null ? "" : g.getTournamentRound().toLowerCase(Locale.ROOT);
+            if (!round.contains("final") && !round.contains("championship")) continue;
+            if (g.getStatus() == GameStatus.CANCELLED || g.getStatus() == GameStatus.POSTPONED) continue;
+            PredictionCardView v = PredictionCardView.from(predictionService.buildPrediction(g), modelKey);
+            String winnerName = null;
+            Integer winnerSeed = null;
+            if (v.isFinal()) {
+                Team winner = g.getHomeScore() > g.getAwayScore() ? g.getHomeTeam() : g.getAwayTeam();
+                winnerName = winner.getName();
+                winnerSeed = seedByTeam.get(winner.getId());
+            }
+            String pick = null;
+            if (!v.isFinal() && v.predSpread() != null) {
+                PredictionResult.TeamSummary fav = v.predSpread() >= 0 ? v.homeTeam() : v.awayTeam();
+                pick = (fav.abbreviation() != null ? fav.abbreviation() : fav.name())
+                        + " −" + String.format(Locale.US, "%.1f", Math.abs(v.predSpread()));
+            }
+            rows.add(new ConfChampRow(v, EasternDates.toEasternTime(g.getGameDate()),
+                    g.getTournamentName(), winnerName, winnerSeed, pick));
+        }
+        if (rows.isEmpty()) return Optional.empty();
+        rows.sort(Comparator.comparing(ConfChampRow::tipEastern));
+        return Optional.of(new HomePanel("conf-champ-day", model("rows", rows)));
+    }
+
+    private TourneyRow toTourneyRow(Game g, String modelKey) {
+        PredictionCardView v = PredictionCardView.from(predictionService.buildPrediction(g), modelKey);
+        Double bookHomeMargin = v.bookSpread() == null ? null : -v.bookSpread().doubleValue();
+        double interest = g.getStatus() == GameStatus.FINAL
+                ? HomeInterestScore.result(v.predHomeWinProb(), v.actualMargin(), v.predSpread(), bookHomeMargin)
+                : HomeInterestScore.upcoming(v.predSpread(), bookHomeMargin, v.predHomeWinProb());
+        return new TourneyRow(v, EasternDates.toEasternTime(g.getGameDate()),
+                g.getHomeSeed(), g.getAwaySeed(), g.getTournamentRound(), interest);
+    }
+
+    /** Team id → NCAA seed, from any tournament game the team is seeded in. */
+    private static Map<Long, Integer> seedByTeam(List<Game> ncaa) {
+        Map<Long, Integer> seeds = new java.util.HashMap<>();
+        for (Game g : ncaa) {
+            if (g.getHomeSeed() != null) seeds.putIfAbsent(g.getHomeTeam().getId(), g.getHomeSeed());
+            if (g.getAwaySeed() != null) seeds.putIfAbsent(g.getAwayTeam().getId(), g.getAwaySeed());
+        }
+        return seeds;
+    }
+
+    private static boolean isOtherPostseason(Game g) {
+        return g.getTournamentType() == Game.TournamentType.NIT
+                || g.getTournamentType() == Game.TournamentType.CBI
+                || g.getTournamentType() == Game.TournamentType.CROWN
+                || g.getTournamentType() == Game.TournamentType.OTHER_POSTSEASON;
+    }
+
+    private String postseasonTagline(LocalDate today, List<Game> ncaa) {
+        List<Game> todays = ncaa.stream()
+                .filter(g -> EasternDates.toEasternDate(g.getGameDate()).equals(today)
+                        && g.getStatus() != GameStatus.CANCELLED && g.getStatus() != GameStatus.POSTPONED)
+                .toList();
+        if (!todays.isEmpty()) {
+            String round = todays.get(0).getTournamentRound();
+            int n = todays.size();
+            return (round != null ? round : "Tournament") + ": "
+                    + n + (n == 1 ? " game today." : " games today.");
+        }
+        Optional<Game> next = ncaa.stream()
+                .filter(g -> isPlayable(g) && EasternDates.toEasternDate(g.getGameDate()).isAfter(today))
+                .min(Comparator.comparing(Game::getGameDate));
+        if (next.isPresent()) {
+            String round = next.get().getTournamentRound();
+            String day = EasternDates.toEasternDate(next.get().getGameDate())
+                    .getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, Locale.US);
+            return (round != null ? round : "The next round") + " starts " + day + ".";
+        }
+        return "The bracket is live.";
+    }
+
+    // ── EPILOGUE ──────────────────────────────────────────────────────────────
+
+    private HomePage epilogueComposition(SeasonPhase phase) {
+        List<HomePanel> panels = new ArrayList<>();
+        if (phase.season() != null) {
+            String modelKey = predictionsPageService.defaultModelKey();
+            SeasonWrapService.SeasonWrap wrap = seasonWrapService.wrap(phase.season(),
+                    evaluationModelType(modelKey), probEvaluationModelType(modelKey));
+            if (!wrap.stats().isEmpty()) {
+                panels.add(new HomePanel("season-wrap", model("wrap", wrap)));
+            }
+            seasonWrapService.championshipGame(phase.season())
+                    .map(g -> new HomePanel("championship-result", model(
+                            "row", toTourneyRow(g, modelKey), "year", phase.season().getYear())))
+                    .ifPresent(panels::add);
+        }
+        newsPanel(false).ifPresent(panels::add);
+        panels.add(explorePanel());
+        return new HomePage(phase, quietTagline(phase), panels);
+    }
+
+    /** Win-prob evaluation rows: the ML slug when one is default, else classical Bradley-Terry. */
+    private static String probEvaluationModelType(String modelKey) {
+        if (modelKey != null && modelKey.startsWith(PredictionCardView.ML_PREFIX)) {
+            return PredictionEvaluationService.ML_TYPE_PREFIX
+                    + modelKey.substring(PredictionCardView.ML_PREFIX.length());
+        }
+        return "BRADLEY_TERRY";
     }
 
     private String quietTagline(SeasonPhase phase) {
@@ -514,7 +727,7 @@ public class HomePageService {
     public record YourTeamRow(Long teamId, String name, String logoUrl, Integer rank,
                               String record, String streak,
                               String nextGame, Long nextGameId, String pick,
-                              String newsTitle, String newsUrl) {}
+                              String newsTitle, String newsUrl, String postseasonNote) {}
 
     /**
      * Signed-in users with favorites get the strip; signed-in users without favorites (and
@@ -604,8 +817,33 @@ public class HomePageService {
                 newsUrl = card.url();
             }
         }
+        String postseasonNote = null;
+        if (phase.phase() == SeasonPhase.Phase.POSTSEASON && seasonId != null && nextGame == null) {
+            postseasonNote = eliminationNote(team, seasonId);
+        }
         return new YourTeamRow(team.getId(), team.getName(), team.getLogoUrl(), rank,
-                record, streak, nextGame, nextGameId, pick, newsTitle, newsUrl);
+                record, streak, nextGame, nextGameId, pick, newsTitle, newsUrl, postseasonNote);
+    }
+
+    /** "Eliminated by X (2nd Round)" once a followed team's tournament is over; null if not in field. */
+    private String eliminationNote(Team team, Long seasonId) {
+        List<Game> tourneyGames = gameRepository.findByTeamAndSeasonWithDetails(team.getId(), seasonId).stream()
+                .filter(g -> g.getTournamentType() == Game.TournamentType.NCAA_TOURNAMENT)
+                .toList();
+        if (tourneyGames.isEmpty()) return null;
+        if (tourneyGames.stream().anyMatch(HomePageService::isPlayable)) return null;
+        Game lastGame = tourneyGames.stream()
+                .filter(g -> g.getStatus() == GameStatus.FINAL
+                        && g.getHomeScore() != null && g.getAwayScore() != null)
+                .max(Comparator.comparing(Game::getGameDate)).orElse(null);
+        if (lastGame == null) return null;
+        boolean home = lastGame.getHomeTeam().getId().equals(team.getId());
+        boolean won = home ? lastGame.getHomeScore() > lastGame.getAwayScore()
+                : lastGame.getAwayScore() > lastGame.getHomeScore();
+        if (won) return "Still dancing.";
+        Team opp = home ? lastGame.getAwayTeam() : lastGame.getHomeTeam();
+        return "Eliminated by " + opp.getName()
+                + (lastGame.getTournamentRound() != null ? " (" + lastGame.getTournamentRound() + ")" : "");
     }
 
     // ── Shared panels ─────────────────────────────────────────────────────────

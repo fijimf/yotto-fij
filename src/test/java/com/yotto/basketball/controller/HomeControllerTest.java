@@ -32,6 +32,7 @@ class HomeControllerTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired SeasonPhaseService seasonPhaseService;
+    @Autowired com.yotto.basketball.service.SeasonWrapService seasonWrapService;
     @Autowired SeasonRepository seasonRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired GameRepository gameRepo;
@@ -88,6 +89,38 @@ class HomeControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    void home_postseason_rendersTourneyPanels() throws Exception {
+        Season season = mkSeason();
+        Team a = mkTeam("Alabama", "ALA");
+        Team b = mkTeam("Auburn", "AUB");
+        mkGame(season, a, b, 80, 70, Game.GameStatus.FINAL, LocalDate.of(2026, 3, 8));
+        mkTourney(season, a, b, 85, 60, Game.GameStatus.FINAL, LocalDate.of(2026, 3, 19), "1st Round", 3, 14);
+        mkTourney(season, b, a, null, null, Game.GameStatus.SCHEDULED, LocalDate.of(2026, 3, 21), "2nd Round", 14, 3);
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 3, 20));
+
+        MvcResult res = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn();
+        String html = res.getResponse().getContentAsString();
+        assertThat(html).contains("Tournament Scores").contains("Next Round").contains("(3)");
+    }
+
+    @Test
+    void home_epilogue_rendersWrapAndChampionship() throws Exception {
+        Season season = mkSeason();
+        Team a = mkTeam("Alabama", "ALA");
+        Team b = mkTeam("Auburn", "AUB");
+        mkGame(season, a, b, 80, 70, Game.GameStatus.FINAL, LocalDate.of(2025, 11, 3));
+        mkTourney(season, a, b, 78, 70, Game.GameStatus.FINAL, LocalDate.of(2026, 4, 6),
+                "National Championship", 1, 2);
+        seasonWrapService.clearCache();
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 4, 10));
+
+        MvcResult res = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn();
+        String html = res.getResponse().getContentAsString();
+        assertThat(html).contains("Season, Wrapped").contains("National Champions")
+                .contains("National Championship");
+    }
+
+    @Test
     void about_rendersCounts() throws Exception {
         mkSeason();
         mockMvc.perform(get("/about"))
@@ -113,6 +146,26 @@ class HomeControllerTest extends BaseIntegrationTest {
         t.setAbbreviation(abbr);
         t.setActive(true);
         return teamRepo.save(t);
+    }
+
+    private void mkTourney(Season s, Team home, Team away, Integer hs, Integer as,
+                           Game.GameStatus status, LocalDate easternDate, String round,
+                           Integer homeSeed, Integer awaySeed) {
+        Game g = new Game();
+        g.setHomeTeam(home);
+        g.setAwayTeam(away);
+        g.setHomeScore(hs);
+        g.setAwayScore(as);
+        g.setStatus(status);
+        g.setSeason(s);
+        g.setGameDate(easternDate.atTime(14, 0).atZone(ZoneId.of("America/New_York"))
+                .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
+        g.setTournamentType(Game.TournamentType.NCAA_TOURNAMENT);
+        g.setTournamentRound(round);
+        g.setTournamentName("NCAA Tournament");
+        g.setHomeSeed(homeSeed);
+        g.setAwaySeed(awaySeed);
+        gameRepo.save(g);
     }
 
     private void mkGame(Season s, Team home, Team away, Integer hs, Integer as,

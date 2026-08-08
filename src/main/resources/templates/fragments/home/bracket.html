@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Bracket anchor panel: Final Four + championship center, linking to the full board.
+     m: bracket (BracketView), year -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="${m.year} + ' NCAA Tournament'">2026 NCAA Tournament</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{'/seasons/' + ${m.year} + '/bracket'}">Full bracket →</a>
+    </div>
+    <div class="home-bracket card">
+        <div class="home-bracket__block">
+            <h3 class="home-bracket__label">Final Four</h3>
+            <div th:replace="~{fragments/bracket :: bracketGame(${m.bracket.semifinalLeft}, 'bracket-game--center')}"></div>
+        </div>
+        <div class="home-bracket__block home-bracket__block--champ">
+            <h3 class="home-bracket__label">Championship</h3>
+            <div th:replace="~{fragments/bracket :: bracketGame(${m.bracket.championship}, 'bracket-game--center')}"></div>
+            <div class="home-bracket__champion" th:if="${m.bracket.champion != null}">
+                <img th:if="${m.bracket.champion.logoUrl}" th:src="${m.bracket.champion.logoUrl}"
+                     loading="lazy" width="28" height="28" alt=""/>
+                <span th:text="${m.bracket.champion.label} + ' — National Champions'">Champions</span>
+            </div>
+        </div>
+        <div class="home-bracket__block">
+            <h3 class="home-bracket__label">Final Four</h3>
+            <div th:replace="~{fragments/bracket :: bracketGame(${m.bracket.semifinalRight}, 'bracket-game--center')}"></div>
+        </div>
+    </div>
+</section>
+
+</body>
+</html>

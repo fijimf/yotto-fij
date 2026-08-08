@@ -41,7 +41,8 @@
                     </a>
                     <a th:if="${r.newsTitle != null}" th:href="${r.newsUrl}" target="_blank" rel="noopener"
                        th:text="${r.newsTitle}">Latest team story</a>
-                    <th:block th:if="${r.record == null and r.nextGame == null and r.newsTitle == null}">
+                    <span th:if="${r.postseasonNote != null}" th:text="${r.postseasonNote}">Eliminated by Duke (2nd Round)</span>
+                    <th:block th:if="${r.record == null and r.nextGame == null and r.newsTitle == null and r.postseasonNote == null}">
                         <span>Quiet for now.</span>
                     </th:block>
                 </span>

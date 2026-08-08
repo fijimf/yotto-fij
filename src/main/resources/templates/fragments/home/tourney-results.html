@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- NCAA results for the most recent tournament day. m: title, date, rows (TourneyRow), otherRows -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="${m.title}">Tournament Scores</span>
+            <span class="home-panel__date" th:text="${#temporals.format(m.date, 'EEE MMM d')}">Thu Mar 19</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{/games(date=${m.date})}">All scores →</a>
+    </div>
+    <div class="home-rows">
+        <a th:each="r : ${m.rows}" class="home-row" th:href="@{'/games/' + ${r.v.gameId}}">
+            <span class="home-row__round" th:text="${r.round}">1st Round</span>
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == false} ? ' home-row__team--won'">
+                <span class="home-seed" th:if="${r.awaySeed != null}" th:text="'(' + ${r.awaySeed} + ')'">(14)</span>
+                <img th:if="${r.v.awayTeam.logoUrl}" th:src="${r.v.awayTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.awayTeam.name}">Auburn</span>
+                <span class="home-row__score" th:text="${r.v.awayScore}">72</span>
+            </span>
+            <span class="home-row__at">@</span>
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == true} ? ' home-row__team--won'">
+                <span class="home-seed" th:if="${r.homeSeed != null}" th:text="'(' + ${r.homeSeed} + ')'">(3)</span>
+                <img th:if="${r.v.homeTeam.logoUrl}" th:src="${r.v.homeTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.homeTeam.name}">Alabama</span>
+                <span class="home-row__score" th:text="${r.v.homeScore}">85</span>
+            </span>
+            <span class="home-row__badges">
+                <span th:if="${r.v.winnerCorrect() == true}" class="home-badge home-badge--hit" title="Model picked the winner">W</span>
+                <span th:if="${r.v.winnerCorrect() == false}" class="home-badge home-badge--miss" title="Model missed the winner">W</span>
+            </span>
+        </a>
+    </div>
+    <details class="home-other-scores" th:if="${!#lists.isEmpty(m.otherRows)}">
+        <summary th:text="'Other postseason scores (' + ${#lists.size(m.otherRows)} + ')'">Other postseason scores (4)</summary>
+        <div class="home-other-scores__list">
+            <a th:each="o : ${m.otherRows}" th:href="@{'/games/' + ${o.gameId}}"
+               class="home-other-scores__row" th:text="${o.label}">NIT: Butler 70, Toledo 65</a>
+        </div>
+    </details>
+</section>
+
+</body>
+</html>

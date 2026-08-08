@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Selection Sunday: today's conference title games, winners badged with the auto-bid.
+     m: rows (ConfChampRow) -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">Championship Sunday
+            <span class="home-panel__date">Auto-bids on the line</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{/games}">All scores →</a>
+    </div>
+    <div class="home-rows">
+        <a th:each="r : ${m.rows}" class="home-row" th:href="@{'/games/' + ${r.v.gameId}}">
+            <span class="home-row__round" th:text="${r.tournamentName}">SEC Tournament</span>
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == false} ? ' home-row__team--won'">
+                <img th:if="${r.v.awayTeam.logoUrl}" th:src="${r.v.awayTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.awayTeam.name}">Auburn</span>
+                <span class="home-row__score" th:if="${r.v.awayScore != null}" th:text="${r.v.awayScore}">72</span>
+            </span>
+            <span class="home-row__at">@</span>
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == true} ? ' home-row__team--won'">
+                <img th:if="${r.v.homeTeam.logoUrl}" th:src="${r.v.homeTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.homeTeam.name}">Alabama</span>
+                <span class="home-row__score" th:if="${r.v.homeScore != null}" th:text="${r.v.homeScore}">85</span>
+            </span>
+            <span class="home-champ-badge" th:if="${r.winnerName != null}">
+                <span th:text="'🏆 ' + ${r.winnerName} + ' — clinched auto-bid'">🏆 Champions</span>
+                <span th:if="${r.winnerSeed != null}" th:text="'(' + ${r.winnerSeed} + ' seed)'">(12 seed)</span>
+            </span>
+            <span class="home-team-row__detail" th:if="${r.winnerName == null}">
+                <span th:text="${#temporals.format(r.tipEastern, 'h:mm a')}">1:00 PM</span>
+                <span th:if="${r.pick != null}" class="home-row__pick" th:text="' · ' + ${r.pick}"> · ALA −4.5</span>
+            </span>
+        </a>
+    </div>
+</section>
+
+</body>
+</html>

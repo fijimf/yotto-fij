@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Season Wrapped: superlative cards. m: wrap (SeasonWrap) -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="'The ' + ${m.wrap.year} + ' Season, Wrapped'">The 2026 Season, Wrapped</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{/predictions/performance}">Full model performance →</a>
+    </div>
+    <div class="home-wrap">
+        <div th:each="s : ${m.wrap.stats}" class="card home-wrap__card">
+            <div class="home-wrap__label" th:text="${s.label}">National Champions</div>
+            <div class="home-wrap__headline">
+                <a th:if="${s.teamId != null}" th:href="@{'/teams/' + ${s.teamId}}" th:text="${s.headline}">Michigan</a>
+                <span th:if="${s.teamId == null}" th:text="${s.headline}">Michigan</span>
+            </div>
+            <div class="home-wrap__detail">
+                <span th:text="${s.detail}">Beat Duke 78–70 in the title game.</span>
+                <a th:if="${s.gameId != null}" th:href="@{'/games/' + ${s.gameId}}" class="home-wrap__game-link">Box score →</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+</body>
+</html>

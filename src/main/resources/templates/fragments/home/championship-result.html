@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Pinned NCAA title-game result. m: row (TourneyRow), year -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="${m.year} + ' National Championship'">2026 National Championship</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{'/seasons/' + ${m.year} + '/bracket'}">Full bracket →</a>
+    </div>
+    <div class="home-rows">
+        <a class="home-row" th:href="@{'/games/' + ${m.row.v.gameId}}" th:with="r=${m.row}">
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == false} ? ' home-row__team--won'">
+                <span class="home-seed" th:if="${r.awaySeed != null}" th:text="'(' + ${r.awaySeed} + ')'">(2)</span>
+                <img th:if="${r.v.awayTeam.logoUrl}" th:src="${r.v.awayTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.awayTeam.name}">Duke</span>
+                <span class="home-row__score" th:text="${r.v.awayScore}">70</span>
+            </span>
+            <span class="home-row__at">@</span>
+            <span class="home-row__team" th:classappend="${r.v.homeWon() == true} ? ' home-row__team--won'">
+                <span class="home-seed" th:if="${r.homeSeed != null}" th:text="'(' + ${r.homeSeed} + ')'">(1)</span>
+                <img th:if="${r.v.homeTeam.logoUrl}" th:src="${r.v.homeTeam.logoUrl}"
+                     class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                <span class="home-row__name" th:text="${r.v.homeTeam.name}">Michigan</span>
+                <span class="home-row__score" th:text="${r.v.homeScore}">78</span>
+            </span>
+        </a>
+    </div>
+</section>
+
+</body>
+</html>

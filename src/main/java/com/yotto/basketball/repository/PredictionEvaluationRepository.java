@@ -304,6 +304,55 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
             """)
     DailyRecord dailyRecord(@Param("modelType") String modelType, @Param("date") LocalDate date);
 
+    // ── Season-wrap superlatives (EPILOGUE) ────────────────────────────────────
+
+    /** The season's most improbable win under one model: lowest pre-game prob of the actual winner. */
+    interface ImprobableWinRow {
+        Long getGameId();
+        Double getWinnerProb();
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT pe.game_id AS gameid,
+                   CASE WHEN pe.home_won THEN pe.predicted_home_win_prob
+                        ELSE 1 - pe.predicted_home_win_prob END AS winnerprob
+            FROM prediction_evaluations pe
+            WHERE pe.season_id = :seasonId AND pe.model_type = :modelType
+              AND pe.predicted_home_win_prob IS NOT NULL
+            ORDER BY winnerprob ASC LIMIT 1
+            """)
+    java.util.Optional<ImprobableWinRow> findMostImprobableWin(@Param("seasonId") Long seasonId,
+                                                               @Param("modelType") String modelType);
+
+    /** The model's best call: it took the other side from the book's heaviest favorite — and won. */
+    interface BestCallRow {
+        Long getGameId();
+        Double getBookSpread();
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT m.game_id AS gameid, b.predicted_spread AS bookspread
+            FROM prediction_evaluations m
+            JOIN prediction_evaluations b ON b.game_id = m.game_id AND b.model_type = 'BOOK'
+            WHERE m.season_id = :seasonId AND m.model_type = :modelType
+              AND m.predicted_spread IS NOT NULL AND b.predicted_spread IS NOT NULL
+              AND sign(m.predicted_spread) <> sign(b.predicted_spread)
+              AND sign(m.predicted_spread) = sign(m.actual_margin)
+            ORDER BY abs(b.predicted_spread) DESC LIMIT 1
+            """)
+    java.util.Optional<BestCallRow> findBestUpsetCall(@Param("seasonId") Long seasonId,
+                                                      @Param("modelType") String modelType);
+
+    /** The model's worst spread miss of the season. */
+    @Query(nativeQuery = true, value = """
+            SELECT pe.game_id AS gameid, pe.predicted_spread AS predictedspread, pe.spread_error AS spreaderror
+            FROM prediction_evaluations pe
+            WHERE pe.season_id = :seasonId AND pe.model_type = :modelType AND pe.spread_error IS NOT NULL
+            ORDER BY abs(pe.spread_error) DESC LIMIT 1
+            """)
+    java.util.Optional<ArchiveMissRow> findWorstSpreadMiss(@Param("seasonId") Long seasonId,
+                                                           @Param("modelType") String modelType);
+
     /** A model's single worst spread miss ever recorded on a calendar month/day (archive panel). */
     interface ArchiveMissRow {
         Long getGameId();
