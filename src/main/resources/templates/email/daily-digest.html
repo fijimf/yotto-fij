@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+</head>
+<!-- Email client rules: inline styles only, single linear column, no external assets. -->
+<body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: Arial, Helvetica, sans-serif;">
+<div style="max-width: 560px; margin: 0 auto; padding: 24px 16px;">
+
+    <div style="background-color: #1e3a5f; border-radius: 8px 8px 0 0; padding: 20px 24px;">
+        <div style="font-size: 22px; font-weight: bold; color: #ffffff;">DeepFij Daily</div>
+        <div style="font-size: 13px; color: #93b4d8; margin-top: 4px;"
+             th:text="${#temporals.format(digest.date, 'EEEE, MMMM d, yyyy')}">Saturday, February 14, 2026</div>
+        <div style="font-size: 14px; color: #ffffff; margin-top: 10px;"
+             th:text="${digest.tagline}">79 games tonight — the model likes 10 upsets.</div>
+    </div>
+
+    <div style="background-color: #ffffff; border: 1px solid #dce3ea; border-top: none; padding: 8px 24px 16px;">
+
+        <div th:each="section : ${digest.sections}">
+            <div style="font-size: 12px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: #b45309; margin: 18px 0 8px;"
+                 th:text="${section.title}">Your Teams</div>
+            <div th:each="line : ${section.lines}" style="padding: 5px 0; border-bottom: 1px solid #eef2f6;">
+                <a th:if="${line.path != null}" th:href="${baseUrl} + ${line.path}"
+                   style="font-size: 14px; color: #1e293b; text-decoration: none; font-weight: bold;"
+                   th:text="${line.text}">#2 Duke</a>
+                <span th:if="${line.path == null}" style="font-size: 14px; color: #1e293b; font-weight: bold;"
+                      th:text="${line.text}">#2 Duke</span>
+                <div th:if="${line.detail != null and !#strings.isEmpty(line.detail)}"
+                     style="font-size: 13px; color: #64748b; margin-top: 2px;"
+                     th:text="${line.detail}">35–3 W6 · Next: Sat 7:00 PM vs Duke</div>
+            </div>
+        </div>
+
+        <div th:if="${!#lists.isEmpty(digest.news)}">
+            <div style="font-size: 12px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: #b45309; margin: 18px 0 8px;">
+                Latest News
+            </div>
+            <div th:each="card : ${digest.news}" style="padding: 5px 0; border-bottom: 1px solid #eef2f6;">
+                <a th:href="${card.url}" style="font-size: 14px; color: #1e293b; text-decoration: none;"
+                   th:text="${card.title}">Headline</a>
+                <div style="font-size: 12px; color: #64748b; margin-top: 2px;"
+                     th:text="${card.sourceName}">ESPN</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <a th:href="${baseUrl}" style="display: inline-block; background-color: #b45309; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; padding: 10px 22px; border-radius: 6px;">
+                Open DeepFij
+            </a>
+        </div>
+    </div>
+
+    <div style="padding: 16px 24px; font-size: 12px; color: #64748b; text-align: center;">
+        You're receiving this because you opted into the daily update email.
+        <a th:href="${baseUrl} + '/account'" style="color: #b45309;">Manage preferences</a>
+        <br/>DeepFij — College Basketball, Quantified. This is not betting advice.
+    </div>
+
+</div>
+</body>
+</html>

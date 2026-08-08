@@ -13,7 +13,11 @@ final class SharedPostgresContainer {
     static final PostgreSQLContainer<?> INSTANCE;
 
     static {
-        INSTANCE = new PostgreSQLContainer<>("postgres:16-alpine");
+        // Spring's test-context cache keeps up to 32 contexts alive, each holding a
+        // ~10-connection Hikari pool; postgres's default max_connections=100 overflows
+        // once the suite accumulates enough distinct contexts ("sorry, too many clients").
+        INSTANCE = new PostgreSQLContainer<>("postgres:16-alpine")
+                .withCommand("postgres", "-c", "max_connections=500");
         INSTANCE.start();
     }
 
@@ -22,6 +26,7 @@ final class SharedPostgresContainer {
             "betting_odds",
             "conference_memberships",
             "conference_name_history",
+            "daily_digest_runs",
             "conferences",
             "games",
             "ml_models",

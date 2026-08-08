@@ -846,6 +846,144 @@ public class HomePageService {
                 + (lastGame.getTournamentRound() != null ? " (" + lastGame.getTournamentRound() + ")" : "");
     }
 
+    // ── Daily digest (email rendering of the same composition) ────────────────
+
+    /** One digest line: text + optional muted detail + optional site-relative link path. */
+    public record DigestLine(String text, String detail, String path) {}
+
+    public record DigestSection(String title, List<DigestLine> lines) {}
+
+    /**
+     * The front page pared down for email. Built from the SAME panels as the web page — the email
+     * has its own markup but no queries of its own. {@code hasContent} gates sending: archive
+     * trivia alone doesn't justify an email, so the history panel never counts toward it.
+     */
+    public record DigestView(LocalDate date, String tagline, List<DigestSection> sections,
+                             List<NewsQueryService.NewsCard> news, boolean hasContent) {}
+
+    private static final int DIGEST_GAME_LINES = 4;
+    private static final int DIGEST_NEWS_LINES = 3;
+    private static final String HISTORY_TITLE = "This Day in Season History";
+
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public DigestView buildDigest(Long userId) {
+        HomePage page = build(userId);
+        List<DigestSection> sections = new ArrayList<>();
+        List<NewsQueryService.NewsCard> news = List.of();
+        boolean meaningful = false;
+
+        for (HomePanel p : page.panels()) {
+            Map<String, Object> m = p.model();
+            switch (p.fragment()) {
+                case "your-teams" -> {
+                    if (m.get("teaser") != null) break;
+                    List<DigestLine> lines = ((List<YourTeamRow>) m.get("rows")).stream()
+                            .map(HomePageService::digestTeamLine).toList();
+                    if (!lines.isEmpty()) {
+                        sections.add(new DigestSection("Your Teams", lines));
+                        meaningful = true;
+                    }
+                }
+                case "report-card" -> {
+                    sections.add(new DigestSection("Model Report Card", List.of(new DigestLine(
+                            m.get("suWins") + "–" + m.get("suLosses") + " straight up · "
+                                    + m.get("atsWins") + "–" + m.get("atsLosses") + " against the spread",
+                            m.get("modelLabel").toString(), "/predictions/performance"))));
+                    meaningful = true;
+                }
+                case "results", "tourney-results" -> {
+                    List<DigestLine> lines = ((List<?>) m.get("rows")).stream()
+                            .limit(DIGEST_GAME_LINES)
+                            .map(HomePageService::digestResultLine).toList();
+                    if (!lines.isEmpty()) {
+                        sections.add(new DigestSection(String.valueOf(m.get("title")), lines));
+                        meaningful = true;
+                    }
+                }
+                case "slate", "tourney-slate", "opening-night" -> {
+                    List<DigestLine> lines = ((List<?>) m.get("rows")).stream()
+                            .limit(DIGEST_GAME_LINES)
+                            .map(HomePageService::digestUpcomingLine).toList();
+                    if (!lines.isEmpty()) {
+                        sections.add(new DigestSection(
+                                "opening-night".equals(p.fragment()) ? "Opening Night" : String.valueOf(m.get("title")),
+                                lines));
+                        meaningful = true;
+                    }
+                }
+                case "season-wrap" -> {
+                    SeasonWrapService.SeasonWrap wrap = (SeasonWrapService.SeasonWrap) m.get("wrap");
+                    sections.add(new DigestSection("The " + wrap.year() + " Season, Wrapped",
+                            wrap.stats().stream().map(s -> new DigestLine(
+                                    s.label() + ": " + s.headline(), s.detail(),
+                                    s.gameId() != null ? "/games/" + s.gameId() : null)).toList()));
+                    meaningful = true;
+                }
+                case "history" -> {
+                    HistoryView v = (HistoryView) m.get("view");
+                    sections.add(new DigestSection(HISTORY_TITLE, List.of(new DigestLine(
+                            v.awayName() + " " + v.awayScore() + " @ " + v.homeName() + " " + v.homeScore()
+                                    + " (" + v.gameDate() + ")",
+                            v.framing(), "/games/" + v.gameId()))));
+                    // deliberately NOT meaningful: archive trivia alone doesn't justify an email
+                }
+                case "news" -> news = ((List<NewsQueryService.NewsCard>) m.get("cards")).stream()
+                        .limit(DIGEST_NEWS_LINES).toList();
+                default -> { /* bracket, splits, chips: web-only */ }
+            }
+        }
+        boolean hasContent = meaningful || !news.isEmpty();
+        return new DigestView(page.phase().today(), page.heroTagline(), sections, news, hasContent);
+    }
+
+    private static DigestLine digestTeamLine(YourTeamRow r) {
+        StringBuilder detail = new StringBuilder();
+        if (r.record() != null) detail.append(r.record());
+        if (r.streak() != null) detail.append(detail.isEmpty() ? "" : " ").append(r.streak());
+        if (r.nextGame() != null) {
+            detail.append(detail.isEmpty() ? "" : " · ").append("Next: ").append(r.nextGame());
+            if (r.pick() != null) detail.append(" · ").append(r.pick());
+        }
+        if (r.postseasonNote() != null) detail.append(detail.isEmpty() ? "" : " · ").append(r.postseasonNote());
+        if (detail.isEmpty() && r.newsTitle() != null) detail.append(r.newsTitle());
+        String name = r.rank() != null ? "#" + r.rank() + " " + r.name() : r.name();
+        return new DigestLine(name, detail.toString(), "/teams/" + r.teamId());
+    }
+
+    private static DigestLine digestResultLine(Object row) {
+        PredictionCardView v = cardOf(row);
+        String seeds = row instanceof TourneyRow t
+                ? seedPrefix(t.awaySeed()) + v.awayTeam().name() + " " + v.awayScore()
+                + " @ " + seedPrefix(t.homeSeed()) + v.homeTeam().name() + " " + v.homeScore()
+                : v.awayTeam().name() + " " + v.awayScore() + " @ " + v.homeTeam().name() + " " + v.homeScore();
+        String detail = v.winnerCorrect() == null ? null
+                : (v.winnerCorrect() ? "model called it" : "model missed it");
+        return new DigestLine(seeds, detail, "/games/" + v.gameId());
+    }
+
+    private static DigestLine digestUpcomingLine(Object row) {
+        PredictionCardView v = cardOf(row);
+        LocalDateTime tip = row instanceof TourneyRow t ? t.tipEastern() : ((HomeGameRow) row).tipEastern();
+        String text = tip.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+                + " — " + v.awayTeam().name() + " @ " + v.homeTeam().name();
+        String detail = null;
+        if (v.predSpread() != null) {
+            PredictionResult.TeamSummary fav = v.predSpread() >= 0 ? v.homeTeam() : v.awayTeam();
+            detail = "model: " + (fav.abbreviation() != null ? fav.abbreviation() : fav.name())
+                    + " −" + String.format(Locale.US, "%.1f", Math.abs(v.predSpread()));
+        }
+        return new DigestLine(text, detail, "/games/" + v.gameId());
+    }
+
+    private static PredictionCardView cardOf(Object row) {
+        return row instanceof TourneyRow t ? t.v() : ((HomeGameRow) row).v();
+    }
+
+    private static String seedPrefix(Integer seed) {
+        return seed != null ? "(" + seed + ") " : "";
+    }
+
     // ── Shared panels ─────────────────────────────────────────────────────────
 
     private Optional<HomePanel> newsPanel(boolean compact) {
