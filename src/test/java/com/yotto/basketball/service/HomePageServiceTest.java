@@ -39,6 +39,8 @@ class HomePageServiceTest extends BaseIntegrationTest {
     @Autowired ConferenceMembershipRepository membershipRepo;
     @Autowired TeamPowerRatingSnapshotRepository ratingSnapshotRepo;
     @Autowired PredictionEvaluationRepository evaluationRepo;
+    @Autowired com.yotto.basketball.repository.UserRepository userRepository;
+    @Autowired FavoriteTeamService favoriteTeamService;
 
     static final LocalDate JAN_16 = LocalDate.of(2026, 1, 16);
 
@@ -75,7 +77,7 @@ class HomePageServiceTest extends BaseIntegrationTest {
 
         assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.IN_SEASON);
         assertThat(page.panels()).extracting(HomePageService.HomePanel::fragment)
-                .containsExactly("results", "slate", "explore");
+                .containsExactly("your-teams", "results", "slate", "explore"); // your-teams = anon teaser
         assertThat(page.heroTagline()).contains("1 game");
     }
 
@@ -189,6 +191,64 @@ class HomePageServiceTest extends BaseIntegrationTest {
                 .containsExactly("explore");
     }
 
+    // ── Phase 3: your-teams strip ──
+
+    private Long mkUser(String name) {
+        com.yotto.basketball.entity.User u = new com.yotto.basketball.entity.User();
+        u.setUsername(name);
+        u.setEmail(name + "@example.com");
+        u.setPasswordHash("{noop}x");
+        u.setRole(com.yotto.basketball.entity.Role.USER);
+        u.setEnabled(true);
+        return userRepository.save(u).getId();
+    }
+
+    @Test
+    void yourTeams_inSeason_showsRankLastResultAndNextGame() {
+        Long userId = mkUser("strip-user");
+        favoriteTeamService.follow(userId, a.getId());
+        mkRating(a, 12, 18.0, JAN_16.minusDays(1));
+        mkFinal(a, b, 85, 69, JAN_16.minusDays(1));
+        mkScheduled(a, d, JAN_16.plusDays(1));
+        seasonPhaseService.setOverride(null, JAN_16);
+
+        var strip = service.build(userId).panels().stream()
+                .filter(p -> p.fragment().equals("your-teams")).findFirst().orElseThrow();
+        assertThat(strip.model().get("teaser")).isNull();
+        @SuppressWarnings("unchecked")
+        List<HomePageService.YourTeamRow> rows =
+                (List<HomePageService.YourTeamRow>) strip.model().get("rows");
+        assertThat(rows).hasSize(1);
+        HomePageService.YourTeamRow row = rows.get(0);
+        assertThat(row.name()).isEqualTo("Alabama");
+        assertThat(row.rank()).isEqualTo(12);
+        assertThat(row.lastResult()).isEqualTo("W 85–69 vs Auburn");
+        assertThat(row.nextGame()).contains("vs Duke");
+    }
+
+    @Test
+    void yourTeams_anonymousInSeason_getsTeaser_notInOffseason() {
+        mkFinal(a, b, 71, 70, JAN_16.minusDays(1));
+        seasonPhaseService.setOverride(null, JAN_16);
+        var strip = service.build(null).panels().stream()
+                .filter(p -> p.fragment().equals("your-teams")).findFirst().orElseThrow();
+        assertThat(strip.model().get("teaser")).isEqualTo("anonymous");
+
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 7, 15));
+        assertThat(service.build(null).panels()).extracting(HomePageService.HomePanel::fragment)
+                .doesNotContain("your-teams");
+    }
+
+    @Test
+    void yourTeams_signedInWithoutFavorites_getsFollowTeaser() {
+        Long userId = mkUser("empty-user");
+        mkFinal(a, b, 71, 70, JAN_16.minusDays(1));
+        seasonPhaseService.setOverride(null, JAN_16);
+        var strip = service.build(userId).panels().stream()
+                .filter(p -> p.fragment().equals("your-teams")).findFirst().orElseThrow();
+        assertThat(strip.model().get("teaser")).isEqualTo("no-favorites");
+    }
+
     // ── Phase 2: quiet-phase compositions ──
 
     @Test
@@ -227,7 +287,7 @@ class HomePageServiceTest extends BaseIntegrationTest {
 
         assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.PRESEASON);
         assertThat(page.panels()).extracting(HomePageService.HomePanel::fragment)
-                .containsExactly("preseason-split", "opening-night", "explore");
+                .containsExactly("preseason-split", "opening-night", "your-teams", "explore");
 
         var split = page.panels().get(0);
         assertThat(split.model().get("title").toString()).startsWith("Never-Too-Early");

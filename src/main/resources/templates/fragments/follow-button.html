@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Follow/unfollow toggle. Model: teamId, isFollowing, followError (nullable).
+     The button lives inside a th:action form so the hidden CSRF field rides along with hx-post.
+     NOTE: the action ternary lives in th:with — a ternary INSIDE @{...} concatenation breaks
+     Thymeleaf's link-expression parsing and renders a literal-garbage URL. -->
+<form th:fragment="button" th:with="followAction=${isFollowing} ? 'unfollow' : 'follow'"
+      th:id="'follow-form-' + ${teamId}" class="follow-form"
+      th:action="@{'/teams/' + ${teamId} + '/' + ${followAction}}" method="post">
+    <button type="submit" class="btn btn--outline btn--sm follow-btn"
+            th:classappend="${isFollowing} ? ' follow-btn--following'"
+            th:hx-post="@{'/teams/' + ${teamId} + '/' + ${followAction}}"
+            th:hx-target="'#follow-form-' + ${teamId}"
+            hx-swap="outerHTML"
+            th:text="${isFollowing} ? '★ Following' : '☆ Follow'">☆ Follow</button>
+    <span class="follow-form__error" th:if="${followError}" th:text="${followError}">error</span>
+</form>
+
+</body>
+</html>

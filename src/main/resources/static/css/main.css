@@ -687,6 +687,73 @@ main {
     color: var(--color-primary);
 }
 
+/* follow button + account favorites */
+.follow-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.follow-btn--following {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.follow-form__error {
+    font-size: 0.78rem;
+    color: var(--color-danger);
+}
+
+.account-favorites {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.account-favorites__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.account-favorites__team {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+/* your-teams strip */
+.home-team-row__rank {
+    flex: 0 0 2.2rem;
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.home-team-row__detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.home-teaser {
+    font-size: 0.88rem;
+    color: var(--color-text-muted);
+    padding: 0.6rem 1rem;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius);
+}
+
 /* ── About page ── */
 .about-card {
     max-width: 720px;

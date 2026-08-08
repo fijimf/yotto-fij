@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Your Teams strip. m: teaser ("anonymous" | "no-favorites" | null), rows (YourTeamRow) when teaser is null -->
+<section th:fragment="panel(m)" class="home-panel">
+
+    <div th:if="${m.teaser == 'anonymous'}" class="home-teaser">
+        <a th:href="@{/register}">Create an account</a> to follow your teams and pin them here.
+    </div>
+    <div th:if="${m.teaser == 'no-favorites'}" class="home-teaser">
+        Follow your teams with the ☆ button on any <a th:href="@{/teams}">team page</a> to pin them here.
+    </div>
+
+    <th:block th:if="${m.teaser == null}">
+        <div class="home-panel__header">
+            <h2 class="home-panel__title">Your Teams</h2>
+            <a class="home-panel__more" th:href="@{/account}">Manage →</a>
+        </div>
+        <div class="home-rows">
+            <div th:each="r : ${m.rows}" class="home-row">
+                <span class="home-team-row__rank" th:text="${r.rank != null ? '#' + r.rank : ''}">#12</span>
+                <a class="home-row__team" th:href="@{'/teams/' + ${r.teamId}}">
+                    <img th:if="${r.logoUrl}" th:src="${r.logoUrl}"
+                         class="home-row__logo" loading="lazy" width="20" height="20" alt=""/>
+                    <span class="home-row__name" th:text="${r.name}">Alabama</span>
+                </a>
+                <span class="home-team-row__detail">
+                    <a th:if="${r.lastResult != null}" th:href="@{'/games/' + ${r.lastGameId}}"
+                       th:text="${r.lastResult}">W 85–69 vs Auburn</a>
+                    <th:block th:if="${r.lastResult != null and r.nextGame != null}"> · </th:block>
+                    <a th:if="${r.nextGame != null}" th:href="@{'/games/' + ${r.nextGameId}}">
+                        <span th:text="${r.nextGame}">Sat 7:00 PM vs Duke</span><span
+                            th:if="${r.pick != null}" class="home-row__pick"
+                            th:text="' · ' + ${r.pick}"> · ALA −4.5</span>
+                    </a>
+                    <a th:if="${r.newsTitle != null}" th:href="${r.newsUrl}" target="_blank" rel="noopener"
+                       th:text="${r.newsTitle}">Latest team story</a>
+                    <th:block th:if="${r.lastResult == null and r.nextGame == null and r.newsTitle == null}">
+                        <span>Quiet for now.</span>
+                    </th:block>
+                </span>
+            </div>
+        </div>
+    </th:block>
+
+</section>
+
+</body>
+</html>

@@ -75,6 +75,7 @@ public class HomePageService {
     private final TeamPowerRatingSnapshotRepository teamPowerRatingSnapshotRepository;
     private final SeasonRepository seasonRepository;
     private final com.yotto.basketball.config.NewsProperties newsProperties;
+    private final FavoriteTeamService favoriteTeamService;
 
     public HomePageService(SeasonPhaseService seasonPhaseService,
                            GameRepository gameRepository,
@@ -86,7 +87,8 @@ public class HomePageService {
                            TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
                            TeamPowerRatingSnapshotRepository teamPowerRatingSnapshotRepository,
                            SeasonRepository seasonRepository,
-                           com.yotto.basketball.config.NewsProperties newsProperties) {
+                           com.yotto.basketball.config.NewsProperties newsProperties,
+                           FavoriteTeamService favoriteTeamService) {
         this.seasonPhaseService = seasonPhaseService;
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
@@ -98,21 +100,29 @@ public class HomePageService {
         this.teamPowerRatingSnapshotRepository = teamPowerRatingSnapshotRepository;
         this.seasonRepository = seasonRepository;
         this.newsProperties = newsProperties;
+        this.favoriteTeamService = favoriteTeamService;
     }
 
+    /** Anonymous build. */
     @Transactional(readOnly = true)
     public HomePage build() {
+        return build(null);
+    }
+
+    /** @param userId the signed-in user, or null for anonymous visitors */
+    @Transactional(readOnly = true)
+    public HomePage build(Long userId) {
         SeasonPhase phase = seasonPhaseService.current();
         // POSTSEASON rides the live composition until the bracket takeover ships (plan Phase 4)
         return switch (phase.phase()) {
-            case IN_SEASON, POSTSEASON -> liveComposition(phase);
-            case PRESEASON, EPILOGUE, OFFSEASON -> quietComposition(phase);
+            case IN_SEASON, POSTSEASON -> liveComposition(phase, userId);
+            case PRESEASON, EPILOGUE, OFFSEASON -> quietComposition(phase, userId);
         };
     }
 
     // ── IN_SEASON / POSTSEASON ────────────────────────────────────────────────
 
-    private HomePage liveComposition(SeasonPhase phase) {
+    private HomePage liveComposition(SeasonPhase phase, Long userId) {
         LocalDate today = phase.today();
         String modelKey = predictionsPageService.defaultModelKey();
         String modelLabel = predictionsPageService.modelLabel(modelKey);
@@ -129,6 +139,7 @@ public class HomePageService {
         List<HomeGameRow> slateRows = marqueeFilter(allSlate, marquee);
 
         reportCardPanel(resultsDate.orElse(null), modelKey, modelLabel).ifPresent(panels::add);
+        yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
         resultsPanel(resultsDate.orElse(null), resultRows, allResults.size(), today).ifPresent(panels::add);
         slatePanel(slateDate.orElse(null), slateRows, allSlate.size(), today, modelLabel).ifPresent(panels::add);
         newsPanel(true).ifPresent(panels::add);
@@ -274,17 +285,20 @@ public class HomePageService {
 
     // ── PRESEASON / OFFSEASON / EPILOGUE ──────────────────────────────────────
 
-    private HomePage quietComposition(SeasonPhase phase) {
+    private HomePage quietComposition(SeasonPhase phase, Long userId) {
         List<HomePanel> panels = new ArrayList<>();
+        String modelKey = predictionsPageService.defaultModelKey();
         switch (phase.phase()) {
             case PRESEASON -> {
                 preseasonSplitPanel(phase).ifPresent(panels::add);
                 openingNightPanel(phase).ifPresent(panels::add);
                 newsPanel(false).ifPresent(panels::add);
+                yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
             }
             case OFFSEASON -> {
                 offseasonNewsPanel().ifPresent(panels::add);
                 historyPanel(phase).ifPresent(panels::add);
+                yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
             }
             default -> // EPILOGUE keeps the news-forward fallback until the wrap module (plan Phase 4)
                     newsPanel(false).ifPresent(panels::add);
@@ -488,6 +502,105 @@ public class HomePageService {
                             + String.format(java.util.Locale.US, "%.1f", Math.abs(pe.getPredictedSpread())) + ".";
                 })
                 .orElse(base);
+    }
+
+    // ── Your Teams (registered users) ─────────────────────────────────────────
+
+    /** One followed-team row; nullable fields simply don't render. */
+    public record YourTeamRow(Long teamId, String name, String logoUrl, Integer rank,
+                              String lastResult, Long lastGameId,
+                              String nextGame, Long nextGameId, String pick,
+                              String newsTitle, String newsUrl) {}
+
+    /**
+     * Signed-in users with favorites get the strip; signed-in users without favorites (and
+     * anonymous visitors during PRESEASON/IN_SEASON) get a one-line teaser instead.
+     */
+    private Optional<HomePanel> yourTeamsPanel(SeasonPhase phase, Long userId, String modelKey) {
+        boolean teaserPhase = phase.phase() == SeasonPhase.Phase.IN_SEASON
+                || phase.phase() == SeasonPhase.Phase.POSTSEASON
+                || phase.phase() == SeasonPhase.Phase.PRESEASON;
+        if (userId == null) {
+            return teaserPhase
+                    ? Optional.of(new HomePanel("your-teams", model("teaser", "anonymous")))
+                    : Optional.empty();
+        }
+        List<Team> favorites = favoriteTeamService.getFavorites(userId);
+        if (favorites.isEmpty()) {
+            return teaserPhase
+                    ? Optional.of(new HomePanel("your-teams", model("teaser", "no-favorites")))
+                    : Optional.empty();
+        }
+        List<YourTeamRow> rows = favorites.stream()
+                .map(t -> yourTeamRow(t, phase, modelKey))
+                .toList();
+        return Optional.of(new HomePanel("your-teams", model("teaser", null, "rows", rows)));
+    }
+
+    private YourTeamRow yourTeamRow(Team team, SeasonPhase phase, String modelKey) {
+        Long seasonId = phase.season() != null ? phase.season().getId() : null;
+        LocalDateTime nowUtc = EasternDates.dayWindowUtc(phase.today())[0];
+
+        Integer rank = null;
+        String lastResult = null;
+        Long lastGameId = null;
+        String nextGame = null;
+        Long nextGameId = null;
+        String pick = null;
+        String newsTitle = null;
+        String newsUrl = null;
+
+        boolean live = phase.phase() == SeasonPhase.Phase.IN_SEASON
+                || phase.phase() == SeasonPhase.Phase.POSTSEASON;
+
+        if (seasonId != null && live) {
+            rank = teamPowerRatingSnapshotRepository
+                    .findLatestForTeam(team.getId(), seasonId, "MASSEY", org.springframework.data.domain.PageRequest.of(0, 1))
+                    .stream().findFirst().map(TeamPowerRatingSnapshot::getRank).orElse(null);
+            Game last = gameRepository.findRecentFinalGamesForTeam(team.getId(), seasonId,
+                            EasternDates.dayWindowUtc(phase.today())[1],
+                            org.springframework.data.domain.PageRequest.of(0, 1))
+                    .stream().findFirst().orElse(null);
+            if (last != null) {
+                boolean home = last.getHomeTeam().getId().equals(team.getId());
+                int us = home ? last.getHomeScore() : last.getAwayScore();
+                int them = home ? last.getAwayScore() : last.getHomeScore();
+                Team opp = home ? last.getAwayTeam() : last.getHomeTeam();
+                lastResult = (us > them ? "W " : "L ") + us + "–" + them
+                        + (home ? " vs " : " at ") + opp.getName();
+                lastGameId = last.getId();
+            }
+        }
+        if (live || phase.phase() == SeasonPhase.Phase.PRESEASON) {
+            Game next = gameRepository.findNextScheduledForTeam(team.getId(), nowUtc,
+                            org.springframework.data.domain.PageRequest.of(0, 1))
+                    .stream().findFirst().orElse(null);
+            if (next != null) {
+                boolean home = next.getHomeTeam().getId().equals(team.getId());
+                Team opp = home ? next.getAwayTeam() : next.getHomeTeam();
+                LocalDateTime tip = EasternDates.toEasternTime(next.getGameDate());
+                nextGame = tip.format(java.time.format.DateTimeFormatter
+                        .ofPattern("EEE h:mm a", java.util.Locale.US))
+                        + (home ? " vs " : " at ") + opp.getName();
+                nextGameId = next.getId();
+                PredictionCardView v = PredictionCardView.from(predictionService.buildPrediction(next), modelKey);
+                if (v.predSpread() != null) {
+                    PredictionResult.TeamSummary fav = v.predSpread() >= 0 ? v.homeTeam() : v.awayTeam();
+                    String abbr = fav.abbreviation() != null ? fav.abbreviation() : fav.name();
+                    pick = abbr + " −" + String.format(java.util.Locale.US, "%.1f", Math.abs(v.predSpread()));
+                }
+            }
+        }
+        if (!live) {
+            NewsQueryService.NewsCard card = newsQueryService.teamNews(team.getId(), 1)
+                    .stream().findFirst().orElse(null);
+            if (card != null) {
+                newsTitle = card.title();
+                newsUrl = card.url();
+            }
+        }
+        return new YourTeamRow(team.getId(), team.getName(), team.getLogoUrl(), rank,
+                lastResult, lastGameId, nextGame, nextGameId, pick, newsTitle, newsUrl);
     }
 
     // ── Shared panels ─────────────────────────────────────────────────────────

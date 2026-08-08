@@ -31,6 +31,16 @@ public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPow
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType);
 
+    /** A team's most recent snapshots for one model in a season, newest first (pass a limit). */
+    @Query("SELECT s FROM TeamPowerRatingSnapshot s " +
+           "WHERE s.team.id = :teamId AND s.season.id = :seasonId AND s.modelType = :modelType " +
+           "ORDER BY s.snapshotDate DESC")
+    List<TeamPowerRatingSnapshot> findLatestForTeam(
+            @Param("teamId") Long teamId,
+            @Param("seasonId") Long seasonId,
+            @Param("modelType") String modelType,
+            org.springframework.data.domain.Pageable pageable);
+
     @Query("SELECT MAX(s.snapshotDate) FROM TeamPowerRatingSnapshot s " +
            "WHERE s.season.id = :seasonId AND s.modelType = :modelType")
     Optional<LocalDate> findLatestSnapshotDate(

@@ -41,17 +41,20 @@ public class AccountController {
     private final UserRepository userRepository;
     private final TokenService tokenService;
     private final SessionInvalidationService sessionInvalidationService;
+    private final com.yotto.basketball.service.FavoriteTeamService favoriteTeamService;
 
     public AccountController(UserAccountService accountService,
                              UserPreferenceService preferenceService,
                              UserRepository userRepository,
                              TokenService tokenService,
-                             SessionInvalidationService sessionInvalidationService) {
+                             SessionInvalidationService sessionInvalidationService,
+                             com.yotto.basketball.service.FavoriteTeamService favoriteTeamService) {
         this.accountService = accountService;
         this.preferenceService = preferenceService;
         this.userRepository = userRepository;
         this.tokenService = tokenService;
         this.sessionInvalidationService = sessionInvalidationService;
+        this.favoriteTeamService = favoriteTeamService;
     }
 
     @GetMapping
@@ -62,6 +65,7 @@ public class AccountController {
         model.addAttribute("lastLogin", formatInstant(user.getLastLoginAt(), "MMM d, yyyy HH:mm"));
         model.addAttribute("dailyUpdateEmail",
                 preferenceService.getBoolean(user.getId(), PreferenceKeys.DAILY_UPDATE_EMAIL, false));
+        model.addAttribute("favoriteTeams", favoriteTeamService.getFavorites(user.getId()));
         return "account/account";
     }
 

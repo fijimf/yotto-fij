@@ -124,6 +124,14 @@ public interface GameRepository extends JpaRepository<Game, Long> {
             @Param("beforeDate") LocalDateTime beforeDate,
             org.springframework.data.domain.Pageable pageable);
 
+    /** A team's next SCHEDULED games on/after the given instant, soonest first (your-teams strip). */
+    @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam LEFT JOIN FETCH g.bettingOdds " +
+           "WHERE (g.homeTeam.id = :teamId OR g.awayTeam.id = :teamId) " +
+           "  AND g.status = 'SCHEDULED' AND g.gameDate >= :fromUtc ORDER BY g.gameDate ASC")
+    List<Game> findNextScheduledForTeam(@Param("teamId") Long teamId,
+                                        @Param("fromUtc") LocalDateTime fromUtc,
+                                        org.springframework.data.domain.Pageable pageable);
+
     /** All FINAL H2H games between two teams (any direction), excluding the given game, newest first. */
     @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
            "WHERE ((g.homeTeam.id = :teamAId AND g.awayTeam.id = :teamBId) OR " +

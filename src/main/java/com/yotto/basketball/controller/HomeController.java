@@ -32,9 +32,12 @@ public class HomeController {
     }
 
     @GetMapping("/")
-    public String home(Model model) {
+    public String home(Model model,
+                       @org.springframework.security.core.annotation.AuthenticationPrincipal
+                       com.yotto.basketball.security.AppUserDetails principal) {
         model.addAttribute("currentPage", "home");
-        model.addAttribute("homePage", homePageService.build());
+        model.addAttribute("homePage",
+                homePageService.build(principal != null ? principal.getId() : null));
         return "pages/home";
     }
 

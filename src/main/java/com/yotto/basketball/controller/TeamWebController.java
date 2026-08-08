@@ -42,6 +42,7 @@ public class TeamWebController {
     private final ConferenceNamingService namingService;
 
     private final com.yotto.basketball.news.NewsQueryService newsQueryService;
+    private final com.yotto.basketball.service.FavoriteTeamService favoriteTeamService;
 
     public TeamWebController(TeamRepository teamRepository,
                              SeasonRepository seasonRepository,
@@ -52,7 +53,8 @@ public class TeamWebController {
                              TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
                              SeasonPopulationStatRepository popStatRepository,
                              ConferenceNamingService namingService,
-                             com.yotto.basketball.news.NewsQueryService newsQueryService) {
+                             com.yotto.basketball.news.NewsQueryService newsQueryService,
+                             com.yotto.basketball.service.FavoriteTeamService favoriteTeamService) {
         this.teamRepository = teamRepository;
         this.seasonRepository = seasonRepository;
         this.gameRepository = gameRepository;
@@ -63,6 +65,7 @@ public class TeamWebController {
         this.popStatRepository = popStatRepository;
         this.namingService = namingService;
         this.newsQueryService = newsQueryService;
+        this.favoriteTeamService = favoriteTeamService;
     }
 
     // ── Teams listing ──
@@ -142,7 +145,11 @@ public class TeamWebController {
     // ── Team detail ──
 
     @GetMapping("/teams/{id}")
-    public String teamDetail(@PathVariable Long id, Model model) {
+    public String teamDetail(@PathVariable Long id, Model model,
+                             @org.springframework.security.core.annotation.AuthenticationPrincipal
+                             com.yotto.basketball.security.AppUserDetails principal) {
+        model.addAttribute("isFollowing",
+                principal != null && favoriteTeamService.isFavorite(principal.getId(), id));
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Team not found: " + id));
 

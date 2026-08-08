@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/admin/login").permitAll()
                         // ADMIN passes hasRole('USER') via the role hierarchy
                         .requestMatchers("/account/**").hasRole("USER")
+                        .requestMatchers("/teams/*/follow", "/teams/*/unfollow").hasRole("USER")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         // Public REST API is READ-ONLY for anonymous callers. Every
                         // mutating verb (POST/PUT/PATCH/DELETE) requires ADMIN so a

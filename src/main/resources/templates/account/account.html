@@ -81,6 +81,30 @@
 
     <section class="admin-section">
         <div class="admin-section__header">
+            <h2 class="admin-section__title">Followed Teams</h2>
+        </div>
+        <div class="card">
+            <p th:if="${#lists.isEmpty(favoriteTeams)}" style="color: var(--color-text-muted); font-size: 0.9rem; margin: 0;">
+                You aren't following any teams yet — use the ☆ Follow button on any
+                <a th:href="@{/teams}">team page</a> to pin them to your front page.
+            </p>
+            <div th:unless="${#lists.isEmpty(favoriteTeams)}" class="account-favorites">
+                <div th:each="t : ${favoriteTeams}" class="account-favorites__row">
+                    <a class="account-favorites__team" th:href="@{'/teams/' + ${t.id}}">
+                        <img th:if="${t.logoUrl}" th:src="${t.logoUrl}" loading="lazy" width="20" height="20" alt=""/>
+                        <span th:text="${t.name}">Alabama</span>
+                    </a>
+                    <form th:action="@{/account/favorites/remove}" method="post" class="inline-form">
+                        <input type="hidden" name="teamId" th:value="${t.id}"/>
+                        <button type="submit" class="btn btn--outline btn--sm">Unfollow</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
             <h2 class="admin-section__title">Delete Account</h2>
         </div>
         <div class="card">
