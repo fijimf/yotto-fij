@@ -49,6 +49,92 @@
         </div>
     </div>
 
+    <div class="card about-card about-lit">
+        <h2 class="about-lit__title">Relevant Literature</h2>
+        <p>
+            Nothing on this site is invented from scratch. The rating systems, pace adjustments,
+            and evaluation methods implement ideas from published work — credit where it is due.
+        </p>
+
+        <h3 class="about-lit__group">Team ratings</h3>
+        <ul class="about-lit__list">
+            <li>
+                Bradley, R. A. &amp; Terry, M. E. (1952). &ldquo;Rank Analysis of Incomplete Block
+                Designs: I. The Method of Paired Comparisons.&rdquo; <em>Biometrika</em> 39, 324&ndash;345.
+                <span class="about-lit__use">The paired-comparison model behind our Bradley&#8209;Terry ratings.</span>
+            </li>
+            <li>
+                Harville, D. (1977). &ldquo;The Use of Linear-Model Methodology to Rate High School
+                or College Football Teams.&rdquo; <em>Journal of the American Statistical Association</em>
+                72, 278&ndash;289.
+                <span class="about-lit__use">The academic foundation for least-squares team ratings with home advantage.</span>
+            </li>
+            <li>
+                Massey, K. (1997).
+                <a href="https://masseyratings.com/theory/massey97.pdf" target="_blank" rel="noopener"><em>Statistical
+                Models Applied to the Rating of Sports Teams</em></a>. Honors thesis, Bluefield College.
+                <span class="about-lit__use">The least-squares rating system implemented as our Massey model.</span>
+            </li>
+            <li>
+                Stern, H. (1991). &ldquo;On the Probability of Winning a Football Game.&rdquo;
+                <em>The American Statistician</em> 45, 179&ndash;183.
+                <span class="about-lit__use">Margins of victory are roughly normal — how a predicted margin becomes a win probability.</span>
+            </li>
+        </ul>
+
+        <h3 class="about-lit__group">Pace &amp; efficiency</h3>
+        <ul class="about-lit__list">
+            <li>
+                Oliver, D. (2004). <em>Basketball on Paper</em>. Brassey's.
+                <span class="about-lit__use">The possession framework and the four factors.</span>
+            </li>
+            <li>
+                Kubatko, J., Oliver, D., Pelton, K. &amp; Rosenbaum, D. T. (2007). &ldquo;A Starting
+                Point for Analyzing Basketball Statistics.&rdquo; <em>Journal of Quantitative Analysis
+                in Sports</em> 3(3).
+                <span class="about-lit__use">The possession estimator and per-possession efficiency conventions we use.</span>
+            </li>
+            <li>
+                Hoerl, A. E. &amp; Kennard, R. W. (1970). &ldquo;Ridge Regression: Biased Estimation
+                for Nonorthogonal Problems.&rdquo; <em>Technometrics</em> 12, 55&ndash;67.
+                <span class="about-lit__use">The regularization behind our opponent-adjusted efficiency ratings.</span>
+            </li>
+        </ul>
+
+        <h3 class="about-lit__group">Machine learning &amp; evaluation</h3>
+        <ul class="about-lit__list">
+            <li>
+                Chen, T. &amp; Guestrin, C. (2016).
+                <a href="https://arxiv.org/abs/1603.02754" target="_blank" rel="noopener">&ldquo;XGBoost:
+                A Scalable Tree Boosting System.&rdquo;</a> <em>Proceedings of KDD '16</em>.
+                <span class="about-lit__use">The gradient-boosted trees powering our ML predictions.</span>
+            </li>
+            <li>
+                Akiba, T., Sano, S., Yanase, T., Ohta, T. &amp; Koyama, M. (2019).
+                <a href="https://arxiv.org/abs/1907.10902" target="_blank" rel="noopener">&ldquo;Optuna:
+                A Next-generation Hyperparameter Optimization Framework.&rdquo;</a> <em>Proceedings of KDD '19</em>.
+                <span class="about-lit__use">Hyperparameter tuning for model training.</span>
+            </li>
+            <li>
+                Brier, G. W. (1950). &ldquo;Verification of Forecasts Expressed in Terms of
+                Probability.&rdquo; <em>Monthly Weather Review</em> 78, 1&ndash;3.
+                <span class="about-lit__use">The Brier scores on the model performance page.</span>
+            </li>
+            <li>
+                Gneiting, T. &amp; Raftery, A. E. (2007). &ldquo;Strictly Proper Scoring Rules,
+                Prediction, and Estimation.&rdquo; <em>Journal of the American Statistical
+                Association</em> 102, 359&ndash;378.
+                <span class="about-lit__use">Why we score probability forecasts the way we do.</span>
+            </li>
+        </ul>
+
+        <p class="about-card__attribution">
+            Tempo-adjusted efficiency ratings were popularized in college basketball by Ken Pomeroy
+            (kenpom.com) and Bart Torvik (barttorvik.com), whose public work shaped the conventions
+            this whole genre of analysis follows.
+        </p>
+    </div>
+
 </main>
 
 </body>
