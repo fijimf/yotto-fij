@@ -52,4 +52,20 @@ public interface TeamSeasonStatSnapshotRepository extends JpaRepository<TeamSeas
             @Param("teamId") Long teamId,
             @Param("seasonId") Long seasonId,
             @Param("beforeDate") LocalDate beforeDate);
+
+    /** Lightweight row for per-team season loads (SeasonPredictionCache). */
+    interface SeasonStatRow {
+        java.time.LocalDate getSnapshotDate();
+        Double getRpi();
+        Double getStddevMargin();
+        Double getRpiOwp();
+    }
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT s.snapshotDate AS snapshotDate, s.rpi AS rpi, " +
+            "       s.stddevMargin AS stddevMargin, s.rpiOwp AS rpiOwp " +
+            "FROM TeamSeasonStatSnapshot s WHERE s.team.id = :teamId AND s.season.id = :seasonId")
+    java.util.List<SeasonStatRow> findRowsByTeamAndSeason(@Param("teamId") Long teamId,
+                                                          @Param("seasonId") Long seasonId);
+
 }

@@ -114,7 +114,7 @@ public class PredictionService {
                 .orElseGet(() -> seasonRepository.findTopByOrderByYearDesc()
                         .orElseThrow(() -> new IllegalStateException("No seasons configured")));
 
-        GameRatings ratings = fetchGameRatings(homeTeamId, awayTeamId, season.getId(), gameDate, neutralSite);
+        GameRatings ratings = fetchGameRatings(homeTeamId, awayTeamId, season.getId(), gameDate, neutralSite, null);
 
         PredictionResult.MasseyPrediction       massey      = toMassey(ratings);
         PredictionResult.MasseyTotalPrediction  masseyTotal = toMasseyTotal(ratings);
@@ -125,7 +125,7 @@ public class PredictionService {
         MlPredictions mlPredictions = MlPredictions.none();
         if (ratings.hasAll()) {
             mlPredictions = computeMlPredictions(homeTeamId, awayTeamId, gameDate.atStartOfDay(),
-                    season, neutralSite, false, ratings);
+                    season, neutralSite, false, ratings, null);
         }
 
         return new PredictionResult(
@@ -145,11 +145,29 @@ public class PredictionService {
     }
 
     /**
+     * Builds the season-scoped snapshot cache for bulk evaluation. One instance per
+     * evaluation run; pass it to {@link #buildInternal(Game, SeasonPredictionCache)}.
+     */
+    SeasonPredictionCache buildSeasonCache(Season season, List<Game> finalGamesAscending) {
+        Long priorSeasonId = seasonRepository.findByYear(season.getYear() - 1)
+                .map(Season::getId).orElse(null);
+        return new SeasonPredictionCache(season.getId(), priorSeasonId, finalGamesAscending,
+                ratingRepository, paramRepository, teamStatSnapshotRepository,
+                teamSeasonStatSnapshotRepository);
+    }
+
+    InternalPrediction buildInternal(Game game) {
+        return buildInternal(game, null);
+    }
+
+    /**
      * Full prediction plus every evaluable ML model's output (including CANDIDATE
      * shadow models, which are never exposed in {@link PredictionResult}).
-     * Package-private for {@link PredictionEvaluationService}.
+     * Package-private for {@link PredictionEvaluationService}. {@code cache} (nullable)
+     * swaps the per-game repository lookups for season-bulk in-memory ones with
+     * identical semantics — live predictions pass null.
      */
-    InternalPrediction buildInternal(Game game) {
+    InternalPrediction buildInternal(Game game, SeasonPredictionCache cache) {
         PredictionResult.TeamSummary homeTeam = toTeamSummary(game.getHomeTeam());
         PredictionResult.TeamSummary awayTeam = toTeamSummary(game.getAwayTeam());
 
@@ -175,7 +193,7 @@ public class PredictionService {
         Long awayId      = game.getAwayTeam().getId();
 
         // Fetch all snapshots in one pass — used by both Phase 1 and Phase 2
-        GameRatings ratings = fetchGameRatings(homeId, awayId, seasonId, cutoff, neutral);
+        GameRatings ratings = fetchGameRatings(homeId, awayId, seasonId, cutoff, neutral, cache);
 
         PredictionResult.MasseyPrediction        massey          = toMassey(ratings);
         PredictionResult.MasseyTotalPrediction   masseyTotal     = toMasseyTotal(ratings);
@@ -189,7 +207,7 @@ public class PredictionService {
             mlPredictions = computeMlPredictions(
                     game.getHomeTeam().getId(), game.getAwayTeam().getId(),
                     game.getGameDate(), game.getSeason(),
-                    neutral, Boolean.TRUE.equals(game.getConferenceGame()), ratings);
+                    neutral, Boolean.TRUE.equals(game.getConferenceGame()), ratings, cache);
         }
 
         Integer actualHomeScore = null, actualAwayScore = null, actualMargin = null, actualTotal = null;
@@ -214,67 +232,61 @@ public class PredictionService {
     // ── Snapshot fetch ────────────────────────────────────────────────────────
 
     /**
-     * Fetches all six team snapshots and three HCA params in a single logical pass.
-     * HCA params are only fetched when the game is not at a neutral site and both
-     * team snapshots are available (avoids unnecessary queries).
+     * Fetches all team snapshots and params in a single logical pass — from the
+     * repositories, or from the season cache when one is supplied (identical
+     * semantics). HCA params are only fetched when the game is not at a neutral site
+     * and both team snapshots are available (avoids unnecessary queries).
      */
     private GameRatings fetchGameRatings(Long homeId, Long awayId, Long seasonId,
-                                          LocalDate cutoff, boolean neutral) {
-        var masseyHome = ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff).orElse(null);
-        var masseyAway = ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff).orElse(null);
+                                          LocalDate cutoff, boolean neutral,
+                                          SeasonPredictionCache cache) {
+        var masseyHome = latestRating(cache, homeId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff);
+        var masseyAway = latestRating(cache, awayId, seasonId, MasseyRatingService.MODEL_TYPE, cutoff);
         double masseyHca = 0;
         if (!neutral && masseyHome != null && masseyAway != null) {
-            masseyHca = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE, "hca", cutoff)
-                    .map(p -> p.getParamValue()).orElse(0.0);
+            masseyHca = orZero(latestParam(cache, seasonId, MasseyRatingService.MODEL_TYPE, "hca", cutoff));
         }
 
-        var masseyTotalHome = ratingRepository.findLatestBefore(homeId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff).orElse(null);
-        var masseyTotalAway = ratingRepository.findLatestBefore(awayId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff).orElse(null);
+        var masseyTotalHome = latestRating(cache, homeId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff);
+        var masseyTotalAway = latestRating(cache, awayId, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, cutoff);
         double masseyTotalIntercept = 0, masseyTotalDelta = 0;
         if (masseyTotalHome != null && masseyTotalAway != null) {
-            masseyTotalIntercept = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "intercept", cutoff)
-                    .map(p -> p.getParamValue()).orElse(0.0);
+            masseyTotalIntercept = orZero(latestParam(cache, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "intercept", cutoff));
             if (!neutral) {
-                masseyTotalDelta = paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", cutoff)
-                        .map(p -> p.getParamValue()).orElse(0.0);
+                masseyTotalDelta = orZero(latestParam(cache, seasonId, MasseyRatingService.MODEL_TYPE_TOTALS, "hca_total", cutoff));
             }
         }
 
-        var btHome = ratingRepository.findLatestBefore(homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff).orElse(null);
-        var btAway = ratingRepository.findLatestBefore(awayId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff).orElse(null);
+        var btHome = latestRating(cache, homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff);
+        var btAway = latestRating(cache, awayId, seasonId, BradleyTerryRatingService.MODEL_TYPE, cutoff);
         double btAlpha = 0;
         if (!neutral && btHome != null && btAway != null) {
-            btAlpha = paramRepository.findLatestParamBefore(seasonId, BradleyTerryRatingService.MODEL_TYPE, "hca", cutoff)
-                    .map(p -> p.getParamValue()).orElse(0.0);
+            btAlpha = orZero(latestParam(cache, seasonId, BradleyTerryRatingService.MODEL_TYPE, "hca", cutoff));
         }
 
-        var btWeightedHome = ratingRepository.findLatestBefore(homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, cutoff).orElse(null);
-        var btWeightedAway = ratingRepository.findLatestBefore(awayId, seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, cutoff).orElse(null);
+        var btWeightedHome = latestRating(cache, homeId, seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, cutoff);
+        var btWeightedAway = latestRating(cache, awayId, seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, cutoff);
         double btWeightedAlpha = 0;
         if (!neutral && btWeightedHome != null && btWeightedAway != null) {
-            btWeightedAlpha = paramRepository.findLatestParamBefore(seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, "hca", cutoff)
-                    .map(p -> p.getParamValue()).orElse(0.0);
+            btWeightedAlpha = orZero(latestParam(cache, seasonId, BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, "hca", cutoff));
         }
 
         // Adjusted efficiency + tempo (ADJ_EFF model, also feeds eff-v4 ML features).
         // Intercept params are required (null ⇒ no prediction); HCA is zero on neutral floors.
-        var adjOffHome   = ratingRepository.findLatestBefore(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff).orElse(null);
-        var adjOffAway   = ratingRepository.findLatestBefore(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff).orElse(null);
-        var adjDefHome   = ratingRepository.findLatestBefore(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff).orElse(null);
-        var adjDefAway   = ratingRepository.findLatestBefore(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff).orElse(null);
-        var adjTempoHome = ratingRepository.findLatestBefore(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, cutoff).orElse(null);
-        var adjTempoAway = ratingRepository.findLatestBefore(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, cutoff).orElse(null);
+        var adjOffHome   = latestRating(cache, homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff);
+        var adjOffAway   = latestRating(cache, awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff);
+        var adjDefHome   = latestRating(cache, homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff);
+        var adjDefAway   = latestRating(cache, awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff);
+        var adjTempoHome = latestRating(cache, homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, cutoff);
+        var adjTempoAway = latestRating(cache, awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, cutoff);
         Double effIntercept = null, tempoIntercept = null;
         double effHca = 0;
         if (adjOffHome != null && adjOffAway != null && adjDefHome != null && adjDefAway != null
                 && adjTempoHome != null && adjTempoAway != null) {
-            effIntercept = paramRepository.findLatestParamBefore(seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, "eff_intercept", cutoff)
-                    .map(p -> p.getParamValue()).orElse(null);
-            tempoIntercept = paramRepository.findLatestParamBefore(seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, "tempo_intercept", cutoff)
-                    .map(p -> p.getParamValue()).orElse(null);
+            effIntercept = latestParam(cache, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, "eff_intercept", cutoff);
+            tempoIntercept = latestParam(cache, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, "tempo_intercept", cutoff);
             if (!neutral) {
-                effHca = paramRepository.findLatestParamBefore(seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, "eff_hca", cutoff)
-                        .map(p -> p.getParamValue()).orElse(0.0);
+                effHca = orZero(latestParam(cache, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, "eff_hca", cutoff));
             }
         }
 
@@ -285,6 +297,25 @@ public class PredictionService {
                 btWeightedHome, btWeightedAway, btWeightedAlpha,
                 adjOffHome, adjOffAway, adjDefHome, adjDefAway,
                 adjTempoHome, adjTempoAway, effIntercept, effHca, tempoIntercept);
+    }
+
+    /** Latest-strictly-before rating snapshot via the cache when present, else the repository. */
+    private TeamPowerRatingSnapshot latestRating(SeasonPredictionCache cache, Long teamId, Long seasonId,
+                                                 String modelType, LocalDate cutoff) {
+        if (cache != null) return cache.latestRatingBefore(teamId, modelType, cutoff);
+        return ratingRepository.findLatestBefore(teamId, seasonId, modelType, cutoff).orElse(null);
+    }
+
+    /** Latest-strictly-before param value via the cache when present, else the repository. */
+    private Double latestParam(SeasonPredictionCache cache, Long seasonId, String modelType,
+                               String paramName, LocalDate cutoff) {
+        if (cache != null) return cache.latestParamBefore(modelType, paramName, cutoff);
+        return paramRepository.findLatestParamBefore(seasonId, modelType, paramName, cutoff)
+                .map(p -> p.getParamValue()).orElse(null);
+    }
+
+    private static double orZero(Double value) {
+        return value != null ? value : 0.0;
     }
 
     // ── Phase 1 sub-block builders ────────────────────────────────────────────
@@ -362,14 +393,14 @@ public class PredictionService {
     private MlPredictions computeMlPredictions(Long homeId, Long awayId,
                                                LocalDateTime gameDatetime, Season season,
                                                boolean neutralSite, boolean conferenceGame,
-                                               GameRatings r) {
+                                               GameRatings r, SeasonPredictionCache cache) {
         MlModelRegistryService.ServingPlan plan = mlModelRegistryService.plan();
         if (!plan.hasServableModels()) {
             return MlPredictions.none();
         }
 
         PredictionContext context = buildContext(homeId, awayId, gameDatetime, season,
-                neutralSite, conferenceGame, r, plan);
+                neutralSite, conferenceGame, r, plan, cache);
 
         Map<String, PredictionResult.MlPrediction> all = new LinkedHashMap<>();
         for (String slug : plan.evaluableVersions().keySet()) {
@@ -393,11 +424,16 @@ public class PredictionService {
     private PredictionContext buildContext(Long homeId, Long awayId,
                                            LocalDateTime gameDatetime, Season season,
                                            boolean neutralSite, boolean conferenceGame,
-                                           GameRatings r, MlModelRegistryService.ServingPlan plan) {
+                                           GameRatings r, MlModelRegistryService.ServingPlan plan,
+                                           SeasonPredictionCache cache) {
         Long seasonId = season.getId();
         // 10 most recent (newest first) feed both the 5- and 10-game windows
-        List<Game> homeRecent = gameRepository.findRecentFinalGamesForTeam(homeId, seasonId, gameDatetime, PageRequest.of(0, 10));
-        List<Game> awayRecent = gameRepository.findRecentFinalGamesForTeam(awayId, seasonId, gameDatetime, PageRequest.of(0, 10));
+        List<Game> homeRecent = cache != null
+                ? cache.recentFinalGames(homeId, gameDatetime, 10)
+                : gameRepository.findRecentFinalGamesForTeam(homeId, seasonId, gameDatetime, PageRequest.of(0, 10));
+        List<Game> awayRecent = cache != null
+                ? cache.recentFinalGames(awayId, gameDatetime, 10)
+                : gameRepository.findRecentFinalGamesForTeam(awayId, seasonId, gameDatetime, PageRequest.of(0, 10));
         List<Game> homeLast5 = homeRecent.subList(0, Math.min(5, homeRecent.size()));
         List<Game> awayLast5 = awayRecent.subList(0, Math.min(5, awayRecent.size()));
 
@@ -419,41 +455,62 @@ public class PredictionService {
         Double homeRpiOwp = null, awayRpiOwp = null;
         if (plan.needsExtendedStats()) {
             LocalDate cutoff = gameDatetime.toLocalDate();
-            homeBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(homeId, seasonId, cutoff));
-            awayBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(awayId, seasonId, cutoff));
-            TeamSeasonStatSnapshot homeSeason = teamSeasonStatSnapshotRepository
-                    .findLatestBefore(homeId, seasonId, cutoff).orElse(null);
-            TeamSeasonStatSnapshot awaySeason = teamSeasonStatSnapshotRepository
-                    .findLatestBefore(awayId, seasonId, cutoff).orElse(null);
-            if (homeSeason != null) {
-                homeRpi = homeSeason.getRpi();
-                homeStddevMargin = homeSeason.getStddevMargin();
-                homeRpiOwp = homeSeason.getRpiOwp();
-            }
-            if (awaySeason != null) {
-                awayRpi = awaySeason.getRpi();
-                awayStddevMargin = awaySeason.getStddevMargin();
-                awayRpiOwp = awaySeason.getRpiOwp();
+            if (cache != null) {
+                homeBox = cache.latestBoxStatsBefore(homeId, cutoff);
+                awayBox = cache.latestBoxStatsBefore(awayId, cutoff);
+                SeasonPredictionCache.SeasonStats homeSeason = cache.latestSeasonStatsBefore(homeId, cutoff);
+                SeasonPredictionCache.SeasonStats awaySeason = cache.latestSeasonStatsBefore(awayId, cutoff);
+                if (homeSeason != null) {
+                    homeRpi = homeSeason.rpi();
+                    homeStddevMargin = homeSeason.stddevMargin();
+                    homeRpiOwp = homeSeason.rpiOwp();
+                }
+                if (awaySeason != null) {
+                    awayRpi = awaySeason.rpi();
+                    awayStddevMargin = awaySeason.stddevMargin();
+                    awayRpiOwp = awaySeason.rpiOwp();
+                }
+            } else {
+                homeBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(homeId, seasonId, cutoff));
+                awayBox = toStatMap(teamStatSnapshotRepository.findLatestBefore(awayId, seasonId, cutoff));
+                TeamSeasonStatSnapshot homeSeason = teamSeasonStatSnapshotRepository
+                        .findLatestBefore(homeId, seasonId, cutoff).orElse(null);
+                TeamSeasonStatSnapshot awaySeason = teamSeasonStatSnapshotRepository
+                        .findLatestBefore(awayId, seasonId, cutoff).orElse(null);
+                if (homeSeason != null) {
+                    homeRpi = homeSeason.getRpi();
+                    homeStddevMargin = homeSeason.getStddevMargin();
+                    homeRpiOwp = homeSeason.getRpiOwp();
+                }
+                if (awaySeason != null) {
+                    awayRpi = awaySeason.getRpi();
+                    awayStddevMargin = awaySeason.getStddevMargin();
+                    awayRpiOwp = awaySeason.getRpiOwp();
+                }
             }
         }
 
         // Preseason priors: previous season's FINAL ratings, both-or-neither per side
         Double homePrevBeta = null, awayPrevBeta = null, homePrevTheta = null, awayPrevTheta = null;
         if (plan.needsPriorRatings()) {
-            Long priorSeasonId = seasonRepository.findByYear(season.getYear() - 1)
-                    .map(Season::getId).orElse(null);
-            if (priorSeasonId != null) {
-                double[] homePrev = priorRatings(homeId, priorSeasonId);
-                double[] awayPrev = priorRatings(awayId, priorSeasonId);
-                if (homePrev != null) { homePrevBeta = homePrev[0]; homePrevTheta = homePrev[1]; }
-                if (awayPrev != null) { awayPrevBeta = awayPrev[0]; awayPrevTheta = awayPrev[1]; }
+            double[] homePrev, awayPrev;
+            if (cache != null) {
+                homePrev = cache.priorRatings(homeId);
+                awayPrev = cache.priorRatings(awayId);
+            } else {
+                Long priorSeasonId = seasonRepository.findByYear(season.getYear() - 1)
+                        .map(Season::getId).orElse(null);
+                homePrev = priorSeasonId != null ? priorRatings(homeId, priorSeasonId) : null;
+                awayPrev = priorSeasonId != null ? priorRatings(awayId, priorSeasonId) : null;
             }
+            if (homePrev != null) { homePrevBeta = homePrev[0]; homePrevTheta = homePrev[1]; }
+            if (awayPrev != null) { awayPrevBeta = awayPrev[0]; awayPrevTheta = awayPrev[1]; }
         }
 
         Double homeMasseyResid = null, awayMasseyResid = null;
         if (plan.needsResidualForm()) {
-            homeMasseyResid = masseyResidual(homeId, seasonId, homeLast5);
-            awayMasseyResid = masseyResidual(awayId, seasonId, awayLast5);
+            homeMasseyResid = masseyResidual(homeId, seasonId, homeLast5, cache);
+            awayMasseyResid = masseyResidual(awayId, seasonId, awayLast5, cache);
         }
 
         // Already fetched (same model types, same latest-before-game-date cutoff) in
@@ -503,21 +560,19 @@ public class PredictionService {
      * either participant are skipped; null when no usable game exists. Mirrors the
      * trainer's massey_residual_l5 exactly.
      */
-    private Double masseyResidual(Long teamId, Long seasonId, List<Game> recentGames) {
+    private Double masseyResidual(Long teamId, Long seasonId, List<Game> recentGames,
+                                  SeasonPredictionCache cache) {
         double sum = 0;
         int n = 0;
         for (Game g : recentGames) {
             LocalDate date = g.getGameDate().toLocalDate();
-            var snapHome = ratingRepository.findLatestBefore(
-                    g.getHomeTeam().getId(), seasonId, MasseyRatingService.MODEL_TYPE, date).orElse(null);
-            var snapAway = ratingRepository.findLatestBefore(
-                    g.getAwayTeam().getId(), seasonId, MasseyRatingService.MODEL_TYPE, date).orElse(null);
+            var snapHome = latestRating(cache, g.getHomeTeam().getId(), seasonId, MasseyRatingService.MODEL_TYPE, date);
+            var snapAway = latestRating(cache, g.getAwayTeam().getId(), seasonId, MasseyRatingService.MODEL_TYPE, date);
             if (snapHome == null || snapAway == null) {
                 continue;
             }
             double hca = Boolean.TRUE.equals(g.getNeutralSite()) ? 0.0
-                    : paramRepository.findLatestParamBefore(seasonId, MasseyRatingService.MODEL_TYPE, "hca", date)
-                            .map(p -> p.getParamValue()).orElse(0.0);
+                    : orZero(latestParam(cache, seasonId, MasseyRatingService.MODEL_TYPE, "hca", date));
             double residHome = (g.getHomeScore() - g.getAwayScore())
                     - (snapHome.getRating() - snapAway.getRating() + hca);
             sum += g.getHomeTeam().getId().equals(teamId) ? residHome : -residHome;

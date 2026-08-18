@@ -36,6 +36,7 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
     private static final LocalDateTime GAME_DATE = LocalDateTime.of(2025, 1, 15, 20, 0);
 
     @Autowired PredictionEvaluationService evaluationService;
+    @Autowired PredictionService predictionService;
     @Autowired PredictionEvaluationRepository evaluationRepo;
     @Autowired SeasonRepository seasonRepo;
     @Autowired TeamRepository teamRepo;
@@ -299,6 +300,44 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
                 .filter(m -> m.getModelType().equals("SPREAD_ONLY")).findFirst().orElseThrow();
         assertThat(spreadOnlyMonthly.getProbN()).isZero();
         assertThat(spreadOnlyMonthly.getLogLoss()).isNull();
+    }
+
+    /**
+     * The bulk-evaluation path uses SeasonPredictionCache; the live predict path hits
+     * the repositories per game. Both must produce identical predictions.
+     */
+    @Test
+    void cachedEvaluationMatchesUncachedPrediction() {
+        addRating(home, "ADJ_OFF", 5.0);
+        addRating(home, "ADJ_DEF", 2.0);
+        addRating(away, "ADJ_OFF", -1.0);
+        addRating(away, "ADJ_DEF", 1.0);
+        addRating(home, "ADJ_TEMPO", 3.0);
+        addRating(away, "ADJ_TEMPO", -1.0);
+        addParam("ADJ_OFF", "eff_intercept", 100.0);
+        addParam("ADJ_OFF", "eff_hca", 2.0);
+        addParam("ADJ_TEMPO", "tempo_intercept", 68.0);
+        Game game = mkFinalGame("g1", 80, 75);
+
+        evaluationService.evaluateSeason(2025);
+        var uncached = predictionService.predict(game.getId());
+
+        Map<String, PredictionEvaluation> byModel = evaluationRepo.findByGameId(game.getId()).stream()
+                .collect(Collectors.toMap(PredictionEvaluation::getModelType, Function.identity()));
+        assertThat(byModel.get("MASSEY").getPredictedSpread())
+                .isCloseTo(uncached.massey().spread(), within(1e-12));
+        assertThat(byModel.get("MASSEY").getPredictedHomeWinProb())
+                .isCloseTo(uncached.massey().homeWinProbability(), within(1e-12));
+        assertThat(byModel.get("MASSEY_TOTALS").getPredictedTotal())
+                .isCloseTo(uncached.masseyTotal().total(), within(1e-12));
+        assertThat(byModel.get("BRADLEY_TERRY").getPredictedHomeWinProb())
+                .isCloseTo(uncached.bradleyTerry().homeWinProbability(), within(1e-12));
+        assertThat(byModel.get("ADJ_EFF").getPredictedSpread())
+                .isCloseTo(uncached.adjEfficiency().spread(), within(1e-12));
+        assertThat(byModel.get("ADJ_EFF").getPredictedTotal())
+                .isCloseTo(uncached.adjEfficiency().total(), within(1e-12));
+        assertThat(byModel.get("ADJ_EFF").getPredictedHomeWinProb())
+                .isCloseTo(uncached.adjEfficiency().homeWinProbability(), within(1e-12));
     }
 
     // ── Moneyline de-vig helper ───────────────────────────────────────────────

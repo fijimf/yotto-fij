@@ -77,4 +77,18 @@ public interface TeamStatSnapshotRepository extends JpaRepository<TeamStatSnapsh
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM TeamStatSnapshot s WHERE s.season.id = :seasonId AND s.snapshotDate >= :fromDate")
     void deleteBySeasonIdFromDate(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
+
+    /** Lightweight row for per-team season loads (SeasonPredictionCache). */
+    interface StatRow {
+        String getStatName();
+        java.time.LocalDate getSnapshotDate();
+        Double getValue();
+    }
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT s.statName AS statName, s.snapshotDate AS snapshotDate, s.value AS value " +
+            "FROM TeamStatSnapshot s WHERE s.team.id = :teamId AND s.season.id = :seasonId")
+    java.util.List<StatRow> findRowsByTeamAndSeason(@Param("teamId") Long teamId,
+                                                    @Param("seasonId") Long seasonId);
+
 }

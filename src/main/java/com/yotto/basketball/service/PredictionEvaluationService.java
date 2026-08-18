@@ -118,6 +118,8 @@ public class PredictionEvaluationService {
         }
 
         List<Game> games = gameRepository.findFinalGamesForEvaluation(seasonYear);
+        // Season-bulk snapshot cache: identical lookup semantics, ~100× fewer queries
+        SeasonPredictionCache cache = predictionService.buildSeasonCache(season, games);
         List<Object[]> rows = new ArrayList<>();
         int evaluatedGames = 0;
 
@@ -137,7 +139,7 @@ public class PredictionEvaluationService {
             if (seen && !mlStale) {
                 continue;
             }
-            List<Object[]> gameRows = buildRows(game, season, expectedMl);
+            List<Object[]> gameRows = buildRows(game, season, expectedMl, cache);
             if (!gameRows.isEmpty()) {
                 rows.addAll(gameRows);
                 evaluatedGames++;
@@ -174,8 +176,9 @@ public class PredictionEvaluationService {
      * null predictions — a marker that keeps incremental evaluation from re-scoring the
      * game forever. Returns an empty list when the game has no actual result.
      */
-    private List<Object[]> buildRows(Game game, Season season, Map<String, String> expectedMl) {
-        PredictionService.InternalPrediction internal = predictionService.buildInternal(game);
+    private List<Object[]> buildRows(Game game, Season season, Map<String, String> expectedMl,
+                                     SeasonPredictionCache cache) {
+        PredictionService.InternalPrediction internal = predictionService.buildInternal(game, cache);
         PredictionResult result = internal.result();
         if (result.actualMargin() == null) {
             return List.of();

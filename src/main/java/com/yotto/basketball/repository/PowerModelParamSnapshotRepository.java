@@ -46,4 +46,19 @@ public interface PowerModelParamSnapshotRepository extends JpaRepository<PowerMo
             @Param("modelType") String modelType,
             @Param("paramName") String paramName,
             @Param("beforeDate") LocalDate beforeDate);
+
+    /** Lightweight row for bulk season loads (SeasonPredictionCache). */
+    interface ParamRow {
+        String getModelType();
+        String getParamName();
+        java.time.LocalDate getSnapshotDate();
+        Double getParamValue();
+    }
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT p.modelType AS modelType, p.paramName AS paramName, " +
+            "       p.snapshotDate AS snapshotDate, p.paramValue AS paramValue " +
+            "FROM PowerModelParamSnapshot p WHERE p.season.id = :seasonId")
+    java.util.List<ParamRow> findRowsBySeasonId(@Param("seasonId") Long seasonId);
+
 }

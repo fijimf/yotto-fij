@@ -89,4 +89,19 @@ public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPow
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType,
             @Param("beforeDate") LocalDate beforeDate);
+
+    /** Lightweight row for bulk season loads (SeasonPredictionCache). */
+    interface RatingRow {
+        Long getTeamId();
+        String getModelType();
+        LocalDate getSnapshotDate();
+        Double getRating();
+        Integer getGamesPlayed();
+    }
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT r.team.id AS teamId, r.modelType AS modelType, r.snapshotDate AS snapshotDate, " +
+            "       r.rating AS rating, r.gamesPlayed AS gamesPlayed " +
+            "FROM TeamPowerRatingSnapshot r WHERE r.season.id = :seasonId")
+    List<RatingRow> findRowsBySeasonId(@Param("seasonId") Long seasonId);
 }
