@@ -454,4 +454,65 @@ class PredictionServiceTest extends BaseIntegrationTest {
         assertThat(result.awayTeam().id()).isEqualTo(awayTeam.getId());
         assertThat(result.awayTeam().name()).isEqualTo("Auburn");
     }
+
+    // ── Adjusted efficiency (ADJ_EFF, spec W3) ────────────────────────────────
+
+    /** off_h 5, def_h 2, off_a −1, def_a 1, τ_h 3, τ_a −1, μ 100, η 2, ν 68. */
+    private void addAdjRatings() {
+        addRatingSnapshot(homeTeam, "ADJ_OFF", 5.0, SNAPSHOT_DATE);
+        addRatingSnapshot(homeTeam, "ADJ_DEF", 2.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, "ADJ_OFF", -1.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, "ADJ_DEF", 1.0, SNAPSHOT_DATE);
+        addRatingSnapshot(homeTeam, "ADJ_TEMPO", 3.0, SNAPSHOT_DATE);
+        addRatingSnapshot(awayTeam, "ADJ_TEMPO", -1.0, SNAPSHOT_DATE);
+        addParamSnapshot("ADJ_OFF", "eff_intercept", 100.0, SNAPSHOT_DATE);
+        addParamSnapshot("ADJ_OFF", "eff_hca", 2.0, SNAPSHOT_DATE);
+        addParamSnapshot("ADJ_TEMPO", "tempo_intercept", 68.0, SNAPSHOT_DATE);
+    }
+
+    @Test
+    void predict_adjEfficiencyCalculation() {
+        addAdjRatings();
+        Game game = mkGame(Game.GameStatus.SCHEDULED, GAME_DATE);
+
+        PredictionResult result = service.predict(game.getId());
+
+        // poss = 68 + 3 − 1 = 70; eh = 100 + 5 − 1 + 2 = 106; ea = 100 − 1 − 2 − 2 = 95
+        // spread = 11·70/100 = 7.7; total = 201·70/100 = 140.7
+        assertThat(result.adjEfficiency()).isNotNull();
+        assertThat(result.adjEfficiency().spread()).isCloseTo(7.7, within(1e-9));
+        assertThat(result.adjEfficiency().total()).isCloseTo(140.7, within(1e-9));
+        assertThat(result.adjEfficiency().homeWinProbability())
+                .isCloseTo(WinProbability.fromMargin(7.7, 11.0), within(1e-9));
+    }
+
+    @Test
+    void predict_adjEfficiency_neutralSiteDropsHomeEdge() {
+        addAdjRatings();
+        Game game = mkGame(Game.GameStatus.SCHEDULED, GAME_DATE);
+        game.setNeutralSite(true);
+        gameRepo.save(game);
+
+        PredictionResult result = service.predict(game.getId());
+
+        // η gone: eh = 104, ea = 97 → spread = 7·0.7 = 4.9; total unchanged (η cancels in the sum)
+        assertThat(result.adjEfficiency().spread()).isCloseTo(4.9, within(1e-9));
+        assertThat(result.adjEfficiency().total()).isCloseTo(140.7, within(1e-9));
+    }
+
+    @Test
+    void predict_adjEfficiency_missingTempoSnapshotMeansNoPrediction() {
+        addAdjRatings();
+        // massey present so the rest of the prediction is unaffected
+        addAllRatings(5.0, 2.0, 0.0, 75.0, 70.0, 0.0, 1.0, 0.0, 0.0);
+        // wipe the away team's tempo snapshot
+        ratingRepo.findLatestBefore(awayTeam.getId(), season.getId(), "ADJ_TEMPO", GAME_DATE)
+                .ifPresent(ratingRepo::delete);
+        Game game = mkGame(Game.GameStatus.SCHEDULED, GAME_DATE);
+
+        PredictionResult result = service.predict(game.getId());
+
+        assertThat(result.adjEfficiency()).isNull();
+        assertThat(result.massey()).isNotNull();
+    }
 }

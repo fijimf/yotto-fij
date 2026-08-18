@@ -32,6 +32,7 @@ public record PredictionResult(
         MasseyTotalPrediction masseyTotal,
         BradleyTerryPrediction bradleyTerry,
         BradleyTerryPrediction bradleyTerryWeighted,
+        AdjEfficiencyPrediction adjEfficiency,
         MlPrediction ml,                    // the default ACTIVE model (back-compat)
         Map<String, MlPrediction> mlModels, // slug → prediction for every ACTIVE model
 
@@ -76,6 +77,22 @@ public record PredictionResult(
             double awayWinProbability,
             int homeImpliedMoneyline,
             int awayImpliedMoneyline,
+            int homeGamesPlayed,
+            int awayGamesPlayed,
+            LocalDate modelDate
+    ) {}
+
+    /**
+     * Adjusted-efficiency prediction (model type ADJ_EFF) from the ADJ_OFF/ADJ_DEF/
+     * ADJ_TEMPO snapshots: expected per-100 scores scaled by expected possessions.
+     * {@code spread = (eh − ea)·poss/100}, {@code total = (eh + ea)·poss/100},
+     * win probability Φ(spread/σ). Null unless both teams have all three snapshot
+     * types plus the intercept params before the game date.
+     */
+    public record AdjEfficiencyPrediction(
+            double spread,
+            double total,
+            double homeWinProbability,
             int homeGamesPlayed,
             int awayGamesPlayed,
             LocalDate modelDate

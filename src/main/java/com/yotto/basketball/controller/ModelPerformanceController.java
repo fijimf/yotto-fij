@@ -1,6 +1,7 @@
 package com.yotto.basketball.controller;
 
 import com.yotto.basketball.repository.PredictionEvaluationRepository;
+import com.yotto.basketball.service.AdjustedEfficiencyRatingService;
 import com.yotto.basketball.service.BradleyTerryRatingService;
 import com.yotto.basketball.service.ConferenceNamingService;
 import com.yotto.basketball.service.MasseyRatingService;
@@ -26,17 +27,19 @@ public class ModelPerformanceController {
 
     /** Display metadata and ordering for the fixed model types; ML:&lt;slug&gt; is dynamic. */
     private static final Map<String, String> DISPLAY_NAMES = Map.of(
-            MasseyRatingService.MODEL_TYPE,                "Massey",
-            MasseyRatingService.MODEL_TYPE_TOTALS,         "Massey Totals",
-            BradleyTerryRatingService.MODEL_TYPE,          "Bradley-Terry",
-            BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, "Weighted Bradley-Terry",
-            PredictionEvaluationService.MODEL_BOOK,        "Book Closing Line");
+            MasseyRatingService.MODEL_TYPE,                       "Massey",
+            MasseyRatingService.MODEL_TYPE_TOTALS,                "Massey Totals",
+            BradleyTerryRatingService.MODEL_TYPE,                 "Bradley-Terry",
+            BradleyTerryRatingService.MODEL_TYPE_WEIGHTED,        "Weighted Bradley-Terry",
+            AdjustedEfficiencyRatingService.MODEL_TYPE_PREDICTION, "Adjusted Efficiency",
+            PredictionEvaluationService.MODEL_BOOK,               "Book Closing Line");
 
     private static final List<String> DISPLAY_ORDER = List.of(
             MasseyRatingService.MODEL_TYPE,
             MasseyRatingService.MODEL_TYPE_TOTALS,
             BradleyTerryRatingService.MODEL_TYPE,
             BradleyTerryRatingService.MODEL_TYPE_WEIGHTED,
+            AdjustedEfficiencyRatingService.MODEL_TYPE_PREDICTION,
             PredictionEvaluationService.MODEL_BOOK);
 
     /** Game segments: dropdown key → tournament_type values ('NONE' = regular season). */
@@ -200,12 +203,13 @@ public class ModelPerformanceController {
                 .toList();
     }
 
-    /** Spread-capable models for the by-conference card: ML bundles first, then Massey. */
+    /** Spread-capable models for the by-conference card: ML bundles first, then the classical spreads. */
     private Map<String, String> spreadModelOptions() {
         Map<String, String> options = new java.util.LinkedHashMap<>();
         mlModelRegistryService.plan().displayNames().forEach((slug, displayName) ->
                 options.put(PredictionEvaluationService.ML_TYPE_PREFIX + slug, displayName + " (ML)"));
         options.put(MasseyRatingService.MODEL_TYPE, "Massey");
+        options.put(AdjustedEfficiencyRatingService.MODEL_TYPE_PREDICTION, "Adjusted Efficiency");
         return options;
     }
 

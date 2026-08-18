@@ -102,6 +102,39 @@ class AdjustedEfficiencyRatingServiceTest extends BaseIntegrationTest {
         assertThat(xOff.getGamesPlayed()).isEqualTo(2);
         assertThat(snap(x, "ADJ_DEF", D2).getRank()).isEqualTo(1);
         assertThat(snap(y, "ADJ_OFF", D2).getRank()).isEqualTo(2);
+
+        // Tempo: every game is exactly 100 possessions, so the unpenalized intercept
+        // absorbs everything and the ridge shrinks all τ to 0
+        assertThat(rating(x, "ADJ_TEMPO", D1)).isCloseTo(0.0, within(1e-3));
+        assertThat(rating(x, "ADJ_TEMPO", D2)).isCloseTo(0.0, within(1e-3));
+        assertThat(rating(y, "ADJ_TEMPO", D2)).isCloseTo(0.0, within(1e-3));
+        assertThat(tempoParam(D1)).isCloseTo(100.0, within(1e-3));
+        assertThat(tempoParam(D2)).isCloseTo(100.0, within(1e-3));
+    }
+
+    /**
+     * Fast-pace team scenario, hand-solved for λ = 1: teams A and B play a
+     * 100-possession game; F plays each of them at 110 possessions.
+     * Stationarity of the ridge loss gives ν = 320/3, τ_F = 10/3, τ_A = τ_B = −5/3.
+     */
+    @Test
+    void tempoFit_fastPaceTeamGetsPositiveTau() {
+        Team f = mkTeam("Flyers", "TF");
+        Game g1 = mkFinalGame(x, y, 75, 70, D1);    // 100 possessions
+        Game g2 = mkFinalGame(f, x, 85, 80, D1);    // 110 possessions
+        Game g3 = mkFinalGame(f, y, 88, 84, D1);    // 110 possessions
+        mkBox(g1, x, "home", 80); mkBox(g1, y, "away", 80);
+        mkBox(g2, f, "home", 90); mkBox(g2, x, "away", 90);
+        mkBox(g3, f, "home", 90); mkBox(g3, y, "away", 90);
+
+        service.calculateAndStoreForSeason(2025);
+
+        assertThat(tempoParam(D1)).isCloseTo(320.0 / 3.0, within(1e-3));
+        assertThat(rating(f, "ADJ_TEMPO", D1)).isCloseTo(10.0 / 3.0, within(1e-3));
+        assertThat(rating(x, "ADJ_TEMPO", D1)).isCloseTo(-5.0 / 3.0, within(1e-3));
+        assertThat(rating(y, "ADJ_TEMPO", D1)).isCloseTo(-5.0 / 3.0, within(1e-3));
+        // F tops the tempo board
+        assertThat(snap(f, "ADJ_TEMPO", D1).getRank()).isEqualTo(1);
     }
 
     @Test
@@ -186,11 +219,16 @@ class AdjustedEfficiencyRatingServiceTest extends BaseIntegrationTest {
 
     /** Box line with exactly 100 possessions: 80 − 10 + 11 + 0.475·40 = 100. */
     private void mkBox(Game game, Team team, String homeAway) {
+        mkBox(game, team, homeAway, 80);
+    }
+
+    /** Box line with FGA − 10 + 11 + 0.475·40 = FGA + 20 possessions. */
+    private void mkBox(Game game, Team team, String homeAway, int fga) {
         TeamGameStats s = new TeamGameStats();
         s.setGame(game);
         s.setTeam(team);
         s.setHomeAway(homeAway);
-        s.setFgAttempted(80);
+        s.setFgAttempted(fga);
         s.setOffensiveReb(10);
         s.setTurnovers(11);
         s.setFtAttempted(40);
@@ -215,5 +253,13 @@ class AdjustedEfficiencyRatingServiceTest extends BaseIntegrationTest {
                 .filter(p -> p.getSnapshotDate().equals(date))
                 .map(PowerModelParamSnapshot::getParamValue)
                 .orElseThrow(() -> new AssertionError("no param " + name + " on " + date));
+    }
+
+    private double tempoParam(LocalDate date) {
+        return paramRepo.findLatestParamBefore(season.getId(),
+                        AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, "tempo_intercept", date.plusDays(1))
+                .filter(p -> p.getSnapshotDate().equals(date))
+                .map(PowerModelParamSnapshot::getParamValue)
+                .orElseThrow(() -> new AssertionError("no tempo_intercept on " + date));
     }
 }

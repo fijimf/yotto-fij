@@ -65,6 +65,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Massey")))
                 .andExpect(content().string(containsString("Bradley-Terry")))
+                .andExpect(content().string(containsString("Adjusted Efficiency")))
                 .andExpect(content().string(containsString("Book Closing Line")))
                 .andExpect(content().string(containsString("Winner")))
                 .andExpect(content().string(containsString("Log Loss")))
@@ -329,6 +330,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         save(game, season, "MASSEY", 9.0, null, null);
         save(game, season, "MASSEY_TOTALS", null, 148.0, null);
         save(game, season, "BRADLEY_TERRY", null, null, 0.65);
+        save(game, season, "ADJ_EFF", 7.7, 140.7, 0.76);
         save(game, season, "BOOK", 6.5, 150.5, 0.70);
 
         Game febGame = new Game();

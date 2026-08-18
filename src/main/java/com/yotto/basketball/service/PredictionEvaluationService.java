@@ -206,6 +206,12 @@ public class PredictionEvaluationService {
                     null, null, result.bradleyTerryWeighted().homeWinProbability(),
                     actualMargin, actualTotal, homeWon, null));
         }
+        if (result.adjEfficiency() != null) {
+            rows.add(row(game, season, AdjustedEfficiencyRatingService.MODEL_TYPE_PREDICTION,
+                    result.adjEfficiency().spread(), result.adjEfficiency().total(),
+                    result.adjEfficiency().homeWinProbability(),
+                    actualMargin, actualTotal, homeWon, null));
+        }
         // One row per evaluable ML bundle (ACTIVE + CANDIDATE shadow models); expected
         // bundles with no prediction get a null-prediction marker row at their version.
         Map<String, PredictionResult.MlPrediction> mlPredictions = internal.allMlPredictions();

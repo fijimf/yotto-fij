@@ -126,6 +126,32 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
     }
 
     @Test
+    void evaluateSeason_writesAdjEffRowWhenSnapshotsExist() {
+        // poss = 68 + 3 − 1 = 70; eh = 100 + 5 − 1 + 2 = 106; ea = 100 − 1 − 2 − 2 = 95
+        addRating(home, "ADJ_OFF", 5.0);
+        addRating(home, "ADJ_DEF", 2.0);
+        addRating(away, "ADJ_OFF", -1.0);
+        addRating(away, "ADJ_DEF", 1.0);
+        addRating(home, "ADJ_TEMPO", 3.0);
+        addRating(away, "ADJ_TEMPO", -1.0);
+        addParam("ADJ_OFF", "eff_intercept", 100.0);
+        addParam("ADJ_OFF", "eff_hca", 2.0);
+        addParam("ADJ_TEMPO", "tempo_intercept", 68.0);
+        Game game = mkFinalGame("g1", 80, 75);   // margin +5, total 155
+
+        evaluationService.evaluateSeason(2025);
+
+        PredictionEvaluation adj = evaluationRepo.findByGameId(game.getId()).stream()
+                .filter(pe -> pe.getModelType().equals("ADJ_EFF")).findFirst().orElseThrow();
+        assertThat(adj.getPredictedSpread()).isCloseTo(7.7, within(1e-9));
+        assertThat(adj.getPredictedTotal()).isCloseTo(140.7, within(1e-9));
+        assertThat(adj.getPredictedHomeWinProb())
+                .isCloseTo(WinProbability.fromMargin(7.7, 11.0), within(1e-9));
+        assertThat(adj.getSpreadError()).isCloseTo(5 - 7.7, within(1e-9));
+        assertThat(adj.getTotalError()).isCloseTo(155 - 140.7, within(1e-9));
+    }
+
+    @Test
     void bookRow_fallsBackToSpreadDerivedProbWhenMoneylinesMissing() {
         Game game = mkFinalGame("g1", 80, 75);
         addOdds(game, "-6.5", "150.5", null, null);      // spread but no moneylines

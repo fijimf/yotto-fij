@@ -120,6 +120,7 @@ public class PredictionService {
         PredictionResult.MasseyTotalPrediction  masseyTotal = toMasseyTotal(ratings);
         PredictionResult.BradleyTerryPrediction bt          = toBradleyTerry(ratings);
         PredictionResult.BradleyTerryPrediction btWeighted  = toBradleyTerryWeighted(ratings);
+        PredictionResult.AdjEfficiencyPrediction adjEff     = toAdjEfficiency(ratings);
 
         MlPredictions mlPredictions = MlPredictions.none();
         if (ratings.hasAll()) {
@@ -131,7 +132,7 @@ public class PredictionService {
                 null, gameDate, null, neutralSite,
                 toTeamSummary(home), toTeamSummary(away),
                 null, null, null, null,
-                massey, masseyTotal, bt, btWeighted,
+                massey, masseyTotal, bt, btWeighted, adjEff,
                 mlPredictions.defaultPrediction(), mlPredictions.active(),
                 null, null);
     }
@@ -163,7 +164,7 @@ public class PredictionService {
             return new InternalPrediction(new PredictionResult(
                     game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                     game.getNeutralSite(), homeTeam, awayTeam,
-                    null, null, null, null, null, null, null, null, null, Map.of(),
+                    null, null, null, null, null, null, null, null, null, null, Map.of(),
                     bookSpread, bookOverUnder), Map.of());
         }
 
@@ -180,6 +181,7 @@ public class PredictionService {
         PredictionResult.MasseyTotalPrediction   masseyTotal     = toMasseyTotal(ratings);
         PredictionResult.BradleyTerryPrediction  bt              = toBradleyTerry(ratings);
         PredictionResult.BradleyTerryPrediction  btWeighted      = toBradleyTerryWeighted(ratings);
+        PredictionResult.AdjEfficiencyPrediction adjEff          = toAdjEfficiency(ratings);
 
         // ML models — every evaluable bundle is scored once; only ACTIVE ones are public
         MlPredictions mlPredictions = MlPredictions.none();
@@ -203,7 +205,7 @@ public class PredictionService {
                 game.getId(), game.getGameDate().toLocalDate(), game.getStatus(),
                 game.getNeutralSite(), homeTeam, awayTeam,
                 actualHomeScore, actualAwayScore, actualMargin, actualTotal,
-                massey, masseyTotal, bt, btWeighted,
+                massey, masseyTotal, bt, btWeighted, adjEff,
                 mlPredictions.defaultPrediction(), mlPredictions.active(),
                 bookSpread, bookOverUnder);
         return new InternalPrediction(result, mlPredictions.all());
@@ -254,11 +256,35 @@ public class PredictionService {
                     .map(p -> p.getParamValue()).orElse(0.0);
         }
 
+        // Adjusted efficiency + tempo (ADJ_EFF model, also feeds eff-v4 ML features).
+        // Intercept params are required (null ⇒ no prediction); HCA is zero on neutral floors.
+        var adjOffHome   = ratingRepository.findLatestBefore(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff).orElse(null);
+        var adjOffAway   = ratingRepository.findLatestBefore(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff).orElse(null);
+        var adjDefHome   = ratingRepository.findLatestBefore(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff).orElse(null);
+        var adjDefAway   = ratingRepository.findLatestBefore(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff).orElse(null);
+        var adjTempoHome = ratingRepository.findLatestBefore(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, cutoff).orElse(null);
+        var adjTempoAway = ratingRepository.findLatestBefore(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, cutoff).orElse(null);
+        Double effIntercept = null, tempoIntercept = null;
+        double effHca = 0;
+        if (adjOffHome != null && adjOffAway != null && adjDefHome != null && adjDefAway != null
+                && adjTempoHome != null && adjTempoAway != null) {
+            effIntercept = paramRepository.findLatestParamBefore(seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, "eff_intercept", cutoff)
+                    .map(p -> p.getParamValue()).orElse(null);
+            tempoIntercept = paramRepository.findLatestParamBefore(seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_TEMPO, "tempo_intercept", cutoff)
+                    .map(p -> p.getParamValue()).orElse(null);
+            if (!neutral) {
+                effHca = paramRepository.findLatestParamBefore(seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, "eff_hca", cutoff)
+                        .map(p -> p.getParamValue()).orElse(0.0);
+            }
+        }
+
         return new GameRatings(
                 masseyHome, masseyAway, masseyHca,
                 masseyTotalHome, masseyTotalAway, masseyTotalIntercept, masseyTotalDelta,
                 btHome, btAway, btAlpha,
-                btWeightedHome, btWeightedAway, btWeightedAlpha);
+                btWeightedHome, btWeightedAway, btWeightedAlpha,
+                adjOffHome, adjOffAway, adjDefHome, adjDefAway,
+                adjTempoHome, adjTempoAway, effIntercept, effHca, tempoIntercept);
     }
 
     // ── Phase 1 sub-block builders ────────────────────────────────────────────
@@ -305,6 +331,26 @@ public class PredictionService {
                 impliedMoneyline(pHome), impliedMoneyline(pAway),
                 r.btWeightedHome().getGamesPlayed(), r.btWeightedAway().getGamesPlayed(),
                 earlierDate(r.btWeightedHome().getSnapshotDate(), r.btWeightedAway().getSnapshotDate()));
+    }
+
+    /**
+     * ADJ_EFF prediction (spec W3-3): expected possessions {@code ν + τ_h + τ_a},
+     * per-100 expected scores {@code eh = μ + off_h − def_a + η} and
+     * {@code ea = μ + off_a − def_h − η} (η pre-zeroed for neutral sites), scaled
+     * to points by {@code poss/100}; win probability Φ(spread/σ).
+     */
+    private PredictionResult.AdjEfficiencyPrediction toAdjEfficiency(GameRatings r) {
+        if (!r.hasAdj()) return null;
+        double poss = r.tempoIntercept() + r.adjTempoHome().getRating() + r.adjTempoAway().getRating();
+        double eh = r.effIntercept() + r.adjOffHome().getRating() - r.adjDefAway().getRating() + r.effHca();
+        double ea = r.effIntercept() + r.adjOffAway().getRating() - r.adjDefHome().getRating() - r.effHca();
+        double spread = (eh - ea) * poss / 100.0;
+        double total  = (eh + ea) * poss / 100.0;
+        return new PredictionResult.AdjEfficiencyPrediction(
+                spread, total,
+                WinProbability.fromMargin(spread, marginSigma),
+                r.adjOffHome().getGamesPlayed(), r.adjOffAway().getGamesPlayed(),
+                earlierDate(r.adjOffHome().getSnapshotDate(), r.adjOffAway().getSnapshotDate()));
     }
 
     // ── ML scoring (Phase 3: per-bundle vectors from one shared context) ──────
@@ -410,13 +456,14 @@ public class PredictionService {
             awayMasseyResid = masseyResidual(awayId, seasonId, awayLast5);
         }
 
+        // Already fetched (same model types, same latest-before-game-date cutoff) in
+        // fetchGameRatings — reuse rather than re-query.
         Double homeAdjOff = null, awayAdjOff = null, homeAdjDef = null, awayAdjDef = null;
         if (plan.needsAdjEfficiency()) {
-            LocalDate cutoff = gameDatetime.toLocalDate();
-            homeAdjOff = adjRating(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff);
-            homeAdjDef = adjRating(homeId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff);
-            awayAdjOff = adjRating(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_OFF, cutoff);
-            awayAdjDef = adjRating(awayId, seasonId, AdjustedEfficiencyRatingService.MODEL_TYPE_DEF, cutoff);
+            homeAdjOff = r.adjOffHome() != null ? r.adjOffHome().getRating() : null;
+            homeAdjDef = r.adjDefHome() != null ? r.adjDefHome().getRating() : null;
+            awayAdjOff = r.adjOffAway() != null ? r.adjOffAway().getRating() : null;
+            awayAdjDef = r.adjDefAway() != null ? r.adjDefAway().getRating() : null;
         }
 
         return new PredictionContext(
@@ -437,11 +484,6 @@ public class PredictionService {
                 homeMasseyResid, awayMasseyResid,
                 homeAdjOff, awayAdjOff, homeAdjDef, awayAdjDef,
                 r.masseyHca());
-    }
-
-    private Double adjRating(Long teamId, Long seasonId, String modelType, LocalDate cutoff) {
-        return ratingRepository.findLatestBefore(teamId, seasonId, modelType, cutoff)
-                .map(TeamPowerRatingSnapshot::getRating).orElse(null);
     }
 
     /** [β, θ] from the previous season's final snapshots, or null unless BOTH exist. */
@@ -542,12 +584,21 @@ public class PredictionService {
             TeamPowerRatingSnapshot masseyTotalHome, TeamPowerRatingSnapshot masseyTotalAway,
             double masseyTotalIntercept, double masseyTotalDelta,
             TeamPowerRatingSnapshot btHome, TeamPowerRatingSnapshot btAway, double btAlpha,
-            TeamPowerRatingSnapshot btWeightedHome, TeamPowerRatingSnapshot btWeightedAway, double btWeightedAlpha
+            TeamPowerRatingSnapshot btWeightedHome, TeamPowerRatingSnapshot btWeightedAway, double btWeightedAlpha,
+            TeamPowerRatingSnapshot adjOffHome, TeamPowerRatingSnapshot adjOffAway,
+            TeamPowerRatingSnapshot adjDefHome, TeamPowerRatingSnapshot adjDefAway,
+            TeamPowerRatingSnapshot adjTempoHome, TeamPowerRatingSnapshot adjTempoAway,
+            Double effIntercept, double effHca, Double tempoIntercept
     ) {
         boolean hasMassey()      { return masseyHome != null && masseyAway != null; }
         boolean hasMasseyTotal() { return masseyTotalHome != null && masseyTotalAway != null; }
         boolean hasBt()          { return btHome != null && btAway != null; }
         boolean hasBtWeighted()  { return btWeightedHome != null && btWeightedAway != null; }
+        // No imputation: every input must exist before the game date (spec W3-4)
+        boolean hasAdj()         { return adjOffHome != null && adjOffAway != null
+                && adjDefHome != null && adjDefAway != null
+                && adjTempoHome != null && adjTempoAway != null
+                && effIntercept != null && tempoIntercept != null; }
         // The ML models are trained only on games where all four rating models have
         // snapshots — the feature vector must never be built with imputed ratings.
         boolean hasAll()         { return hasMassey() && hasMasseyTotal() && hasBt() && hasBtWeighted(); }
