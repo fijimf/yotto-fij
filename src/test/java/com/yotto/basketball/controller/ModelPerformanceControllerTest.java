@@ -67,6 +67,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
                 .andExpect(content().string(containsString("Bradley-Terry")))
                 .andExpect(content().string(containsString("Book Closing Line")))
                 .andExpect(content().string(containsString("Winner")))
+                .andExpect(content().string(containsString("Log Loss")))
                 .andExpect(content().string(containsString("Brier")))
                 .andExpect(content().string(not(containsString("No prediction evaluations yet"))));
     }

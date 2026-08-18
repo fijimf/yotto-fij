@@ -98,6 +98,9 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
         PredictionEvaluation massey = byModel.get("MASSEY");
         assertThat(massey.getPredictedSpread()).isCloseTo(9.0, within(1e-9));    // 10 − 4 + 3
         assertThat(massey.getSpreadError()).isCloseTo(-4.0, within(1e-9));       // 5 − 9
+        // Margin-derived win prob: Φ(spread/σ) at the default σ = 11
+        assertThat(massey.getPredictedHomeWinProb())
+                .isCloseTo(WinProbability.fromMargin(9.0, 11.0), within(1e-9));
         assertThat(massey.getPredictedTotal()).isNull();
         assertThat(massey.getActualMargin()).isEqualTo(5);
         assertThat(massey.getActualTotal()).isEqualTo(155);
@@ -120,6 +123,20 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
         // De-vigged moneyline prob: home −250 → 250/350; away +205 → 100/305
         double ih = 250.0 / 350.0, ia = 100.0 / 305.0;
         assertThat(book.getPredictedHomeWinProb()).isCloseTo(ih / (ih + ia), within(1e-9));
+    }
+
+    @Test
+    void bookRow_fallsBackToSpreadDerivedProbWhenMoneylinesMissing() {
+        Game game = mkFinalGame("g1", 80, 75);
+        addOdds(game, "-6.5", "150.5", null, null);      // spread but no moneylines
+
+        evaluationService.evaluateSeason(2025);
+
+        PredictionEvaluation book = evaluationRepo.findByGameId(game.getId()).stream()
+                .filter(pe -> pe.getModelType().equals("BOOK")).findFirst().orElseThrow();
+        // Handicap −6.5 → book expects home by 6.5 → Φ(6.5/11)
+        assertThat(book.getPredictedHomeWinProb())
+                .isCloseTo(WinProbability.fromMargin(6.5, 11.0), within(1e-9));
     }
 
     @Test
@@ -199,6 +216,13 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
         double expectedBrier = (Math.pow(p - 1, 2) + Math.pow(p - 0, 2)) / 2.0;
         assertThat(btRow.getBrier()).isCloseTo(expectedBrier, within(1e-6));
         assertThat(btRow.getAccuracy()).isCloseTo(0.5, within(1e-6));
+        // Log loss: home won g1 (score −ln p), lost g2 (score −ln(1−p))
+        double expectedLogLoss = (-Math.log(p) - Math.log(1 - p)) / 2.0;
+        assertThat(btRow.getLogLoss()).isCloseTo(expectedLogLoss, within(1e-6));
+
+        var monthly = evaluationRepo.monthlyMetrics(season.getId(), true, List.of("NONE"));
+        var btMonthly = monthly.stream().filter(m -> m.getModelType().equals("BRADLEY_TERRY")).findFirst().orElseThrow();
+        assertThat(btMonthly.getLogLoss()).isCloseTo(expectedLogLoss, within(1e-6));
 
         var buckets = evaluationRepo.calibrationBuckets(season.getId(), from, true, List.of("NONE"));
         assertThat(buckets).isNotEmpty();
@@ -208,6 +232,47 @@ class PredictionEvaluationServiceTest extends BaseIntegrationTest {
         assertThat(btBuckets.get(0).getActualRate()).isCloseTo(0.5, within(1e-6));
 
         assertThat(evaluationRepo.findEvaluatedSeasonYears()).containsExactly(2025);
+    }
+
+    @Test
+    void logLoss_clampsDegenerateProbabilitiesToStayFinite() {
+        Game game = mkFinalGame("g1", 60, 70);   // home lost
+        PredictionEvaluation pe = new PredictionEvaluation();
+        pe.setGame(game);
+        pe.setSeason(season);
+        pe.setModelType("OVERCONFIDENT");
+        pe.setGameDate(GAME_DATE.toLocalDate());
+        pe.setPredictedHomeWinProb(1.0);         // certain of the wrong side
+        pe.setActualMargin(-10);
+        pe.setActualTotal(130);
+        pe.setHomeWon(false);
+        pe.setEvaluatedAt(LocalDateTime.now());
+        evaluationRepo.save(pe);
+
+        // A spread-only row: its NULL prob must survive the clamp in monthlyMetrics
+        // (GREATEST/LEAST skip NULLs in Postgres), not become a phantom 1−1e-6
+        PredictionEvaluation spreadOnly = new PredictionEvaluation();
+        spreadOnly.setGame(game);
+        spreadOnly.setSeason(season);
+        spreadOnly.setModelType("SPREAD_ONLY");
+        spreadOnly.setGameDate(GAME_DATE.toLocalDate());
+        spreadOnly.setPredictedSpread(3.0);
+        spreadOnly.setSpreadError(-13.0);
+        spreadOnly.setActualMargin(-10);
+        spreadOnly.setActualTotal(130);
+        spreadOnly.setHomeWon(false);
+        spreadOnly.setEvaluatedAt(LocalDateTime.now());
+        evaluationRepo.save(spreadOnly);
+
+        var prob = evaluationRepo.probMetrics(season.getId(), LocalDate.of(1900, 1, 1), true, List.of("NONE"));
+        var row = prob.stream().filter(r -> r.getModelType().equals("OVERCONFIDENT")).findFirst().orElseThrow();
+        assertThat(row.getLogLoss()).isCloseTo(-Math.log(1e-6), within(1e-6));   // finite, ≈ 13.8155
+
+        var monthly = evaluationRepo.monthlyMetrics(season.getId(), true, List.of("NONE"));
+        var spreadOnlyMonthly = monthly.stream()
+                .filter(m -> m.getModelType().equals("SPREAD_ONLY")).findFirst().orElseThrow();
+        assertThat(spreadOnlyMonthly.getProbN()).isZero();
+        assertThat(spreadOnlyMonthly.getLogLoss()).isNull();
     }
 
     // ── Moneyline de-vig helper ───────────────────────────────────────────────

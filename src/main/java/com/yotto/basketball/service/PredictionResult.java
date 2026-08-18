@@ -44,10 +44,12 @@ public record PredictionResult(
 
     /**
      * Massey spread prediction: β_h − β_a + α (negative = away team favored).
-     * HCA term is zero for neutral-site games.
+     * HCA term is zero for neutral-site games. The win probability is margin-derived:
+     * Φ(spread/σ) via {@link WinProbability}.
      */
     public record MasseyPrediction(
             double spread,
+            double homeWinProbability,
             int homeGamesPlayed,
             int awayGamesPlayed,
             LocalDate modelDate   // earlier of the two teams' snapshot dates

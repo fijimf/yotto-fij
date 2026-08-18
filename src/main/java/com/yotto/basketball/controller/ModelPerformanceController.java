@@ -114,7 +114,7 @@ public class ModelPerformanceController {
         model.addAttribute("monthly",
                 evaluationRepository.monthlyMetrics(seasonId, allSegments, types).stream()
                         .map(m -> new MonthlyPoint(m.getModelType(), displayName(m.getModelType()), m.getMonth(),
-                                m.getSpreadN(), m.getSpreadMae(), m.getProbN(), m.getBrier()))
+                                m.getSpreadN(), m.getSpreadMae(), m.getProbN(), m.getBrier(), m.getLogLoss()))
                         .toList());
         model.addAttribute("calibration",
                 evaluationRepository.calibrationBuckets(seasonId, from, allSegments, types).stream()
@@ -249,7 +249,7 @@ public class ModelPerformanceController {
 
     /** JSON-friendly month-by-month point for the Chart.js inline block; month is 'YYYY-MM'. */
     public record MonthlyPoint(String modelType, String displayName, String month,
-                               long spreadN, Double spreadMae, long probN, Double brier) {}
+                               long spreadN, Double spreadMae, long probN, Double brier, Double logLoss) {}
 
     private <T> List<T> sortRows(List<T> rows, java.util.function.Function<T, String> typeOf) {
         return rows.stream()

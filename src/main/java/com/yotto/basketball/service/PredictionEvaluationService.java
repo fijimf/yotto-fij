@@ -71,19 +71,23 @@ public class PredictionEvaluationService {
     private final PredictionService predictionService;
     private final MlModelRegistryService mlModelRegistryService;
     private final JdbcTemplate jdbcTemplate;
+    /** Margin stddev σ for the BOOK spread→probability fallback — see {@link WinProbability}. */
+    private final double marginSigma;
 
     public PredictionEvaluationService(GameRepository gameRepository,
                                        SeasonRepository seasonRepository,
                                        PredictionEvaluationRepository evaluationRepository,
                                        PredictionService predictionService,
                                        MlModelRegistryService mlModelRegistryService,
-                                       JdbcTemplate jdbcTemplate) {
+                                       JdbcTemplate jdbcTemplate,
+                                       @org.springframework.beans.factory.annotation.Value("${app.prediction.margin-sigma:11.0}") double marginSigma) {
         this.gameRepository       = gameRepository;
         this.seasonRepository     = seasonRepository;
         this.evaluationRepository = evaluationRepository;
         this.predictionService    = predictionService;
         this.mlModelRegistryService = mlModelRegistryService;
         this.jdbcTemplate         = jdbcTemplate;
+        this.marginSigma          = marginSigma;
     }
 
     /**
@@ -184,7 +188,7 @@ public class PredictionEvaluationService {
 
         if (result.massey() != null) {
             rows.add(row(game, season, MasseyRatingService.MODEL_TYPE,
-                    result.massey().spread(), null, null,
+                    result.massey().spread(), null, result.massey().homeWinProbability(),
                     actualMargin, actualTotal, homeWon, null));
         }
         if (result.masseyTotal() != null) {
@@ -231,7 +235,8 @@ public class PredictionEvaluationService {
     /**
      * Closing-line benchmark. {@code betting_odds.spread} is in handicap orientation
      * (negative = home favored), so the book's expected home margin is {@code −spread}.
-     * The win probability is implied by the de-vigged moneyline pair.
+     * The win probability is implied by the de-vigged moneyline pair; when either
+     * moneyline is missing but a spread exists, it falls back to Φ(−spread/σ).
      */
     private Object[] bookRow(Game game, Season season,
                              int actualMargin, int actualTotal, boolean homeWon) {
@@ -241,6 +246,9 @@ public class PredictionEvaluationService {
         Double spread = odds.getSpread()    != null ? -odds.getSpread().doubleValue()   : null;
         Double total  = odds.getOverUnder() != null ? odds.getOverUnder().doubleValue() : null;
         Double prob   = impliedHomeWinProb(odds.getHomeMoneyline(), odds.getAwayMoneyline());
+        if (prob == null && spread != null) {
+            prob = WinProbability.fromMargin(spread, marginSigma);
+        }
         if (spread == null && total == null && prob == null) return null;
 
         return row(game, season, MODEL_BOOK, spread, total, prob,

@@ -235,6 +235,39 @@ scrape, or after rebuilding historical ratings.
 - **Predictions list** — the headline prediction comes from the ★ default
   model; edge vs. the book line where odds exist.
 
+## 6a. Log loss — reading it and keeping it honest
+
+The Win Probability card scores every model with **log loss** (mean −log likelihood of the
+actual outcomes) next to Brier. Lower is better; 0.6931 is coin-flip guessing; probabilities
+are clamped to [1e-6, 1−1e-6] so a degenerate 0/1 prediction stays finite. Massey rows carry
+a margin-derived probability Φ(spread/σ) with σ from `app.prediction.margin-sigma`
+(default 11.0), and BOOK rows fall back to Φ(−spread/σ) when moneylines are missing
+(see docs/MODEL_IMPROVEMENT_SPEC.md).
+
+**After deploying a build that adds or changes probability sources** (e.g. the build that
+introduced Massey probabilities), old evaluation rows are NOT updated incrementally — click
+**Rebuild** under Evaluate Predictions once, or old MASSEY rows stay probability-less forever.
+
+**Sanity gates** (full past season, all segments):
+
+| BOOK log loss | Meaning |
+|---|---|
+| 0.54–0.60 | Normal. This is the bar your models chase. |
+| < 0.54 | Almost certainly a leakage bug — investigate before celebrating. |
+| > 0.62 | Odds coverage or de-vig problem — check moneyline completeness. |
+
+Record the per-model numbers in `docs/punchlist.md` after each rebuild; they are the
+baseline every modeling change is judged against.
+
+## 6b. Winprob-mode shootout (classifier vs. derived)
+
+To settle whether the ML win probability should come from the dedicated classifier head or
+be derived from the predicted margin: train two bundles from the same feature set differing
+only in `winprobMode` — e.g. slugs `eff-v4-clf` (classifier) and `eff-v4-drv` (derived) —
+leave both as **Candidates**, run **Evaluate Predictions → Rebuild**, and compare log loss
+and the calibration chart on seasons *neither* was trained on (watch the in-sample badges).
+Promote the winner, retire the loser, and prefer the winning mode for future training runs.
+
 ## 7. Troubleshooting
 
 | Symptom | Cause & fix |

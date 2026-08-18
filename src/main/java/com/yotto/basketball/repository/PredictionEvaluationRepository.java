@@ -107,13 +107,20 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
     interface ProbMetrics {
         String getModelType();
         long getN();
+        Double getLogLoss();    // mean −ln(prob assigned to the actual outcome); prob clamped to [1e-6, 1−1e-6]
         Double getBrier();
         Double getAccuracy();   // fraction where (prob ≥ 0.5) matched the outcome
     }
 
+    // Log-loss expression note: the outer CASE guard matters — GREATEST/LEAST skip NULLs
+    // in Postgres, so a NULL prob would otherwise clamp to 1−1e-6 instead of dropping out.
     @Query(nativeQuery = true, value = """
             SELECT pe.model_type AS modeltype,
                    count(*) AS n,
+                   avg(CASE WHEN pe.predicted_home_win_prob IS NULL THEN NULL
+                            ELSE -ln(greatest(1e-6, least(1 - 1e-6,
+                                 CASE WHEN pe.home_won THEN pe.predicted_home_win_prob
+                                      ELSE 1 - pe.predicted_home_win_prob END))) END) AS logloss,
                    avg(power(pe.predicted_home_win_prob - (CASE WHEN pe.home_won THEN 1.0 ELSE 0.0 END), 2)) AS brier,
                    avg(CASE WHEN (pe.predicted_home_win_prob >= 0.5) = pe.home_won THEN 1.0 ELSE 0.0 END) AS accuracy
             FROM prediction_evaluations pe
@@ -136,6 +143,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getSpreadMae();
         long getProbN();
         Double getBrier();
+        Double getLogLoss();
     }
 
     @Query(nativeQuery = true, value = """
@@ -144,7 +152,11 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                    count(pe.spread_error) AS spreadn,
                    avg(abs(pe.spread_error)) AS spreadmae,
                    count(pe.predicted_home_win_prob) AS probn,
-                   avg(power(pe.predicted_home_win_prob - (CASE WHEN pe.home_won THEN 1.0 ELSE 0.0 END), 2)) AS brier
+                   avg(power(pe.predicted_home_win_prob - (CASE WHEN pe.home_won THEN 1.0 ELSE 0.0 END), 2)) AS brier,
+                   avg(CASE WHEN pe.predicted_home_win_prob IS NULL THEN NULL
+                            ELSE -ln(greatest(1e-6, least(1 - 1e-6,
+                                 CASE WHEN pe.home_won THEN pe.predicted_home_win_prob
+                                      ELSE 1 - pe.predicted_home_win_prob END))) END) AS logloss
             FROM prediction_evaluations pe
             JOIN games g ON g.id = pe.game_id
             WHERE (:seasonId < 0 OR pe.season_id = :seasonId)

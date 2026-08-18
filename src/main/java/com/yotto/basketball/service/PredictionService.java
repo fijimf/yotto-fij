@@ -50,6 +50,8 @@ public class PredictionService {
     private final TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository;
     private final MlPredictionService mlPredictionService;
     private final MlModelRegistryService mlModelRegistryService;
+    /** Margin stddev σ for Φ(spread/σ) win probabilities — see {@link WinProbability}. */
+    private final double marginSigma;
 
     public PredictionService(GameRepository gameRepository,
                              TeamRepository teamRepository,
@@ -59,7 +61,8 @@ public class PredictionService {
                              TeamStatSnapshotRepository teamStatSnapshotRepository,
                              TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
                              MlPredictionService mlPredictionService,
-                             MlModelRegistryService mlModelRegistryService) {
+                             MlModelRegistryService mlModelRegistryService,
+                             @org.springframework.beans.factory.annotation.Value("${app.prediction.margin-sigma:11.0}") double marginSigma) {
         this.gameRepository       = gameRepository;
         this.teamRepository       = teamRepository;
         this.seasonRepository     = seasonRepository;
@@ -69,6 +72,7 @@ public class PredictionService {
         this.teamSeasonStatSnapshotRepository = teamSeasonStatSnapshotRepository;
         this.mlPredictionService  = mlPredictionService;
         this.mlModelRegistryService = mlModelRegistryService;
+        this.marginSigma          = marginSigma;
     }
 
     /** Returns a prediction for a single game by ID. */
@@ -259,11 +263,12 @@ public class PredictionService {
 
     // ── Phase 1 sub-block builders ────────────────────────────────────────────
 
-    private static PredictionResult.MasseyPrediction toMassey(GameRatings r) {
+    private PredictionResult.MasseyPrediction toMassey(GameRatings r) {
         if (!r.hasMassey()) return null;
         double spread = r.masseyHome().getRating() - r.masseyAway().getRating() + r.masseyHca();
         return new PredictionResult.MasseyPrediction(
                 spread,
+                WinProbability.fromMargin(spread, marginSigma),
                 r.masseyHome().getGamesPlayed(), r.masseyAway().getGamesPlayed(),
                 earlierDate(r.masseyHome().getSnapshotDate(), r.masseyAway().getSnapshotDate()));
     }

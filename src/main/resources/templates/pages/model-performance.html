@@ -138,6 +138,7 @@
                     <tr>
                         <th style="text-align: left;">Model</th>
                         <th style="text-align: right;">Games</th>
+                        <th style="text-align: right;" title="Mean −log likelihood of the outcomes — lower is better; 0.6931 is coin-flip guessing. Heavily punishes confident misses, so it cannot be gamed by overconfidence">Log Loss</th>
                         <th style="text-align: right;" title="Mean squared error of the probability — lower is better; 0.25 is coin-flip guessing">Brier</th>
                         <th style="text-align: right;" title="How often the more-likely side won">Accuracy</th>
                     </tr>
@@ -151,11 +152,12 @@
                                   th:title="${inSampleBadges[r.modelType]}">in-sample</span>
                         </td>
                         <td style="text-align: right;" th:text="${#numbers.formatInteger(r.n, 0, 'COMMA')}">5,500</td>
+                        <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.logLoss, 1, 4)}">0.6000</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.brier, 1, 4)}">0.1900</td>
                         <td style="text-align: right;" th:text="${#numbers.formatDecimal(r.accuracy * 100, 1, 1)} + '%'">72.0%</td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(probRows)}">
-                        <td colspan="4" style="color: var(--color-text-muted);">No win-probability evaluations in this window.</td>
+                        <td colspan="5" style="color: var(--color-text-muted);">No win-probability evaluations in this window.</td>
                     </tr>
                     </tbody>
                 </table>
@@ -239,6 +241,7 @@
                 <h2 style="margin-top: 0;">Month by Month <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">do the models close the gap to the book as the season develops?</span></h2>
                 <select id="monthly-metric" class="form-input form-input--sm" style="width: auto;">
                     <option value="spread">Spread MAE</option>
+                    <option value="logloss">Log loss</option>
                     <option value="brier">Brier score</option>
                 </select>
             </div>
@@ -262,8 +265,9 @@
                 };
 
                 const METRICS = {
-                    spread: { value: p => p.spreadMae, n: p => p.spreadN, axis: 'Spread MAE (points)', decimals: 2 },
-                    brier:  { value: p => p.brier,     n: p => p.probN,   axis: 'Brier score',         decimals: 4 }
+                    spread:  { value: p => p.spreadMae, n: p => p.spreadN, axis: 'Spread MAE (points)', decimals: 2 },
+                    logloss: { value: p => p.logLoss,   n: p => p.probN,   axis: 'Log loss',            decimals: 4 },
+                    brier:   { value: p => p.brier,     n: p => p.probN,   axis: 'Brier score',         decimals: 4 }
                 };
 
                 let chart = null;
