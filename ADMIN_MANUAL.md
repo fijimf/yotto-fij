@@ -268,6 +268,27 @@ leave both as **Candidates**, run **Evaluate Predictions → Rebuild**, and comp
 and the calibration chart on seasons *neither* was trained on (watch the in-sample badges).
 Promote the winner, retire the loser, and prefer the winning mode for future training runs.
 
+## 6c. λ tuning for adjusted efficiency
+
+The ridge penalty λ controls how strongly team efficiency/tempo parameters shrink toward
+average — it matters most for poorly-connected schedule regions (mid-major conferences
+after November). The **Tune λ** button on the dashboard runs a walk-forward sweep: every
+season is replayed date by date in memory, each day's games predicted with ratings fit
+through the previous day, for every λ in `app.ratings.adj-efficiency.lambda-grid`.
+Results land in the λ Tuning table (per-λ pooled log loss, spread MAE, residual σ; best
+λ bolded). The sweep writes nothing but its own run row.
+
+**Promotion is manual.** If a λ beats the current one consistently across seasons (not
+just pooled — expand the per-λ metrics and eyeball the per-season stability):
+
+1. Set `app.ratings.adj-efficiency.lambda` in the deploy config and restart.
+2. Recalculate power ratings for every season (dashboard, per season).
+3. **Evaluate Predictions → Rebuild** so ADJ_EFF rows reflect the new ratings.
+4. Confirm on `/predictions/performance` that ADJ_EFF's log loss moved the right way.
+
+The residual σ column is also a sanity check on `app.prediction.margin-sigma`: if the
+sweep's best-λ residual σ sits far from 11, the Φ(spread/σ) conversions are miscalibrated.
+
 ## 7. Troubleshooting
 
 | Symptom | Cause & fix |

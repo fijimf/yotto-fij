@@ -22,6 +22,21 @@ public class AsyncConfig {
         return executor;
     }
 
+    // Dedicated single-thread pool for walk-forward hyperparameter sweeps
+    // (AdjEfficiencyTuningService). Kept off scrapeExecutor so a CPU-heavy sweep
+    // never delays scrapes or evaluation; zero queue — single-flight is enforced
+    // at the service layer, a second submission should never sit waiting.
+    @Bean(name = "tuningExecutor")
+    public Executor tuningExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(1);
+        executor.setThreadNamePrefix("tuning-");
+        executor.initialize();
+        return executor;
+    }
+
     // Dedicated pool for account emails — must never queue behind (or reject
     // because of) long-running scrapes. Generous queue: a stuck SMTP retry
     // holds a thread for 30s.

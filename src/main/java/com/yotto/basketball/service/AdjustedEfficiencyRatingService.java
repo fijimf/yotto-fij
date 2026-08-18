@@ -257,8 +257,8 @@ public class AdjustedEfficiencyRatingService {
      * Accumulates one tempo observation's outer product: x has +1 at both team columns
      * and +1 at the intercept; y is the game's estimated possessions.
      */
-    private static void addTempoObservation(double[][] At, double[] bt, int hi, int ai,
-                                            int TI, double y) {
+    static void addTempoObservation(double[][] At, double[] bt, int hi, int ai,
+                                    int TI, double y) {
         At[hi][hi] += 1;
         At[ai][ai] += 1;
         At[TI][TI] += 1;
@@ -274,8 +274,8 @@ public class AdjustedEfficiencyRatingService {
      * Accumulates one observation's outer product: x has +1 at offIdx, −1 at defIdx,
      * +1 at MU, and c ∈ {−1, 0, +1} at HCA; y is points per 100 possessions.
      */
-    private static void addObservation(double[][] A, double[] b, int offIdx, int defIdx,
-                                       int c, double y, int MU, int HCA) {
+    static void addObservation(double[][] A, double[] b, int offIdx, int defIdx,
+                               int c, double y, int MU, int HCA) {
         A[offIdx][offIdx] += 1;
         A[defIdx][defIdx] += 1;
         A[MU][MU]         += 1;
@@ -340,11 +340,16 @@ public class AdjustedEfficiencyRatingService {
         return p;
     }
 
+    private double[] solve(double[][] A, double[] b, int penalized, int size) {
+        return solve(A, b, penalized, size, lambda);
+    }
+
     /**
      * Solves (A + λD)·x = b where D penalizes the first {@code penalized} columns
-     * (all off/def team params); μ and η get only a stability nudge.
+     * (all team params); the trailing unpenalized params get only a stability nudge.
+     * Static with an explicit λ so the tuning sweep can reuse it.
      */
-    private double[] solve(double[][] A, double[] b, int penalized, int size) {
+    static double[] solve(double[][] A, double[] b, int penalized, int size, double lambda) {
         double[][] Areg = new double[size][size];
         for (int i = 0; i < size; i++) Areg[i] = Arrays.copyOf(A[i], size);
         for (int j = 0; j < penalized; j++) Areg[j][j] += lambda;

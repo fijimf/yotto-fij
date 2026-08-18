@@ -40,6 +40,7 @@ final class SharedPostgresContainer {
             "power_model_param_snapshots",
             "prediction_evaluations",
             "quotes",
+            "rating_tuning_runs",
             "scrape_batches",
             "season_population_stats",
             "season_statistics",

@@ -416,6 +416,22 @@
              hx-trigger="every 5s">
             <div th:replace="~{admin/fragments/ml-training-runs :: training-runs}"></div>
         </div>
+
+        <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 1rem 0 0.5rem;">
+            <h3 style="margin: 0; font-size: 0.95rem;">λ Tuning (Adjusted Efficiency)</h3>
+            <form th:action="@{/admin/ml/adj-lambda-tune}" method="post" class="inline-form">
+                <button type="submit" class="btn btn--outline btn--sm"
+                        th:disabled="${tuningInProgress}"
+                        title="Walk-forward sweep of the ridge penalty over all seasons; promotion is a manual config change">
+                    Tune λ
+                </button>
+            </form>
+        </div>
+        <div id="tuning-runs"
+             hx-get="/admin/ml/tuning-status"
+             hx-trigger="every 10s">
+            <div th:replace="~{admin/fragments/tuning-runs :: tuning-runs}"></div>
+        </div>
     </section>
 
     <!-- News -->

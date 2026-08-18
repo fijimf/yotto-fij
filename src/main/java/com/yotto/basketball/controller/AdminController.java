@@ -33,6 +33,7 @@ public class AdminController {
     private final AsyncScrapeService asyncScrapeService;
     private final MlModelRegistryService mlModelRegistryService;
     private final MlTrainingService mlTrainingService;
+    private final com.yotto.basketball.service.AdjEfficiencyTuningService adjEfficiencyTuningService;
     private final SeasonHealthService seasonHealthService;
     private final ScrapeHistoryService scrapeHistoryService;
     private final AutomationService automationService;
@@ -44,6 +45,7 @@ public class AdminController {
                            AsyncScrapeService asyncScrapeService,
                            MlModelRegistryService mlModelRegistryService,
                            MlTrainingService mlTrainingService,
+                           com.yotto.basketball.service.AdjEfficiencyTuningService adjEfficiencyTuningService,
                            SeasonHealthService seasonHealthService,
                            ScrapeHistoryService scrapeHistoryService,
                            AutomationService automationService,
@@ -54,6 +56,7 @@ public class AdminController {
         this.asyncScrapeService  = asyncScrapeService;
         this.mlModelRegistryService = mlModelRegistryService;
         this.mlTrainingService   = mlTrainingService;
+        this.adjEfficiencyTuningService = adjEfficiencyTuningService;
         this.seasonHealthService = seasonHealthService;
         this.scrapeHistoryService = scrapeHistoryService;
         this.automationService = automationService;
@@ -83,6 +86,8 @@ public class AdminController {
         mlTrainingService.pollActiveRuns();
         model.addAttribute("trainingRuns", mlTrainingService.recentRuns());
         model.addAttribute("trainingInProgress", mlTrainingService.isTrainingInProgress());
+        model.addAttribute("tuningRuns", adjEfficiencyTuningService.recentRunViews());
+        model.addAttribute("tuningInProgress", adjEfficiencyTuningService.isSweepInProgress());
         model.addAttribute("news", newsAdminService.dashboard());
         model.addAttribute("phaseOptions", SeasonPhase.Phase.values());
         model.addAttribute("phaseOverridden", seasonPhaseService.isOverridden());
@@ -377,6 +382,27 @@ public class AdminController {
     @PostMapping("/ml/evaluate/rebuild")
     public String rebuildPredictionEvaluations(RedirectAttributes redirectAttributes) {
         return kickOffEvaluation(true, redirectAttributes);
+    }
+
+    /** Starts a walk-forward λ sweep for the adjusted-efficiency ridge (async, single-flight). */
+    @PostMapping("/ml/adj-lambda-tune")
+    public String startAdjLambdaTune(RedirectAttributes redirectAttributes) {
+        try {
+            Long runId = adjEfficiencyTuningService.startRun();
+            adjEfficiencyTuningService.runSweepAsync(runId);
+            redirectAttributes.addFlashAttribute("success", "λ sweep started (run " + runId + ")");
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/admin";
+    }
+
+    /** HTMX fragment: λ sweep run history. */
+    @GetMapping("/ml/tuning-status")
+    public String adjLambdaTuningStatus(Model model) {
+        model.addAttribute("tuningRuns", adjEfficiencyTuningService.recentRunViews());
+        model.addAttribute("tuningInProgress", adjEfficiencyTuningService.isSweepInProgress());
+        return "admin/fragments/tuning-runs :: tuning-runs";
     }
 
     private String kickOffEvaluation(boolean rebuild, RedirectAttributes redirectAttributes) {
