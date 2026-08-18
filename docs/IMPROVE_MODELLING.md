@@ -1,5 +1,9 @@
 # Improving the Prediction Models
 
+> **Status:** specced — see [MODEL_IMPROVEMENT_SPEC.md](MODEL_IMPROVEMENT_SPEC.md) and
+> [MODEL_IMPROVEMENT_PLAN.md](MODEL_IMPROVEMENT_PLAN.md) for the testable requirements and
+> phased execution plan.
+
 This document is a prioritized plan for making our game predictions better — and, just as
 importantly, for making sure we can *tell* they're better. It came out of a working session on
 modeling strategy and has been annotated with where the codebase already stands on each item.
