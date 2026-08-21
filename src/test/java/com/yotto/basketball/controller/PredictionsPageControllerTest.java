@@ -86,64 +86,11 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
         return gameRepo.save(g);
     }
 
-    @SuppressWarnings("unchecked")
-    private PredictionsPage pageFrom(org.springframework.test.web.servlet.ResultActions actions) throws Exception {
-        return (PredictionsPage) actions.andReturn().getModelAndView().getModel().get("page");
-    }
+    /* The /predictions page was retired in the menu reorganization (spec OQ-3):
+       superseded by the per-model schedule pages, with a 301 covered by
+       ModelHubControllerTest.predictions_301sToCompare_whenNoDefaultMlModel. */
 
-    // ── GET /predictions ──────────────────────────────────────────────────────
-
-    @Test
-    void predictions_returnsPageView() throws Exception {
-        var actions = mockMvc.perform(get("/predictions"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("pages/predictions"))
-                .andExpect(model().attribute("currentPage", "predictions"))
-                .andExpect(model().attributeExists("page"))
-                .andExpect(model().attributeExists("today"));
-        PredictionsPage page = pageFrom(actions);
-        org.assertj.core.api.Assertions.assertThat(page.days()).isEqualTo(7);
-    }
-
-    @Test
-    void predictions_daysParam_restrictedToThreeOrSeven() throws Exception {
-        // Only 3 and 7 are valid; anything else falls back to 7
-        org.assertj.core.api.Assertions.assertThat(
-                pageFrom(mockMvc.perform(get("/predictions").param("days", "3"))).days()).isEqualTo(3);
-        org.assertj.core.api.Assertions.assertThat(
-                pageFrom(mockMvc.perform(get("/predictions").param("days", "100"))).days()).isEqualTo(7);
-        org.assertj.core.api.Assertions.assertThat(
-                pageFrom(mockMvc.perform(get("/predictions").param("days", "0"))).days()).isEqualTo(7);
-    }
-
-    @Test
-    void predictions_splitsResultsAndUpcomingAtReferenceDate() throws Exception {
-        LocalDate ref = LocalDate.of(2025, 1, 15);
-        // Noon-UTC times map cleanly to the same Eastern calendar date.
-        mkFinal(ref.atTime(12, 0), 80, 70);              // on ref → results
-        mkScheduled(ref.plusDays(2).atTime(12, 0));      // after ref → upcoming
-
-        PredictionsPage page = pageFrom(mockMvc.perform(
-                get("/predictions").param("date", ref.toString()).param("days", "7"))
-                .andExpect(status().isOk()));
-
-        org.assertj.core.api.Assertions.assertThat(page.resultsByDate()).containsKey(ref);
-        org.assertj.core.api.Assertions.assertThat(page.upcomingByDate()).containsKey(ref.plusDays(2));
-
-        PredictionCardView finalCard = page.resultsByDate().get(ref).get(0);
-        org.assertj.core.api.Assertions.assertThat(finalCard.isFinal()).isTrue();
-        org.assertj.core.api.Assertions.assertThat(finalCard.homeScore()).isEqualTo(80);
-        org.assertj.core.api.Assertions.assertThat(finalCard.actualMargin()).isEqualTo(10);
-    }
-
-    @Test
-    void predictionsList_fragment_returnsFragmentView() throws Exception {
-        mockMvc.perform(get("/predictions/list"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("fragments/predictions-list :: predictions-list"));
-    }
-
-    // ── GET /predictions/matchup ──────────────────────────────────────────────
+    // ── GET /models/matchup ───────────────────────────────────────────────────
 
     @Test
     void matchup_returnsActiveTeamsSortedAlphabetically() throws Exception {

@@ -5112,3 +5112,157 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     font-size: 0.8rem;
     margin: 0.75rem 0 0;
 }
+
+/* ── Models section (/models) ── */
+
+.model-card__badge {
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.model-card__stats {
+    display: flex;
+    gap: 2rem;
+    margin: 0.25rem 0 0.5rem;
+}
+
+.model-card__book {
+    font-size: 0.75rem;
+    font-weight: 400;
+    font-family: var(--font-family);
+}
+
+.model-features__group {
+    margin-bottom: 0.75rem;
+}
+
+.model-features__name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin: 0 0 0.2rem;
+}
+
+.model-features__list {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    color: var(--color-text);
+    margin: 0;
+    word-break: break-word;
+}
+
+.model-training {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin: 0.25rem 0 1rem;
+}
+
+.model-training dt {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+
+.model-training dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.model-wf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.model-wf-table th, .model-wf-table td {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+}
+
+/* ── Model schedule + bracket overlay pages ── */
+
+.model-day-summary {
+    display: flex;
+    align-items: baseline;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.model-schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.model-schedule-table th {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 2px solid var(--color-border);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-muted);
+}
+
+.model-schedule-table td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.model-schedule-table__matchup a {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: inherit;
+}
+
+.model-schedule-table__matchup img {
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.model-pick {
+    font-weight: 700;
+}
+
+.model-pick--right { color: var(--color-success); }
+.model-pick--wrong { color: var(--color-danger); }
+
+/* Verdict chip on bracket slots (model bracket overlay only) */
+.bracket-game__verdict {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 0.1rem 0.3rem;
+    border-top: 1px dashed var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.bracket-game__verdict--right { color: var(--color-success); }
+.bracket-game__verdict--wrong { color: var(--color-danger); }
+
+.model-bracket-rounds {
+    font-size: 0.82rem;
+}
+
+/* Matchup: highlighted model row (arrived via a model hub's Matchup tab) */
+.matchup-row--highlight td {
+    background: rgba(var(--color-primary-rgb), 0.08);
+}

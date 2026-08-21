@@ -42,12 +42,9 @@ public class ModelPerformanceController {
             AdjustedEfficiencyRatingService.MODEL_TYPE_PREDICTION,
             PredictionEvaluationService.MODEL_BOOK);
 
-    /** Game segments: dropdown key → tournament_type values ('NONE' = regular season). */
-    private static final Map<String, List<String>> SEGMENTS = Map.of(
-            "regular",    List.of("NONE", "IN_SEASON_TOURNAMENT"),
-            "conf",       List.of("CONFERENCE_TOURNAMENT"),
-            "ncaa",       List.of("NCAA_TOURNAMENT"),
-            "postseason", List.of("NIT", "CBI", "CROWN", "OTHER_POSTSEASON"));
+    /** Game segments — shared with the model About pages so the two can never drift. */
+    private static final Map<String, List<String>> SEGMENTS =
+            com.yotto.basketball.service.ModelAboutService.SEGMENTS;
 
     /** Sentinel seasonId meaning "all seasons" in the aggregate queries. */
     private static final long ALL_SEASONS = -1L;

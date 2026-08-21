@@ -15,6 +15,22 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
 
     List<PredictionEvaluation> findByGameId(Long gameId);
 
+    /** One model's evaluations for a calendar day, teams fetched (model schedule page). */
+    @Query("SELECT e FROM PredictionEvaluation e JOIN FETCH e.game g " +
+           "JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam " +
+           "WHERE e.modelType = :modelType AND e.gameDate = :date ORDER BY g.gameDate, g.id")
+    List<PredictionEvaluation> findByModelAndDate(
+            @Param("modelType") String modelType,
+            @Param("date") LocalDate date);
+
+    /** One model's evaluations for a season's games of one tournament type (model bracket overlay). */
+    @Query("SELECT e FROM PredictionEvaluation e JOIN FETCH e.game g " +
+           "WHERE e.modelType = :modelType AND e.season.id = :seasonId AND g.tournamentType = :type")
+    List<PredictionEvaluation> findByModelSeasonAndTournamentType(
+            @Param("modelType") String modelType,
+            @Param("seasonId") Long seasonId,
+            @Param("type") com.yotto.basketball.entity.Game.TournamentType type);
+
     /** Game ids that have at least one evaluation row in the season. */
     @Query(nativeQuery = true, value =
             "SELECT DISTINCT pe.game_id FROM prediction_evaluations pe WHERE pe.season_id = :seasonId")

@@ -7,9 +7,9 @@ import java.util.List;
  * "furthest reached" and round grouping stay consistent. Higher index = deeper. The same scale
  * works for NCAA and conference tournaments; unknown rounds get -1 so they never beat a known round.
  */
-final class TournamentRounds {
+public final class TournamentRounds {
 
-    static final List<String> ORDER = List.of(
+    public static final List<String> ORDER = List.of(
             "First Four",
             "1st Round",
             "2nd Round",
@@ -26,7 +26,7 @@ final class TournamentRounds {
     private TournamentRounds() {
     }
 
-    static int indexOf(String round) {
+    public static int indexOf(String round) {
         if (round == null) return -1;
         int idx = ORDER.indexOf(round);
         return idx >= 0 ? idx : -1;

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${page.model().displayName()}">Model</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <a class="stat-detail__crumb" th:href="@{/models}">&larr; All models</a>
+            <h1 class="page-title" th:text="${page.model().displayName()}">Model</h1>
+            <p class="page-header__subtitle">
+                <span th:if="${page.model().isDefault()}" class="model-card__badge">Default</span>
+                <span th:if="${page.bundle() != null}"
+                      th:text="'Feature set ' + ${page.bundle().featureSet()} + ' · ' + ${page.bundle().featureCount()} + ' features'
+                               + (${page.bundle().version() != null} ? ' · version ' + ${page.bundle().version()} : '')">
+                    Feature set eff-v4 · 77 features</span>
+                <span th:if="${page.bundle() == null and !page.model().ml()}">
+                    Classical prediction model built from the adjusted per-possession efficiency
+                    ratings (AdjO/AdjD/Tempo) — expected margin, total, and win probability follow
+                    directly from the two teams' adjusted efficiencies and tempos, with no training step.
+                </span>
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <form method="get" th:action="@{'/models/' + ${page.model().slug()}}"
+                  style="display: flex; gap: 0.5rem; align-items: center;">
+                <select name="year" class="form-input form-input--sm" style="width: auto;"
+                        aria-label="Season" onchange="this.form.submit()">
+                    <option th:each="y : ${page.years()}" th:value="${y}" th:text="${y}"
+                            th:selected="${y == page.selectedYear()}">2026</option>
+                    <option value="ALL" th:selected="${page.allSeasons()}">All seasons</option>
+                </select>
+                <select name="segment" class="form-input form-input--sm" style="width: auto;"
+                        aria-label="Segment" onchange="this.form.submit()">
+                    <option value="all" th:selected="${page.segment() == 'all'}">All games</option>
+                    <option value="regular" th:selected="${page.segment() == 'regular'}">Regular season</option>
+                    <option value="conf" th:selected="${page.segment() == 'conf'}">Conference tournaments</option>
+                    <option value="ncaa" th:selected="${page.segment() == 'ncaa'}">NCAA Tournament</option>
+                    <option value="postseason" th:selected="${page.segment() == 'postseason'}">Other postseason</option>
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <nav th:replace="~{fragments/tabs :: tabs(${hubTabs})}"></nav>
+
+    <p class="predictions-disclaimer" th:if="${page.inSampleNote() != null}">
+        <span class="insample-badge">in-sample</span>
+        <span th:text="${page.inSampleNote()}">In-sample caveat.</span>
+    </p>
+
+    <!-- Evaluation vs the book -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 style="margin-top: 0;">Accuracy
+            <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;"
+                  th:text="${page.allSeasons()} ? 'all seasons, every FINAL game scored on leakage-free pre-game predictions'
+                                                : (${page.selectedYear()} + ' — every FINAL game scored on leakage-free pre-game predictions')">
+                scope</span>
+        </h2>
+        <th:block th:if="${!page.hasEvalData()}">
+            <p style="color: var(--color-text-muted); margin: 0;">No evaluations for this selection yet.</p>
+        </th:block>
+        <div style="overflow-x: auto;" th:if="${page.hasEvalData()}">
+            <table>
+                <thead>
+                <tr>
+                    <th style="text-align: left;">Metric</th>
+                    <th style="text-align: right;" th:text="${page.model().displayName()}">Model</th>
+                    <th style="text-align: right;">Book Closing Line</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${page.spread() != null}">
+                    <td title="Mean absolute spread error (points)">Spread MAE
+                        <span class="text-muted" th:text="'(n=' + ${#numbers.formatInteger(page.spread().n, 0, 'COMMA')} + ')'">(n=5,500)</span></td>
+                    <td style="text-align: right;" th:text="${#numbers.formatDecimal(page.spread().mae, 1, 2)}">8.87</td>
+                    <td style="text-align: right;" class="text-muted"
+                        th:text="${page.bookSpread() != null ? #numbers.formatDecimal(page.bookSpread().mae, 1, 2) : '—'}">8.83</td>
+                </tr>
+                <tr th:if="${page.spread() != null}">
+                    <td title="How often the predicted winner actually won">Winner&nbsp;%</td>
+                    <td style="text-align: right;" th:text="${#numbers.formatDecimal(page.spread().sideAccuracy * 100, 1, 1)} + '%'">71.2%</td>
+                    <td style="text-align: right;" class="text-muted"
+                        th:text="${page.bookSpread() != null ? #numbers.formatDecimal(page.bookSpread().sideAccuracy * 100, 1, 1) + '%' : '—'}">71.5%</td>
+                </tr>
+                <tr th:if="${page.total() != null}">
+                    <td title="Mean absolute error on the combined score">Total MAE
+                        <span class="text-muted" th:text="'(n=' + ${#numbers.formatInteger(page.total().n, 0, 'COMMA')} + ')'">(n=5,500)</span></td>
+                    <td style="text-align: right;" th:text="${#numbers.formatDecimal(page.total().mae, 1, 2)}">13.1</td>
+                    <td style="text-align: right;" class="text-muted"
+                        th:text="${page.bookTotal() != null ? #numbers.formatDecimal(page.bookTotal().mae, 1, 2) : '—'}">12.9</td>
+                </tr>
+                <tr th:if="${page.prob() != null}">
+                    <td title="Mean −log likelihood — lower is better; 0.6931 is coin-flip guessing">Log loss</td>
+                    <td style="text-align: right;" th:text="${#numbers.formatDecimal(page.prob().logLoss, 1, 4)}">0.5095</td>
+                    <td style="text-align: right;" class="text-muted"
+                        th:text="${page.bookProb() != null ? #numbers.formatDecimal(page.bookProb().logLoss, 1, 4) : '—'}">0.5251</td>
+                </tr>
+                <tr th:if="${page.prob() != null}">
+                    <td title="Mean squared probability error — lower is better; 0.25 is coin-flip">Brier</td>
+                    <td style="text-align: right;" th:text="${#numbers.formatDecimal(page.prob().brier, 1, 4)}">0.17</td>
+                    <td style="text-align: right;" class="text-muted"
+                        th:text="${page.bookProb() != null ? #numbers.formatDecimal(page.bookProb().brier, 1, 4) : '—'}">0.17</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0;"
+           th:if="${page.vsBook() != null}">
+            Head-to-head on identical games: model spread MAE
+            <strong th:text="${page.vsBook().modelMae != null ? #numbers.formatDecimal(page.vsBook().modelMae, 1, 2) : '—'}">8.87</strong>
+            vs book <strong th:text="${page.vsBook().bookMae != null ? #numbers.formatDecimal(page.vsBook().bookMae, 1, 2) : '—'}">8.83</strong>
+            over <span th:text="${#numbers.formatInteger(page.vsBook().spreadN, 0, 'COMMA')}">29,558</span> games<th:block
+            th:if="${page.vsBook().atsRate != null}">; taking the model against the closing spread hits
+            <strong th:text="${#numbers.formatDecimal(page.vsBook().atsRate * 100, 1, 1)} + '%'">50.1%</strong>
+            (52.4% is breakeven at −110)</th:block>. Full breakdowns on
+            <a th:href="@{/models/compare}">Compare Models</a>. Not betting advice.
+        </p>
+    </div>
+
+    <div class="stat-detail__charts">
+
+        <!-- Features (ML) / methodology (classical) -->
+        <div class="card stat-detail__card" th:if="${!page.featureGroups().isEmpty()}">
+            <h3 class="stat-detail__card-title">What it knows
+                <span class="text-muted" style="font-weight: 400; font-size: 0.85rem;"
+                      th:if="${page.bundle() != null}"
+                      th:text="'— the ' + ${page.bundle().featureCount()} + ' inputs per game'">— inputs</span>
+            </h3>
+            <div class="model-features">
+                <div class="model-features__group" th:each="g : ${page.featureGroups()}">
+                    <h4 class="model-features__name" th:text="${g.name()} + ' (' + ${g.features().size()} + ')'">Ratings (12)</h4>
+                    <p class="model-features__list" th:text="${#strings.listJoin(g.features(), ', ')}">massey_beta_home, …</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training details (ML only) -->
+        <div class="card stat-detail__card" th:if="${page.bundle() != null}">
+            <h3 class="stat-detail__card-title">Training</h3>
+            <dl class="model-training">
+                <div><dt>Trained</dt><dd th:text="${page.trainedAtLabel()}">2026-08-18</dd></div>
+                <div><dt>Train seasons</dt><dd th:text="${page.bundle().trainSeasons().isEmpty() ? '—' : #strings.listJoin(page.bundle().trainSeasons(), ', ')}">2021–2025</dd></div>
+                <div><dt>Held-out test</dt><dd th:text="${page.bundle().testSeason() != null ? page.bundle().testSeason() : '—'}">2026</dd></div>
+                <th:block th:if="${page.bundle().metrics() != null}">
+                    <div><dt>Test spread RMSE</dt><dd th:text="${page.bundle().metrics().spreadRmse() != null ? #numbers.formatDecimal(page.bundle().metrics().spreadRmse(), 1, 2) : '—'}">11.2</dd></div>
+                    <div><dt>Test Brier</dt><dd th:text="${page.bundle().metrics().brierScore() != null ? #numbers.formatDecimal(page.bundle().metrics().brierScore(), 1, 4) : '—'}">0.171</dd></div>
+                </th:block>
+            </dl>
+
+            <th:block th:if="${!page.bundle().walkForward().isEmpty()}">
+                <h4 class="model-features__name">Walk-forward (each season held out in turn)</h4>
+                <table class="model-wf-table">
+                    <thead><tr><th>Season</th><th style="text-align:right;">Spread RMSE</th><th style="text-align:right;">Brier</th></tr></thead>
+                    <tbody>
+                    <tr th:each="wf : ${page.bundle().walkForward()}">
+                        <td th:text="${wf.season()}">2024</td>
+                        <td style="text-align:right;" th:text="${wf.spreadRmse() != null ? #numbers.formatDecimal(wf.spreadRmse(), 1, 2) : '—'}">11.4</td>
+                        <td style="text-align:right;" th:text="${wf.brier() != null ? #numbers.formatDecimal(wf.brier(), 1, 4) : '—'}">0.176</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </th:block>
+        </div>
+    </div>
+
+    <!-- Calibration -->
+    <div class="card" th:if="${!page.calibration().isEmpty()}">
+        <h2 style="margin-top: 0;">Calibration
+            <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">when
+            it says 70%, does the home team win 70% of the time?</span></h2>
+        <div style="max-width: 560px; margin: 0 auto;">
+            <canvas id="chart-calibration"></canvas>
+        </div>
+    </div>
+
+    <script th:inline="javascript" th:if="${!page.calibration().isEmpty()}">
+        document.addEventListener('DOMContentLoaded', () => {
+            const points = /*[[${page.calibration()}]]*/ [];
+            const byModel = new Map();
+            for (const p of points) {
+                if (p.avgPredicted == null || p.actualRate == null) continue;
+                if (!byModel.has(p.modelType)) byModel.set(p.modelType, { label: p.displayName, data: [] });
+                byModel.get(p.modelType).data.push({ x: p.avgPredicted, y: p.actualRate, n: p.n });
+            }
+            const datasets = [...byModel.entries()].map(([type, d]) => ({
+                label: d.label,
+                data: d.data.sort((a, b) => a.x - b.x),
+                borderColor: window.modelColor(type),
+                backgroundColor: window.modelColor(type),
+                borderWidth: 2, pointRadius: 3, fill: false, tension: 0,
+                borderDash: type === 'BOOK' ? [6, 4] : undefined
+            }));
+            datasets.push({
+                label: 'Perfect calibration',
+                data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+                borderColor: window.chartAlpha(window.chartTheme().neutral, 0.6),
+                borderWidth: 1, borderDash: [6, 4], pointRadius: 0, fill: false
+            });
+            const pct = v => (v * 100).toFixed(0) + '%';
+            new Chart(document.getElementById('chart-calibration'), {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true, aspectRatio: 1, parsing: false,
+                    scales: {
+                        x: { type: 'linear', min: 0, max: 1, ticks: { callback: pct },
+                             title: { display: true, text: 'Predicted home-win probability' } },
+                        y: { min: 0, max: 1, ticks: { callback: pct },
+                             title: { display: true, text: 'Actual home-win rate' } }
+                    }
+                }
+            });
+        });
+    </script>
+
+</main>
+</body>
+</html>

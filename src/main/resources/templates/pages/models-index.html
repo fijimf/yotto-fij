@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Prediction Models</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Prediction Models</h1>
+            <p class="page-header__subtitle">
+                The models that predict every game — what they know, and how accurate they
+                really are against the sportsbook closing line.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <a class="btn btn--outline btn--sm" th:href="@{/models/compare}">Compare Models</a>
+            <a class="btn btn--outline btn--sm" th:href="@{/models/matchup}">Matchup Predictor</a>
+        </div>
+    </div>
+
+    <div class="cat-grid">
+        <div class="card model-card" th:each="m : ${models}">
+            <div class="cat-card__head">
+                <h3 class="cat-card__title">
+                    <a th:href="@{'/models/' + ${m.slug()}}" th:text="${m.displayName()}">Model</a>
+                </h3>
+                <span class="model-card__badge" th:if="${m.isDefault()}">Default</span>
+            </div>
+            <p class="cat-card__desc"
+               th:text="${m.ml()} ? 'Machine-learned model served from a trained bundle.'
+                                  : 'Classical model computed from adjusted per-possession efficiency ratings.'">
+                Kind of model.
+            </p>
+            <dl class="model-card__stats" th:with="h=${headlines.get(m.modelType())}">
+                <th:block th:if="${h != null}">
+                    <div class="predictor-summary__item">
+                        <dt title="Mean absolute spread error, all seasons (book in parentheses)">Spread MAE</dt>
+                        <dd>
+                            <span th:text="${h.spreadMae() != null ? #numbers.formatDecimal(h.spreadMae(), 1, 2) : '—'}">8.87</span>
+                            <span class="text-muted model-card__book"
+                                  th:if="${h.bookSpreadMae() != null}"
+                                  th:text="'(book ' + ${#numbers.formatDecimal(h.bookSpreadMae(), 1, 2)} + ')'">(book 8.83)</span>
+                        </dd>
+                    </div>
+                    <div class="predictor-summary__item">
+                        <dt title="Win-probability log loss, all seasons — lower is better">Log loss</dt>
+                        <dd>
+                            <span th:text="${h.logLoss() != null ? #numbers.formatDecimal(h.logLoss(), 1, 4) : '—'}">0.5095</span>
+                            <span class="text-muted model-card__book"
+                                  th:if="${h.bookLogLoss() != null}"
+                                  th:text="'(book ' + ${#numbers.formatDecimal(h.bookLogLoss(), 1, 4)} + ')'">(book 0.5251)</span>
+                        </dd>
+                    </div>
+                </th:block>
+                <p class="text-muted cat-card__empty" th:if="${h == null}">No evaluations yet.</p>
+            </dl>
+            <div class="cat-card__links">
+                <a th:href="@{'/models/' + ${m.slug()}}">About &rarr;</a>
+                <a th:href="@{'/models/' + ${m.slug()} + '/schedule'}">Schedule &rarr;</a>
+                <a th:href="@{'/models/' + ${m.slug()} + '/bracket'}">Bracket &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-muted predictor-footnote">
+        All-season aggregates mix seasons some ML models trained on (in-sample) with held-out
+        ones — see each model's About page for the honest per-season breakdown. The book
+        figures are the sportsbook closing line on the same games. Not betting advice.
+    </p>
+
+</main>
+</body>
+</html>

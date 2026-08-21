@@ -42,6 +42,7 @@ class GlobalExceptionHandlerTest {
     @MockBean QuoteService quoteService;
     @MockBean com.yotto.basketball.service.SeasonPhaseService seasonPhaseService;
     @MockBean com.yotto.basketball.security.RateLimitService rateLimitService;
+    @MockBean com.yotto.basketball.service.PublicModelService publicModelService; // NavModelsAdvice
 
     @Test
     void entityNotFoundException_returns404WithFullErrorBody() throws Exception {

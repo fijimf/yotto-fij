@@ -4,28 +4,55 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}">
 <head>
-    <title th:text="${season.year} + ' NCAA Tournament Bracket'">NCAA Tournament Bracket</title>
+    <title th:text="${page.model().displayName()} + ' — ' + ${page.year()} + ' Bracket'">Model Bracket</title>
 </head>
 <body>
 <main layout:fragment="content" class="main--wide">
 
     <div class="page-header">
-        <h1 class="page-title" th:text="${season.year} + ' NCAA Tournament'">2026 NCAA Tournament</h1>
+        <div>
+            <a class="stat-detail__crumb" th:href="@{/models}">&larr; All models</a>
+            <h1 class="page-title"
+                th:text="${page.model().displayName()} + ' — ' + ${page.year()} + ' NCAA Tournament'">Model — 2026 NCAA Tournament</h1>
+            <p class="page-header__subtitle">
+                Each decided game is marked by whether this model's pre-game favorite won —
+                matchup by matchup, from predictions recorded before tip-off. Undecided games
+                show the model's current pick.
+            </p>
+        </div>
         <div class="page-header__actions">
-            <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${season.year} + '/stats'}">Season Stats</a>
-            <a class="btn btn--outline btn--sm" th:if="${navModels != null and !navModels.isEmpty()}"
-               th:href="@{'/models/' + ${navModels[0].slug()} + '/bracket/' + ${season.year}}">How did the models do?</a>
+            <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${page.year()} + '/bracket'}">Plain bracket</a>
         </div>
     </div>
 
+    <nav th:replace="~{fragments/tabs :: tabs(${hubTabs})}"></nav>
     <nav th:replace="~{fragments/tabs :: tabs(${yearTabs})}"></nav>
 
-    <div th:if="${bracket == null}" class="bracket-empty">
-        <p class="bracket-empty__title">No bracket yet</p>
-        <p class="bracket-empty__text">No NCAA tournament games have been scraped for this season.</p>
+    <!-- Tournament summary -->
+    <div class="card model-day-summary" th:if="${page.hasPredictions() and page.decided() > 0}">
+        <span><strong th:text="${page.correct()} + '–' + ${page.decided() - page.correct()}">48–15</strong> on winners</span>
+        <span th:if="${page.logLoss() != null}">log loss <strong th:text="${#numbers.formatDecimal(page.logLoss(), 1, 4)}">0.52</strong></span>
+        <span>upsets called <strong th:text="${page.upsetsCalled()}">6</strong></span>
+        <span>upsets missed <strong th:text="${page.upsetsMissed()}">9</strong></span>
+        <span class="model-bracket-rounds">
+            <span th:each="r, st : ${page.byRound()}" class="text-muted">
+                <span th:text="${r.round()}">1st Round</span>
+                <strong th:text="${r.correct()} + '–' + ${r.total() - r.correct()}">24–8</strong><th:block th:if="${!st.last}"> · </th:block>
+            </span>
+        </span>
     </div>
 
-    <div class="bracket" th:if="${bracket != null}">
+    <th:block th:if="${page.bracket() == null}">
+        <div th:replace="~{fragments/empty-state :: emptyState('No NCAA tournament games for this season yet.', null, null)}"></div>
+    </th:block>
+
+    <div class="alert alert--warning" th:if="${page.bracket() != null and !page.hasPredictions()}"
+         style="margin-bottom: 1rem;">
+        This model has no recorded predictions for this tournament (it may not have existed yet,
+        or lacked the data to predict these games). The bracket below is unannotated.
+    </div>
+
+    <div class="bracket" th:if="${page.bracket() != null}" th:with="bracket=${page.bracket()}">
 
         <!-- Region tabs: mobile only; pure CSS via :has(:checked) -->
         <div class="bracket__tabs">
@@ -54,16 +81,6 @@
                 <div class="bracket-center__block bracket-center__block--champ">
                     <h3 class="bracket-center__title">Championship</h3>
                     <div th:replace="~{fragments/bracket :: bracketGame(${bracket.championship}, 'bracket-game--center')}"></div>
-                    <div class="bracket-champion" th:if="${bracket.champion != null}">
-                        <img th:if="${bracket.champion.logoUrl != null}" th:src="${bracket.champion.logoUrl}"
-                             class="bracket-champion__logo" alt="" width="44" height="44"/>
-                        <div class="bracket-champion__text">
-                            <span class="bracket-champion__label">National Champion</span>
-                            <a class="bracket-champion__name"
-                               th:href="@{'/teams/' + ${bracket.champion.teamId}}"
-                               th:text="${bracket.champion.tooltip}">UConn</a>
-                        </div>
-                    </div>
                 </div>
                 <div class="bracket-center__block">
                     <h3 class="bracket-center__title">Final Four</h3>

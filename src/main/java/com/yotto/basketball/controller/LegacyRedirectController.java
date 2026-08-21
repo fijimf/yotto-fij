@@ -13,6 +13,12 @@ import org.springframework.web.servlet.view.RedirectView;
 @Controller
 public class LegacyRedirectController {
 
+    private final com.yotto.basketball.service.PublicModelService publicModelService;
+
+    public LegacyRedirectController(com.yotto.basketball.service.PublicModelService publicModelService) {
+        this.publicModelService = publicModelService;
+    }
+
     @GetMapping("/predictions/performance")
     public RedirectView performance(HttpServletRequest request) {
         return movedPermanently("/models/compare", request);
@@ -21,6 +27,15 @@ public class LegacyRedirectController {
     @GetMapping("/predictions/matchup")
     public RedirectView matchup(HttpServletRequest request) {
         return movedPermanently("/models/matchup", request);
+    }
+
+    /** The old multi-model upcoming-cards page → the default model's schedule (spec OQ-3). */
+    @GetMapping("/predictions")
+    public RedirectView predictions(HttpServletRequest request) {
+        String target = publicModelService.defaultSlug()
+                .map(slug -> "/models/" + slug + "/schedule")
+                .orElse("/models/compare");
+        return movedPermanently(target, request);
     }
 
     private RedirectView movedPermanently(String target, HttpServletRequest request) {

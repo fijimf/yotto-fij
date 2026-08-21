@@ -32,6 +32,21 @@
     </div>
     <div class="bracket-game__ff" th:if="${slot.firstFourNote != null}"
          th:title="${slot.firstFourTooltip}" th:text="${slot.firstFourNote}">FF: SFU 71, WAG 68</div>
+    <!-- Model verdict chip: rendered only when the hosting page put a modelOverlay
+         map (gameId → ModelBracketService.Verdict) in the model. The plain bracket
+         page has no such attribute, so it renders unchanged. -->
+    <th:block th:if="${modelOverlay != null and slot.gameId != null}"
+              th:with="verdict=${modelOverlay.get(slot.gameId)}">
+        <!-- Literal '__' inside a th: expression triggers Thymeleaf preprocessing,
+             so the BEM modifier is concatenated from split halves -->
+        <div class="bracket-game__verdict" th:if="${verdict != null}"
+             th:classappend="${verdict.correct() == null ? '' : ('bracket-game_' + '_verdict--' + (verdict.correct() ? 'right' : 'wrong'))}"
+             th:title="${verdict.correct() == null ? 'Model pick (game not decided)' : (verdict.correct() ? 'Model pick won' : 'Model pick lost')}">
+            <span th:if="${verdict.correct() != null and verdict.correct()}">&#10003;</span>
+            <span th:if="${verdict.correct() != null and !verdict.correct()}">&#10007;</span>
+            <span th:text="${verdict.label()}">DUKE 72%</span>
+        </div>
+    </th:block>
 </div>
 
 <!-- One team line within a matchup card -->

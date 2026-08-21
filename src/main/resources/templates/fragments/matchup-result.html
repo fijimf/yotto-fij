@@ -116,16 +116,34 @@
                         <td th:text="${#numbers.formatDecimal(result.bradleyTerryWeighted.awayWinProbability * 100, 1, 0) + '%'}">—</td>
                     </tr>
 
-                    <!-- ML -->
-                    <tr th:if="${result.ml != null}"
-                        th:with="ms=${result.ml.spread}">
-                        <td class="matchup-model-name">ML <span class="ml-badge">ML</span></td>
-                        <td th:with="absS=${ms >= 0 ? ms : -ms}, favAbbr=${ms >= 0 ? result.homeTeam.abbreviation : result.awayTeam.abbreviation}"
+                    <!-- Adjusted Efficiency (classical prediction model) -->
+                    <tr th:if="${result.adjEfficiency != null}"
+                        th:classappend="${highlightModel == 'adjusted-efficiency'} ? 'matchup-row--highlight'"
+                        th:with="as_=${result.adjEfficiency.spread}">
+                        <td class="matchup-model-name">Adjusted Efficiency</td>
+                        <td th:with="absS=${as_ >= 0 ? as_ : -as_}, favAbbr=${as_ >= 0 ? result.homeTeam.abbreviation : result.awayTeam.abbreviation}"
                             th:text="${favAbbr + ' -' + #numbers.formatDecimal(absS, 1, 1)}">—</td>
-                        <td th:text="${#numbers.formatDecimal(result.ml.total, 3, 1)}">—</td>
-                        <td th:text="${#numbers.formatDecimal(result.ml.homeWinProbability * 100, 1, 0) + '%'}">—</td>
-                        <td th:text="${#numbers.formatDecimal(result.ml.awayWinProbability * 100, 1, 0) + '%'}">—</td>
+                        <td th:text="${#numbers.formatDecimal(result.adjEfficiency.total, 3, 1)}">—</td>
+                        <td th:text="${#numbers.formatDecimal(result.adjEfficiency.homeWinProbability * 100, 1, 0) + '%'}">—</td>
+                        <td th:text="${#numbers.formatDecimal((1.0 - result.adjEfficiency.homeWinProbability) * 100, 1, 0) + '%'}">—</td>
                     </tr>
+
+                    <!-- One row per public ML model -->
+                    <th:block th:if="${mlRows != null}">
+                        <tr th:each="m : ${mlRows}"
+                            th:with="mlp=${result.mlModels.get(m.slug())}, ms=${mlp.spread}"
+                            th:classappend="${highlightModel == m.slug()} ? 'matchup-row--highlight'">
+                            <td class="matchup-model-name">
+                                <a th:href="@{'/models/' + ${m.slug()}}" th:text="${m.displayName()}">Model</a>
+                                <span class="ml-badge">ML</span>
+                            </td>
+                            <td th:with="absS=${ms >= 0 ? ms : -ms}, favAbbr=${ms >= 0 ? result.homeTeam.abbreviation : result.awayTeam.abbreviation}"
+                                th:text="${favAbbr + ' -' + #numbers.formatDecimal(absS, 1, 1)}">—</td>
+                            <td th:text="${#numbers.formatDecimal(mlp.total, 3, 1)}">—</td>
+                            <td th:text="${#numbers.formatDecimal(mlp.homeWinProbability * 100, 1, 0) + '%'}">—</td>
+                            <td th:text="${#numbers.formatDecimal(mlp.awayWinProbability * 100, 1, 0) + '%'}">—</td>
+                        </tr>
+                    </th:block>
                 </tbody>
             </table>
 

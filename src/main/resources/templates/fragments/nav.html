@@ -74,10 +74,16 @@
                     Models<span class="nav__dropdown-caret">&#9662;</span>
                 </button>
                 <ul class="nav__dropdown-menu">
+                    <li><a class="nav__dropdown-item" th:href="@{/models}">All Models</a></li>
                     <li><a class="nav__dropdown-item" th:href="@{/models/compare}">Compare Models</a></li>
                     <li><a class="nav__dropdown-item" th:href="@{/models/matchup}">Matchup Predictor</a></li>
-                    <!-- Temporary until the per-model schedule pages ship (spec phase 5.3) -->
-                    <li><a class="nav__dropdown-item" th:href="@{/predictions}">Today's Predictions</a></li>
+                    <th:block th:if="${navModels != null and !navModels.isEmpty()}">
+                        <li class="nav__dropdown-divider" aria-hidden="true">Models</li>
+                        <li th:each="m : ${navModels}">
+                            <a class="nav__dropdown-item" th:href="@{'/models/' + ${m.slug()}}"
+                               th:text="${m.displayName()}">Model</a>
+                        </li>
+                    </th:block>
                 </ul>
             </li>
 

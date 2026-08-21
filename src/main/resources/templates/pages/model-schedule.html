@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${page.model().displayName()} + ' — Schedule'">Model Schedule</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <a class="stat-detail__crumb" th:href="@{/models}">&larr; All models</a>
+            <h1 class="page-title" th:text="${page.model().displayName()} + ' — Schedule'">Model — Schedule</h1>
+            <p class="page-header__subtitle">
+                Day by day: what this model predicted, and how it turned out. Past days show
+                the leakage-free pre-game predictions recorded at evaluation time.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <select class="form-input form-input--sm" aria-label="Model"
+                    th:attr="data-date=${page.date()}"
+                    onchange="window.location = '/models/' + this.value + '/schedule?date=' + this.dataset.date">
+                <option th:each="m : ${page.allModels()}" th:value="${m.slug()}"
+                        th:text="${m.displayName()}" th:selected="${m.slug() == page.model().slug()}">Model</option>
+            </select>
+        </div>
+    </div>
+
+    <nav th:replace="~{fragments/tabs :: tabs(${hubTabs})}"></nav>
+
+    <div class="analytics-date-row">
+        <a class="btn btn--outline btn--sm"
+           th:href="@{'/models/' + ${page.model().slug()} + '/schedule'(date=${page.prevDate()})}">&larr; Prev day</a>
+        <input type="date" class="form-input form-input--sm" th:value="${page.date()}"
+               th:attr="data-base=@{'/models/' + ${page.model().slug()} + '/schedule'}"
+               onchange="window.location = this.dataset.base + '?date=' + this.value"
+               aria-label="Date"/>
+        <a class="btn btn--outline btn--sm"
+           th:href="@{'/models/' + ${page.model().slug()} + '/schedule'(date=${page.nextDate()})}">Next day &rarr;</a>
+    </div>
+
+    <!-- Day summary (evaluated days only) -->
+    <div class="card model-day-summary" th:if="${page.summary() != null and page.summary().games() > 0}">
+        <span><strong th:text="${page.summary().correct()} + '–' + ${page.summary().games() - page.summary().correct()}">7–3</strong> on winners</span>
+        <span th:if="${page.summary().spreadMae() != null}">
+            spread MAE <strong th:text="${#numbers.formatDecimal(page.summary().spreadMae(), 1, 1)}">8.2</strong></span>
+        <span class="text-muted" th:text="${page.rows().size()} + ' games'">10 games</span>
+    </div>
+
+    <th:block th:if="${!page.hasGames()}">
+        <div th:replace="~{fragments/empty-state :: emptyState('No games on this date.', null, null)}"></div>
+    </th:block>
+
+    <div class="card" th:if="${page.hasGames()}" style="overflow-x: auto;">
+        <table class="model-schedule-table">
+            <thead>
+            <tr>
+                <th>Matchup</th>
+                <th class="predictor-table__num" title="Predicted home margin (positive = home favored)">Spread</th>
+                <th class="predictor-table__num" title="Predicted combined score">Total</th>
+                <th class="predictor-table__num" title="Predicted home-win probability">Home&nbsp;win</th>
+                <th class="predictor-table__num">Result</th>
+                <th class="predictor-table__num" title="Did the model's predicted winner win?">Pick</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${page.rows()}">
+                <td class="model-schedule-table__matchup">
+                    <a th:href="@{'/games/' + ${r.gameId()}}">
+                        <img th:if="${r.awayLogo() != null}" th:src="${r.awayLogo()}" alt="" width="18" height="18" loading="lazy"/>
+                        <span th:text="${r.awayName()}">Away</span>
+                        <span class="text-muted">@</span>
+                        <img th:if="${r.homeLogo() != null}" th:src="${r.homeLogo()}" alt="" width="18" height="18" loading="lazy"/>
+                        <span th:text="${r.homeName()}">Home</span>
+                    </a>
+                </td>
+                <td class="predictor-table__num" th:text="${r.spreadLabel()}">+6.5</td>
+                <td class="predictor-table__num" th:text="${r.totalLabel()}">148.5</td>
+                <td class="predictor-table__num" th:text="${r.probLabel()}">72%</td>
+                <td class="predictor-table__num"
+                    th:text="${r.homeScore() != null ? r.awayScore() + '–' + r.homeScore() : '—'}">65–78</td>
+                <td class="predictor-table__num">
+                    <span th:if="${r.pickCorrect() != null and r.pickCorrect()}" class="model-pick model-pick--right" title="Predicted winner won">&#10003;</span>
+                    <span th:if="${r.pickCorrect() != null and !r.pickCorrect()}" class="model-pick model-pick--wrong" title="Predicted winner lost">&#10007;</span>
+                    <span th:if="${r.pickCorrect() == null}" class="text-muted">—</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p class="text-muted power-ranking__footnote" th:if="${!page.evaluated()}">
+            Live predictions from the latest rating snapshots — evaluation rows are recorded
+            once games go final. Spread is the predicted home margin. Not betting advice.
+        </p>
+        <p class="text-muted power-ranking__footnote" th:if="${page.evaluated()}">
+            Pre-game predictions recorded from rating snapshots dated before tip-off.
+            Spread is the predicted home margin; Result is away–home. Not betting advice.
+        </p>
+    </div>
+
+</main>
+</body>
+</html>

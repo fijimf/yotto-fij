@@ -9,7 +9,15 @@
 <body>
 <main layout:fragment="content">
 
-    <h1 class="page-title">Matchup Predictor</h1>
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Matchup Predictor</h1>
+            <p class="page-header__subtitle">
+                Pick any two teams and a date — every public model weighs in, using only
+                rating snapshots dated before the game.
+            </p>
+        </div>
+    </div>
     <p class="predictions-disclaimer">
         Model predictions are for analytical purposes only and do not constitute betting advice.
     </p>
@@ -21,26 +29,29 @@
               hx-swap="innerHTML"
               hx-indicator="#matchup-spinner">
 
+            <input type="hidden" name="highlight" th:if="${highlightModel != null}" th:value="${highlightModel}"/>
+
+            <!-- Shared team list for both type-ahead pickers -->
+            <datalist id="team-options">
+                <option th:each="t : ${teams}" th:value="${t.name}" th:attr="data-id=${t.id}"></option>
+            </datalist>
+
             <div class="matchup-form__row">
 
                 <div class="form-group">
-                    <label class="form-label" for="homeTeamId">Home Team</label>
-                    <select id="homeTeamId" name="homeTeamId" class="form-input" required>
-                        <option value="">Select team…</option>
-                        <option th:each="t : ${teams}"
-                                th:value="${t.id}"
-                                th:text="${t.name}">Team</option>
-                    </select>
+                    <label class="form-label" for="homeTeamName">Home Team</label>
+                    <input id="homeTeamName" class="form-input matchup-team-input" list="team-options"
+                           placeholder="Type a team&hellip;" autocomplete="off" spellcheck="false"
+                           data-target="homeTeamId" required/>
+                    <input type="hidden" id="homeTeamId" name="homeTeamId"/>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="awayTeamId">Away Team</label>
-                    <select id="awayTeamId" name="awayTeamId" class="form-input" required>
-                        <option value="">Select team…</option>
-                        <option th:each="t : ${teams}"
-                                th:value="${t.id}"
-                                th:text="${t.name}">Team</option>
-                    </select>
+                    <label class="form-label" for="awayTeamName">Away Team</label>
+                    <input id="awayTeamName" class="form-input matchup-team-input" list="team-options"
+                           placeholder="Type a team&hellip;" autocomplete="off" spellcheck="false"
+                           data-target="awayTeamId" required/>
+                    <input type="hidden" id="awayTeamId" name="awayTeamId"/>
                 </div>
 
                 <div class="form-group">
@@ -73,5 +84,29 @@
     <div id="matchup-result" style="margin-top: 1.5rem;"></div>
 
 </main>
+
+<th:block layout:fragment="scripts">
+    <script>
+    (function () {
+        // Type-ahead pickers: resolve the typed team name to its id (exact,
+        // case-insensitive match against the datalist) before HTMX submits.
+        var options = document.querySelectorAll("#team-options option");
+        var byName = {};
+        options.forEach(function (o) { byName[o.value.toLowerCase()] = o.dataset.id; });
+
+        function resolve(input) {
+            var target = document.getElementById(input.dataset.target);
+            var id = byName[input.value.trim().toLowerCase()];
+            target.value = id || "";
+            input.setCustomValidity(id ? "" : "Pick a team from the list");
+        }
+
+        document.querySelectorAll(".matchup-team-input").forEach(function (input) {
+            input.addEventListener("input", function () { resolve(input); });
+            input.addEventListener("change", function () { resolve(input); });
+        });
+    })();
+    </script>
+</th:block>
 </body>
 </html>
