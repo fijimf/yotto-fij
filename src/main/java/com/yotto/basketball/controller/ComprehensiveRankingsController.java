@@ -67,6 +67,7 @@ public class ComprehensiveRankingsController {
                 .stream().sorted((a, b) -> b.getYear().compareTo(a.getYear())).toList();
         Season season = resolveSeason(year, allSeasons);
         model.addAttribute("currentPage", "rankings");
+        model.addAttribute("currentSection", "rankings");
         if (season == null) {
             model.addAttribute("allSeasons", allSeasons);
             return "pages/comprehensive-rankings";

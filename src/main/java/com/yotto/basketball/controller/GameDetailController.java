@@ -269,6 +269,7 @@ public class GameDetailController {
         }
 
         model.addAttribute("currentPage", "games");
+        model.addAttribute("currentSection", "games");
         return "pages/game-detail";
     }
 

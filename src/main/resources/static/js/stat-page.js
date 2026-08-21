@@ -8,10 +8,15 @@
     var data = window.STAT_PAGE_DATA;
     if (!data) return;
 
-    var GREEN = "#16a34a"; // home win  (matches --color-success)
-    var RED = "#dc2626";   // home loss (matches --color-danger)
-    var AXIS = "#64748b";  // --color-text-muted
-    var GRID = "#dce3ea";  // --color-border
+    function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    var THEME = window.chartTheme();
+    var GREEN = THEME.win;  // home win
+    var RED = THEME.loss;   // home loss
+    var AXIS = THEME.axis;
+    var GRID = THEME.grid;
 
     // ── value formatting (mirrors StatFormat.java) ───────────────────────────────
     function formatValue(v, format) {
@@ -154,7 +159,7 @@
                 .y(function (_, i) { return yDens(kde.y[i]); })
                 .curve(d3.curveBasis);
             g.append("path").datum(kde.y)
-                .attr("fill", "none").attr("stroke", "#b45309").attr("stroke-width", 2)
+                .attr("fill", "none").attr("stroke", cssVar("--color-primary")).attr("stroke-width", 2)
                 .attr("opacity", 0.85).attr("d", line);
         }
 
@@ -165,7 +170,7 @@
             .attr("width", function (_, i) { return Math.max(0, x(edges[i + 1]) - x(edges[i]) - 2); })
             .attr("y", function (d) { return yCount(d); })
             .attr("height", function (d) { return h - yCount(d); })
-            .attr("fill", "#1e3a5f").attr("fill-opacity", 0.6)
+            .attr("fill", cssVar("--color-nav-bg")).attr("fill-opacity", 0.6)
             .on("mouseenter", function (event, d) {
                 var i = counts.indexOf(d);
                 showTip(formatValue(edges[i], format) + " – " + formatValue(edges[i + 1], format)

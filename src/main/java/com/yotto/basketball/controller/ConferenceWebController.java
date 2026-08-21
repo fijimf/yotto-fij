@@ -108,6 +108,7 @@ public class ConferenceWebController {
         }
 
         model.addAttribute("currentPage", "conferences");
+        model.addAttribute("currentSection", "conferences");
         model.addAttribute("conferences", summaries);
         model.addAttribute("conferenceCount", summaries.size());
         model.addAttribute("seasonYear", season != null ? season.getYear() : null);
@@ -128,6 +129,7 @@ public class ConferenceWebController {
                 : new ConferenceIdentity(conference.getName(), conference.getAbbreviation(), conference.getLogoUrl());
 
         model.addAttribute("currentPage", "conferences");
+        model.addAttribute("currentSection", "conferences");
         model.addAttribute("conference", conference);
         model.addAttribute("conferenceId", id);
         model.addAttribute("identity", identity);

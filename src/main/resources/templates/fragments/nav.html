@@ -27,7 +27,7 @@
             <li sec:authorize="hasRole('ADMIN')">
                 <a class="nav__link" th:href="@{/admin}">Admin</a>
             </li>
-            <li class="nav__dropdown" sec:authorize="isAuthenticated()">
+            <li class="nav__dropdown nav__dropdown--right" sec:authorize="isAuthenticated()">
                 <button type="button" class="nav__link nav__link--button nav__dropdown-toggle"
                         aria-haspopup="true" aria-expanded="false">
                     <span sec:authentication="name">user</span><span class="nav__dropdown-caret">&#9662;</span>

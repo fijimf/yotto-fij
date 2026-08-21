@@ -36,6 +36,7 @@ public class HomeController {
                        @org.springframework.security.core.annotation.AuthenticationPrincipal
                        com.yotto.basketball.security.AppUserDetails principal) {
         model.addAttribute("currentPage", "home");
+        model.addAttribute("currentSection", "home");
         model.addAttribute("homePage",
                 homePageService.build(principal != null ? principal.getId() : null));
         return "pages/home";
@@ -44,6 +45,7 @@ public class HomeController {
     @GetMapping("/about")
     public String about(Model model) {
         model.addAttribute("currentPage", "about");
+        model.addAttribute("currentSection", "home");
         model.addAttribute("teamCount", teamRepository.count());
         model.addAttribute("gameCount", gameRepository.countByStatus(Game.GameStatus.FINAL));
         model.addAttribute("seasonCount", seasonRepository.count());

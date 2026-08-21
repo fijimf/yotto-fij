@@ -29,13 +29,8 @@
             </p>
         </div>
         <div class="page-header__actions">
-            <select class="form-input form-input--sm"
-                    th:attr="data-stat=${statPage.meta().name()}"
-                    onchange="window.location='/seasons/'+this.value+'/stats/'+this.dataset.stat">
-                <option th:each="y : ${statPage.season().availableSeasons()}"
-                        th:value="${y}" th:text="${y}"
-                        th:selected="${y == statPage.season().year()}">2026</option>
-            </select>
+            <select th:replace="~{fragments/controls :: seasonSelect(${statPage.season().availableSeasons()},
+                    ${statPage.season().year()}, '/seasons/{year}/stats/' + ${statPage.meta().name()})}"></select>
         </div>
     </div>
 

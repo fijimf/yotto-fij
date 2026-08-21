@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/* Season selector: a <select> that navigates to the same page in another
+      season. `years` is a List<Integer> (newest first), `selected` the current
+      year, `urlTemplate` the destination with a literal {year} placeholder,
+      e.g. '/seasons/{year}/stats'. Kept as a data attribute + replace() so no
+      URL is ever built with a ternary inside @{...}. */-->
+<select th:fragment="seasonSelect(years, selected, urlTemplate)"
+        class="form-input form-input--sm" aria-label="Season"
+        th:attr="data-url-template=${urlTemplate}"
+        onchange="window.location = this.dataset.urlTemplate.replace('{year}', this.value)">
+    <option th:each="y : ${years}" th:value="${y}" th:text="${y}"
+            th:selected="${y == selected}">2026</option>
+</select>
+
+<!--/* As-of date control: bounded date input that HTMX-swaps a container, with
+      the standard loading spinner. `hxGet` is the fully-built endpoint URL,
+      `hxTarget` a CSS selector (e.g. '#stats-table-container'). The request
+      sends the chosen date as ?date=. */-->
+<th:block th:fragment="asOfDate(value, min, max, hxGet, hxTarget)">
+    <label class="form-label" for="as-of-date">As of:</label>
+    <input type="date" id="as-of-date" name="date" class="form-input form-input--sm"
+           th:value="${value}" th:min="${min}" th:max="${max}"
+           th:attr="hx-get=${hxGet},hx-target=${hxTarget}"
+           hx-trigger="change"
+           hx-indicator="#as-of-loading"/>
+    <span id="as-of-loading" class="htmx-indicator stat-detail__loading" role="status" aria-live="polite">
+        <span class="stat-detail__loading-spin"></span> Loading&hellip;
+    </span>
+</th:block>
+
+</body>
+</html>

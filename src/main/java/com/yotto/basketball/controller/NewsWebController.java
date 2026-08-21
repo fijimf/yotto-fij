@@ -39,6 +39,7 @@ public class NewsWebController {
         boolean hasNext = cards.size() > PAGE_SIZE;
 
         model.addAttribute("currentPage", "news");
+        model.addAttribute("currentSection", "news");
         model.addAttribute("cards", hasNext ? cards.subList(0, PAGE_SIZE) : cards);
         model.addAttribute("page", Math.max(0, page));
         model.addAttribute("hasNext", hasNext);

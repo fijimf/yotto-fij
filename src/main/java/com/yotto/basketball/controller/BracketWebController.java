@@ -43,6 +43,7 @@ public class BracketWebController {
         allSeasons.sort((a, b) -> b.getYear().compareTo(a.getYear()));
 
         model.addAttribute("currentPage", "bracket");
+        model.addAttribute("currentSection", "games");
         model.addAttribute("season", season);
         model.addAttribute("allSeasons", allSeasons);
         model.addAttribute("bracket", bracketService.buildBracket(year).orElse(null));

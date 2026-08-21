@@ -39,6 +39,7 @@ public class PredictionsPageController {
                               Model uiModel) {
         populateModel(date, days, model, uiModel);
         uiModel.addAttribute("currentPage", "predictions");
+        uiModel.addAttribute("currentSection", "models");
         return "pages/predictions";
     }
 
@@ -60,6 +61,7 @@ public class PredictionsPageController {
         model.addAttribute("teams", teams);
         model.addAttribute("today", LocalDate.now());
         model.addAttribute("currentPage", "matchup");
+        model.addAttribute("currentSection", "models");
         return "pages/matchup";
     }
 

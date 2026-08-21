@@ -92,6 +92,7 @@ public class ModelPerformanceController {
         model.addAttribute("window", last30 ? "30" : "season");
         model.addAttribute("segment", selectedSegment);
         model.addAttribute("currentPage", "predictions");
+        model.addAttribute("currentSection", "models");
 
         boolean hasData = allSeasons || selectedYear != null;
         model.addAttribute("hasData", hasData);

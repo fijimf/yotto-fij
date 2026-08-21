@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/* Standard empty state: muted card with a message and an optional action
+      link. Pass null for actionLabel/actionUrl when there is no action. */-->
+<div th:fragment="emptyState(message, actionLabel, actionUrl)" class="empty-state">
+    <p class="empty-state__message" th:text="${message}">Nothing here yet.</p>
+    <a class="btn btn--outline btn--sm" th:if="${actionUrl != null}"
+       th:href="${actionUrl}" th:text="${actionLabel}">Action</a>
+</div>
+
+</body>
+</html>

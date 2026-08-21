@@ -14,27 +14,14 @@
         <div class="page-header__actions">
             <a class="btn btn--outline btn--sm" th:href="@{/stats}">Stats glossary</a>
             <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${season.year} + '/bracket'}">Bracket</a>
-            <select class="form-input form-input--sm"
-                    onchange="window.location='/seasons/'+this.value+'/stats'">
-                <option th:each="s : ${allSeasons}"
-                        th:value="${s.year}"
-                        th:text="${s.year}"
-                        th:selected="${s.year == season.year}">2026</option>
-            </select>
+            <select th:replace="~{fragments/controls :: seasonSelect(${seasonYears}, ${season.year}, '/seasons/{year}/stats')}"></select>
         </div>
     </div>
 
     <!-- Date picker -->
     <div class="analytics-date-row" th:if="${latestDate != null}">
-        <label class="form-label" for="stat-date">Snapshot date:</label>
-        <input type="date" id="stat-date" class="form-input form-input--sm"
-               th:value="${selectedDate}"
-               th:min="${season.startDate}"
-               th:max="${latestDate}"
-               hx-get="@{'/seasons/' + ${season.year} + '/stats/table'}"
-               hx-target="#stats-table-container"
-               hx-trigger="change"
-               name="date" />
+        <th:block th:replace="~{fragments/controls :: asOfDate(${selectedDate}, ${season.startDate}, ${latestDate},
+                              '/seasons/' + ${season.year} + '/stats/table', '#stats-table-container')}"/>
         <span class="text-muted" th:text="'Latest data: ' + ${latestDate}">Latest data: 2026-02-26</span>
     </div>
 
@@ -85,6 +72,7 @@
 
     function renderCharts(snapshots) {
         if (!snapshots || snapshots.length === 0) return;
+        const T = window.chartTheme();
 
         // Avg margin histogram — 5-point bins centred on multiples of 5
         const margins = snapshots.map(s => s.meanMargin).filter(v => v != null);
@@ -111,9 +99,9 @@
                     label: 'Teams',
                     data: bins,
                     backgroundColor: bins.map((_, i) => (minBin + i * binSize) >= 0
-                        ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)'),
+                        ? window.chartAlpha(T.pos, 0.6) : window.chartAlpha(T.neg, 0.6)),
                     borderColor: bins.map((_, i) => (minBin + i * binSize) >= 0
-                        ? '#22c55e' : '#ef4444'),
+                        ? T.pos : T.neg),
                     borderWidth: 1
                 }]
             },
@@ -143,14 +131,14 @@
                     {
                         label: 'Teams',
                         data: scatterData,
-                        backgroundColor: 'rgba(59,130,246,0.6)',
+                        backgroundColor: window.chartAlpha(T.series[1], 0.6),
                         pointRadius: 5
                     },
                     {
                         label: 'Scored = Allowed',
                         type: 'line',
                         data: [{ x: axisMin, y: axisMin }, { x: axisMax, y: axisMax }],
-                        borderColor: 'rgba(255,255,255,0.3)',
+                        borderColor: window.chartAlpha(T.neutral, 0.5),
                         borderWidth: 1,
                         borderDash: [6, 4],
                         pointRadius: 0,

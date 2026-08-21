@@ -53,6 +53,7 @@ public class GameWebController {
         LocalDate target = parseDate(date).orElseGet(this::resolveDefaultDate);
         populate(target, model);
         model.addAttribute("currentPage", "games");
+        model.addAttribute("currentSection", "games");
         return "pages/games";
     }
 

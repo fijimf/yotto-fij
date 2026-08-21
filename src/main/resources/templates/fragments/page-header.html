@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/* Standard page header: title + optional subtitle on the left and, when
+      `years` is non-null, the shared season selector on the right.
+
+      Usage:
+        <div th:replace="~{fragments/page-header :: pageHeader(${title}, ${subtitle},
+                          ${years}, ${selectedYear}, '/seasons/{year}/stats')}"></div>
+      Pass null for subtitle when there is none, and null years to omit the
+      selector. Pages that need extra header actions (buttons next to the
+      selector) or complex left sides (breadcrumb + description + context line)
+      keep bespoke markup but MUST reuse the same .page-header /
+      .page-header__actions classes so the look stays identical. */-->
+<div th:fragment="pageHeader(title, subtitle, years, selected, urlTemplate)" class="page-header">
+    <div>
+        <h1 class="page-title" th:text="${title}">Page title</h1>
+        <p class="page-header__subtitle" th:if="${subtitle != null}" th:text="${subtitle}">Subtitle</p>
+    </div>
+    <div class="page-header__actions" th:if="${years != null}">
+        <select th:replace="~{fragments/controls :: seasonSelect(${years}, ${selected}, ${urlTemplate})}"></select>
+    </div>
+</div>
+
+</body>
+</html>

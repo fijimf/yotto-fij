@@ -46,6 +46,7 @@ public class StatPageController {
         Integer latestYear = seasonRepository.findTopByOrderByYearDesc()
                 .map(Season::getYear).orElse(null);
         model.addAttribute("currentPage", "seasons");
+        model.addAttribute("currentSection", "stats");
         model.addAttribute("statsByCategory", byCategory);
         model.addAttribute("latestYear", latestYear);
         return "pages/stats-index";
@@ -70,6 +71,7 @@ public class StatPageController {
         StatPageDto dto = statPageService.build(year, statName, date);
         addStatPageModel(model, dto);
         model.addAttribute("currentPage", "seasons");
+        model.addAttribute("currentSection", "stats");
         return "pages/stat-detail";
     }
 

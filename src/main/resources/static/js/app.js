@@ -49,29 +49,40 @@ function initApp() {
     }
 }
 
-// User menu (username → Profile / Sign out). Delegated on document so it
-// keeps working after HTMX body swaps without stacking listeners.
+// Nav dropdowns (section menus + user menu). Click-to-open; opening one closes
+// its siblings; outside click or Esc closes everything. Delegated on document
+// so it keeps working after HTMX body swaps without stacking listeners. The
+// same code drives the mobile accordion (menus render static there), which is
+// how "one section open at a time" falls out for free.
+function closeNavDropdowns(except) {
+    document.querySelectorAll(".nav__dropdown--open").forEach(function (dd) {
+        if (dd === except) return;
+        dd.classList.remove("nav__dropdown--open");
+        var t = dd.querySelector(".nav__dropdown-toggle");
+        if (t) t.setAttribute("aria-expanded", "false");
+    });
+}
+
 document.addEventListener("click", function (e) {
-    var dropdown = document.querySelector(".nav__dropdown");
-    if (!dropdown) return;
     var toggle = e.target.closest(".nav__dropdown-toggle");
     if (toggle) {
+        var dropdown = toggle.closest(".nav__dropdown");
         var open = dropdown.classList.toggle("nav__dropdown--open");
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        closeNavDropdowns(dropdown);
     } else if (!e.target.closest(".nav__dropdown")) {
-        dropdown.classList.remove("nav__dropdown--open");
-        var t = dropdown.querySelector(".nav__dropdown-toggle");
-        if (t) t.setAttribute("aria-expanded", "false");
+        closeNavDropdowns(null);
     }
 });
 
 document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
         var open = document.querySelector(".nav__dropdown--open");
+        closeNavDropdowns(null);
+        // Return focus to the toggle so keyboard users aren't stranded
         if (open) {
-            open.classList.remove("nav__dropdown--open");
             var t = open.querySelector(".nav__dropdown-toggle");
-            if (t) t.setAttribute("aria-expanded", "false");
+            if (t) t.focus();
         }
     }
 });

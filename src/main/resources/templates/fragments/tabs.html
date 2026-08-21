@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/* Link-based tab strip. `items` is a List of
+      com.yotto.basketball.controller.dto.NavTab(label, url, active).
+      Tabs are real URLs (hx-boosted by the layout), so every tab view is
+      bookmarkable — never JS-only state. */-->
+<nav th:fragment="tabs(items)" class="tab-strip" aria-label="Sections">
+    <th:block th:each="t : ${items}">
+        <a class="tab-strip__tab" th:href="${t.url}" th:text="${t.label}"
+           th:classappend="${t.active} ? 'tab-strip__tab--active'"
+           th:attr="aria-current=${t.active} ? 'page' : null">Tab</a>
+    </th:block>
+</nav>
+
+</body>
+</html>

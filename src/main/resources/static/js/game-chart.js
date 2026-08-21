@@ -22,13 +22,14 @@
   const BASE_SIZE = 800;
   const SCORE_MIN = 40;
   const SCORE_MAX = 120;
-  const NEUTRAL_COLOR = "#64748b";
+  const THEME = window.chartTheme();
+  const NEUTRAL_COLOR = THEME.axis;
   const CHI2_95 = 5.991; // χ² 2-DOF 95%
 
-  const TEAM_HOME_COLOR = data.homeColor ? "#" + data.homeColor : "#3b82f6";
-  const TEAM_AWAY_COLOR = data.awayColor ? "#" + data.awayColor : "#ef4444";
-  const STD_HOME_COLOR  = "#3b82f6";
-  const STD_AWAY_COLOR  = "#ef4444";
+  const TEAM_HOME_COLOR = data.homeColor ? "#" + data.homeColor : THEME.series[1];
+  const TEAM_AWAY_COLOR = data.awayColor ? "#" + data.awayColor : THEME.neg;
+  const STD_HOME_COLOR  = THEME.series[1];
+  const STD_AWAY_COLOR  = THEME.neg;
 
   let useTeamColors = true;
   let homeColor = TEAM_HOME_COLOR;
@@ -88,23 +89,23 @@
       .selectAll("line").data(majorTicks).enter().append("line")
       .attr("x1", d => xScale(d)).attr("x2", d => xScale(d))
       .attr("y1", 0).attr("y2", innerH)
-      .attr("stroke", "#e2e8f0").attr("stroke-width", 1).attr("stroke-opacity", 0.5);
+      .attr("stroke", THEME.grid).attr("stroke-width", 1).attr("stroke-opacity", 0.5);
     g.append("g")
       .selectAll("line").data(majorTicks).enter().append("line")
       .attr("x1", 0).attr("x2", innerW)
       .attr("y1", d => yScale(d)).attr("y2", d => yScale(d))
-      .attr("stroke", "#e2e8f0").attr("stroke-width", 1).attr("stroke-opacity", 0.5);
+      .attr("stroke", THEME.grid).attr("stroke-width", 1).attr("stroke-opacity", 0.5);
 
     g.append("g")
       .selectAll("line").data(minorTicks).enter().append("line")
       .attr("x1", d => xScale(d)).attr("x2", d => xScale(d))
       .attr("y1", 0).attr("y2", innerH)
-      .attr("stroke", "#e2e8f0").attr("stroke-width", 0.5).attr("stroke-opacity", 0.3);
+      .attr("stroke", THEME.grid).attr("stroke-width", 0.5).attr("stroke-opacity", 0.3);
     g.append("g")
       .selectAll("line").data(minorTicks).enter().append("line")
       .attr("x1", 0).attr("x2", innerW)
       .attr("y1", d => yScale(d)).attr("y2", d => yScale(d))
-      .attr("stroke", "#e2e8f0").attr("stroke-width", 0.5).attr("stroke-opacity", 0.3);
+      .attr("stroke", THEME.grid).attr("stroke-width", 0.5).attr("stroke-opacity", 0.3);
 
     // ── Axes ─────────────────────────────────────────────────────────────────
     g.append("g").attr("transform", `translate(0,${innerH})`)
@@ -117,10 +118,10 @@
     // an edge rather than floating in space.
     g.append("line")
       .attr("x1", 0).attr("y1", 0).attr("x2", innerW).attr("y2", 0)
-      .attr("stroke", "#cbd5e1").attr("stroke-width", 1);
+      .attr("stroke", THEME.grid).attr("stroke-width", 1);
     g.append("line")
       .attr("x1", innerW).attr("y1", 0).attr("x2", innerW).attr("y2", innerH)
-      .attr("stroke", "#cbd5e1").attr("stroke-width", 1);
+      .attr("stroke", THEME.grid).attr("stroke-width", 1);
 
     // ── Axis labels: [logo] team name ─────────────────────────────────────────
     const LOGO_SIZE = 32;

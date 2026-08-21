@@ -69,12 +69,14 @@ public class StatsWebController {
         allSeasons.sort((a, b) -> b.getYear().compareTo(a.getYear()));
 
         model.addAttribute("currentPage", "seasons");
+        model.addAttribute("currentSection", "stats");
         model.addAttribute("season", season);
         model.addAttribute("selectedDate", resolvedDate);
         model.addAttribute("latestDate", latestDate);
         model.addAttribute("snapshots", snapshots);
         model.addAttribute("popStats", popStats);
         model.addAttribute("allSeasons", allSeasons);
+        model.addAttribute("seasonYears", allSeasons.stream().map(Season::getYear).toList());
         model.addAttribute("hasData", !snapshots.isEmpty());
 
         return "pages/season-stats";

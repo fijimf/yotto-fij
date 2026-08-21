@@ -135,6 +135,7 @@ public class TeamWebController {
                         Collectors.toList()));
 
         model.addAttribute("currentPage", "teams");
+        model.addAttribute("currentSection", "teams");
         model.addAttribute("conferenceGroups", confGroups);
         model.addAttribute("teamCount", teamSummaries.size());
         model.addAttribute("seasonYear", seasonYear);
@@ -190,6 +191,7 @@ public class TeamWebController {
         }
 
         model.addAttribute("currentPage", "teams");
+        model.addAttribute("currentSection", "teams");
         model.addAttribute("team", team);
         model.addAttribute("teamId", id);
         model.addAttribute("currentConference", currentConference);

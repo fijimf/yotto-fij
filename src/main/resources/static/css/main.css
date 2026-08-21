@@ -21,7 +21,36 @@
     --font-display: 'Barlow Condensed', sans-serif;
     --radius: 8px;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+    /* Chart palette — the ONLY source of chart colors. JS reads these via
+       js/chart-theme.js (chartColor/modelColor/chartTheme); never hardcode
+       chart hexes in page scripts or templates. */
+    --chart-1: #0ea5e9;   /* sky    — Massey */
+    --chart-2: #3b82f6;   /* blue   — Bradley-Terry */
+    --chart-3: #8b5cf6;   /* violet — Bradley-Terry (weighted) */
+    --chart-4: #14b8a6;   /* teal   — Massey Totals */
+    --chart-5: #22c55e;   /* green  */
+    --chart-6: #f59e0b;   /* amber  */
+    --chart-7: #ec4899;   /* pink   */
+    --chart-8: #64748b;   /* slate  */
+    --chart-ml-a: #22c55e;  /* ML:* models hash into these greens */
+    --chart-ml-b: #15803d;
+    --chart-ml-c: #84cc16;
+    --chart-ml-d: #059669;
+    --chart-win: var(--color-success);
+    --chart-loss: var(--color-danger);
+    --chart-pos: #22c55e;   /* positive bars/marks (green-500, lighter than --chart-win) */
+    --chart-neg: #ef4444;   /* negative bars/marks (red-500, lighter than --chart-loss) */
+    --chart-benchmark: #f59e0b;  /* BOOK / reference series */
+    --chart-neutral: #94a3b8;    /* unknown series, reference diagonals */
+    --chart-grid: var(--color-border);
+    --chart-axis: var(--color-text-muted);
 }
+
+/* Better/worse-than-benchmark deltas in metric tables (darker than
+   success/danger for legibility at small table sizes) */
+.delta--good { color: #065f46; }
+.delta--bad  { color: #991b1b; }
 
 /* ── Admin dark theme override ── */
 [data-theme="dark"] {
@@ -196,7 +225,8 @@ a:hover {
     line-height: inherit;
 }
 
-/* User menu: username tab opening Profile / Sign out */
+/* Nav dropdowns: section menus (left-aligned panel) and the user menu
+   (--right modifier, panel right-aligned to the toggle) */
 .nav__dropdown {
     position: relative;
 }
@@ -209,7 +239,7 @@ a:hover {
 .nav__dropdown-menu {
     display: none;
     position: absolute;
-    right: 0;
+    left: 0;
     top: calc(100% + 0.25rem);
     min-width: 9rem;
     background: var(--color-nav-bg);
@@ -219,6 +249,29 @@ a:hover {
     list-style: none;
     z-index: 100;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.nav__dropdown--right .nav__dropdown-menu {
+    left: auto;
+    right: 0;
+}
+
+/* Labelled divider inside a dropdown panel (e.g. "Categories") */
+.nav__dropdown-divider {
+    padding: 0.4rem 0.75rem 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-nav-text);
+    opacity: 0.7;
+    border-top: 1px solid var(--color-nav-border);
+    margin-top: 0.25rem;
+}
+
+.nav__dropdown-divider:first-child {
+    border-top: none;
+    margin-top: 0;
 }
 
 .nav__dropdown--open .nav__dropdown-menu {
@@ -2177,6 +2230,15 @@ a.team-hero__conference:hover {
     gap: 0.75rem;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
+}
+
+/* Inline controls size to content inside a date row (form inputs default to 100%) */
+.analytics-date-row .form-input {
+    width: auto;
+}
+
+.analytics-date-row .form-label {
+    margin-bottom: 0;
 }
 
 .pop-summary {
@@ -4684,4 +4746,58 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     /* Find box gets its own full-width line under the title/date */
     .stat-detail__find { flex: 1 1 100%; margin-left: 0; }
     .stat-detail__rankings .schedule-table-wrap { max-height: 60vh; }
+}
+
+/* ── Shared UI components (page header extras, tab strip, empty state) ── */
+
+.page-header__subtitle {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+}
+
+/* Link-based tab strip (fragments/tabs.html) — bracket years, model hub tabs */
+.tab-strip {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+}
+
+.tab-strip__tab {
+    padding: 0.5rem 1rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.tab-strip__tab:hover {
+    color: var(--color-text);
+}
+
+.tab-strip__tab--active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+/* Standard empty state (fragments/empty-state.html) */
+.empty-state {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.empty-state__message {
+    color: var(--color-text-muted);
+    margin: 0;
 }

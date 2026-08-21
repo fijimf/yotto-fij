@@ -80,7 +80,7 @@
                 var confs = Array.from(new Set(raw.map(function(d) { return d.conf; }))).sort();
                 var confColorMap = {};
                 confs.forEach(function(c, i) { confColorMap[c] = COLORS[i % COLORS.length]; });
-                function dotColor(d) { return confColorMap[d.conf] || '#888'; }
+                function dotColor(d) { return confColorMap[d.conf] || window.chartTheme().neutral; }
 
                 /* Pearson r */
                 function pearsonR(data, xKey, yKey) {
@@ -319,13 +319,13 @@
                         svg.append('line')
                             .attr('x1', xScale(t)).attr('x2', xScale(t))
                             .attr('y1', CELL - pad - 2).attr('y2', CELL - pad + 2)
-                            .attr('stroke', '#444').attr('stroke-width', 0.5);
+                            .attr('stroke', window.chartTheme().axis).attr('stroke-width', 0.5);
                     });
                     yScale.ticks(3).forEach(function(t) {
                         svg.append('line')
                             .attr('x1', pad - 2).attr('x2', pad + 2)
                             .attr('y1', yScale(t)).attr('y2', yScale(t))
-                            .attr('stroke', '#444').attr('stroke-width', 0.5);
+                            .attr('stroke', window.chartTheme().axis).attr('stroke-width', 0.5);
                     });
 
                     var circles = svg.selectAll('circle').data(valid).enter().append('circle')
