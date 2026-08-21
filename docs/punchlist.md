@@ -4,7 +4,8 @@
     * ~~Average power ranking for conference, rank among conferences~~
     * ~~Record v non-conference~~
 2) ~~Make sure all pages (except admin) are reachable via top menu; rationalization of menu~~
-3) Fix matchup page
+3) ~~Fix matchup page~~ (2026-08-21 menu reorganization: type-ahead pickers, one row
+   per public model incl. Adjusted Efficiency, moved to /models/matchup)
 4) ~~Improve game page~~
 5) ~~Allow multiple ML models; Display model performance~~
 6) ~~NCAA Bracket~~ 

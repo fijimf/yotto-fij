@@ -1,6 +1,10 @@
 # Menu & GUI Reorganization — Implementation Plan
 
-Status: **READY** (spec approved 2026-08-21)
+Status: **IMPLEMENTED 2026-08-21** — all six phases landed (commits 9fcb49b,
+02e2120, b396592, b1ece24, e82261f + the phase-6 polish commit). Remaining
+post-deploy ops: per-season Time Series backfill and ml_models display-name
+renames (see ADMIN_MANUAL §6). The pre-tournament bracket simulator (OQ-4)
+stays future work.
 Spec: [MENU_AND_GUI_SPEC.md](MENU_AND_GUI_SPEC.md) — section references below (§n) point there.
 
 ---

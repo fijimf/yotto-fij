@@ -3,8 +3,6 @@ package com.yotto.basketball.controller;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
-import com.yotto.basketball.service.PredictionCardView;
-import com.yotto.basketball.service.PredictionsPageService.PredictionsPage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,30 +58,6 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
         t.setAbbreviation(abbr);
         t.setActive(true);
         return teamRepo.save(t);
-    }
-
-    private Game mkScheduled(LocalDateTime when) {
-        Game g = new Game();
-        g.setHomeTeam(home);
-        g.setAwayTeam(away);
-        g.setStatus(Game.GameStatus.SCHEDULED);
-        g.setNeutralSite(false);
-        g.setSeason(season);
-        g.setGameDate(when);
-        return gameRepo.save(g);
-    }
-
-    private Game mkFinal(LocalDateTime when, int homeScore, int awayScore) {
-        Game g = new Game();
-        g.setHomeTeam(home);
-        g.setAwayTeam(away);
-        g.setStatus(Game.GameStatus.FINAL);
-        g.setNeutralSite(false);
-        g.setSeason(season);
-        g.setGameDate(when);
-        g.setHomeScore(homeScore);
-        g.setAwayScore(awayScore);
-        return gameRepo.save(g);
     }
 
     /* The /predictions page was retired in the menu reorganization (spec OQ-3):

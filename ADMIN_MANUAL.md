@@ -223,17 +223,36 @@ scrape, or after rebuilding historical ratings.
 
 ## 6. Where results appear publicly
 
-- **`/predictions/performance`** — season + window (full season / last 30 days)
-  selectors; Spread, Total, and Win Probability cards; ML models listed first,
-  book line last in grey; calibration chart (predicted vs. actual home-win rate
-  by decile). Candidates appear here — this page is the shadow-comparison tool.
+Since the 2026-08 menu reorganization (docs/MENU_AND_GUI_SPEC.md) the public
+surface is the **Models** section:
+
+- **`/models/compare`** (was `/predictions/performance`; the old URL 301s) —
+  season + window (full season / last 30 days) selectors; Spread, Total, and
+  Win Probability cards; ML models listed first, book line last in grey;
+  calibration chart (predicted vs. actual home-win rate by decile). Candidates
+  appear here — this page is the shadow-comparison tool.
+- **`/models/{slug}`** — one public hub per ACTIVE+loaded bundle plus the
+  classical `adjusted-efficiency` model: About (features from the manifest,
+  accuracy vs. book with in-sample badges, walk-forward, calibration),
+  Schedule (day-by-day evaluation rows), Bracket (per-game ✓/✗ overlay).
+  CANDIDATE/RETIRED bundles never appear here.
+  **Ops note:** `ml_models.display_name` is now user-facing (nav dropdown,
+  hub pages) — rename admin-flavored names ("model-4") to something public
+  before promoting: `UPDATE ml_models SET display_name = '…' WHERE slug = '…';`
+  then **Reload Models**.
+- **After deploying a build that adds long-format stats** (e.g. the Results/
+  Scoring stats from the reorganization): run **Time Series** from `/admin`
+  for each season — the change-detection gate won't trigger recalculation on
+  its own because no games changed. The manual button bypasses the gate.
 - **Game detail page** — a *Model Predictions* card for upcoming/final games:
   one row per **Active** model (★ on the default) with predicted spread/total/
   win probability, and for FINAL games the actual result and whether the
   favored side covered. Reminder on signs: `betting_odds.spread` is the
   handicap (negative = home favored); model spreads are predicted home margins.
-- **Predictions list** — the headline prediction comes from the ★ default
-  model; edge vs. the book line where odds exist.
+- **Home page slate panel** — the headline prediction comes from the ★ default
+  model; edge vs. the book line where odds exist. (The standalone
+  `/predictions` list page was retired; it 301s to the default model's
+  schedule.)
 
 ## 6a. Log loss — reading it and keeping it honest
 

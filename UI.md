@@ -203,6 +203,33 @@ Always reference tokens (`var(--color-primary)`) rather than raw hex values in c
 - Return fragment HTML from HTMX endpoints, never JSON.
 - Use `hx-swap="innerHTML"` as the default swap strategy.
 
+### Shared UI components (2026-08 menu reorganization)
+
+- **Fragments** — reuse these instead of hand-rolling:
+  - `fragments/page-header.html :: pageHeader(title, subtitle, years, selected, urlTemplate)` —
+    standard header; complex headers keep bespoke markup but MUST use the same
+    `.page-header` / `.page-header__actions` classes.
+  - `fragments/controls.html :: seasonSelect(years, selected, urlTemplate)` — season
+    `<select>`; `urlTemplate` holds a literal `{year}` placeholder (never build the URL
+    with a ternary inside `@{...}`).
+  - `fragments/controls.html :: asOfDate(value, min, max, hxGet, hxTarget)` — bounded
+    date input with HTMX swap + the standard spinner.
+  - `fragments/tabs.html :: tabs(items)` — link-based tab strip over `NavTab(label, url,
+    active)` records; tabs are real URLs, never JS-only state.
+  - `fragments/empty-state.html :: emptyState(message, actionLabel, actionUrl)`.
+    Gotcha: put `th:if` on a wrapping `th:block`, not on the same element as
+    `th:replace` (replace runs first).
+- **Charts** — both Chart.js (standard axes/lines/bars) and D3 (custom
+  scatter/matrix/bracket work) stay, but ALL chart colors come from the
+  `--chart-*` tokens in `main.css` via `js/chart-theme.js`
+  (`chartTheme()` / `chartColor(i)` / `modelColor(type)` / `chartAlpha(hex, a)`),
+  loaded globally in the layout. Never hardcode chart hexes in page scripts.
+- **Thymeleaf 3.1 restriction** — `T(...)` type expressions are blocked in web
+  templates and 500 at render time; compute values server-side instead.
+- **CDN scripts** are version-pinned with SRI (`integrity` + `crossorigin`) —
+  keep that when adding or upgrading one (hash: `curl -sL <url> | openssl dgst
+  -sha384 -binary | openssl base64 -A`).
+
 ### CSS
 
 - One main stylesheet (`static/css/main.css`) loaded in the base layout.
