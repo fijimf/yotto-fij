@@ -1,7 +1,5 @@
 package com.yotto.basketball.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yotto.basketball.dto.ComprehensiveRankingRow;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.SeasonStatistics;
@@ -27,7 +25,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,20 +37,17 @@ public class ComprehensiveRankingsController {
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final TeamSeasonStatSnapshotRepository statSnapshotRepository;
     private final SeasonStatisticsRepository seasonStatisticsRepository;
-    private final ObjectMapper objectMapper;
     private final ConferenceNamingService namingService;
 
     public ComprehensiveRankingsController(SeasonRepository seasonRepository,
                                            TeamPowerRatingSnapshotRepository ratingRepository,
                                            TeamSeasonStatSnapshotRepository statSnapshotRepository,
                                            SeasonStatisticsRepository seasonStatisticsRepository,
-                                           ObjectMapper objectMapper,
                                            ConferenceNamingService namingService) {
         this.seasonRepository = seasonRepository;
         this.ratingRepository = ratingRepository;
         this.statSnapshotRepository = statSnapshotRepository;
         this.seasonStatisticsRepository = seasonStatisticsRepository;
-        this.objectMapper = objectMapper;
         this.namingService = namingService;
     }
 
@@ -95,58 +89,6 @@ public class ComprehensiveRankingsController {
         LocalDate resolvedDate = resolveDate(season, date);
         populateModel(season, resolvedDate, List.of(), model);
         return "fragments/comprehensive-rankings-table :: comp-rankings-table";
-    }
-
-    @GetMapping("/rankings/{year}/model-view")
-    public String modelView(@PathVariable Integer year,
-                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-                            Model model) {
-        Season season = seasonRepository.findByYear(year).orElse(null);
-        if (season == null) {
-            model.addAttribute("hasData", false);
-            model.addAttribute("masseyRankings", List.of());
-            model.addAttribute("masseyTotalsRankings", List.of());
-            model.addAttribute("bradleyTerryRankings", List.of());
-            model.addAttribute("bradleyTerryWeightedRankings", List.of());
-            return "fragments/rankings-table :: rankings-table";
-        }
-        LocalDate resolvedDate = resolveDate(season, date);
-        List<TeamPowerRatingSnapshot> massey = resolvedDate != null
-                ? ratingRepository.findBySeasonModelAndDate(season.getId(), MasseyRatingService.MODEL_TYPE, resolvedDate)
-                : List.of();
-        List<TeamPowerRatingSnapshot> masseyTotals = resolvedDate != null
-                ? ratingRepository.findBySeasonModelAndDate(season.getId(), MasseyRatingService.MODEL_TYPE_TOTALS, resolvedDate)
-                : List.of();
-        List<TeamPowerRatingSnapshot> bradleyTerry = resolvedDate != null
-                ? ratingRepository.findBySeasonModelAndDate(season.getId(), BradleyTerryRatingService.MODEL_TYPE, resolvedDate)
-                : List.of();
-        List<TeamPowerRatingSnapshot> bradleyTerryWeighted = resolvedDate != null
-                ? ratingRepository.findBySeasonModelAndDate(season.getId(), BradleyTerryRatingService.MODEL_TYPE_WEIGHTED, resolvedDate)
-                : List.of();
-        model.addAttribute("masseyRankings", massey);
-        model.addAttribute("masseyTotalsRankings", masseyTotals);
-        model.addAttribute("bradleyTerryRankings", bradleyTerry);
-        model.addAttribute("bradleyTerryWeightedRankings", bradleyTerryWeighted);
-        model.addAttribute("hasData", !massey.isEmpty() || !bradleyTerry.isEmpty()
-                || !masseyTotals.isEmpty() || !bradleyTerryWeighted.isEmpty());
-        return "fragments/rankings-table :: rankings-table";
-    }
-
-    @GetMapping("/rankings/{year}/scatter-matrix")
-    public String scatterMatrix(@PathVariable Integer year,
-                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-                                Model model) {
-        Season season = seasonRepository.findByYear(year).orElse(null);
-        if (season == null) {
-            model.addAttribute("hasData", false);
-            model.addAttribute("scatterDataJson", "[]");
-            return "fragments/scatter-matrix :: scatter-matrix";
-        }
-        LocalDate resolvedDate = resolveDate(season, date);
-        List<ComprehensiveRankingRow> rows = resolvedDate != null ? buildRows(season, resolvedDate) : List.of();
-        model.addAttribute("scatterDataJson", buildScatterJson(rows));
-        model.addAttribute("hasData", !rows.isEmpty());
-        return "fragments/scatter-matrix :: scatter-matrix";
     }
 
     private void populateModel(Season season, LocalDate resolvedDate,
@@ -211,29 +153,6 @@ public class ComprehensiveRankingsController {
         .sorted(Comparator.comparingDouble((ComprehensiveRankingRow r) ->
                 r.masseyRating() != null ? r.masseyRating() : Double.NEGATIVE_INFINITY).reversed())
         .toList();
-    }
-
-    private String buildScatterJson(List<ComprehensiveRankingRow> rows) {
-        List<Map<String, Object>> data = rows.stream().map(r -> {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", r.team().getId());
-            m.put("name", r.team().getName());
-            m.put("conf", r.conferenceAbbr());
-            m.put("winPct", r.winPct());
-            m.put("ppg", r.meanPtsFor());
-            m.put("opp", r.meanPtsAgainst());
-            m.put("margin", r.meanMargin());
-            m.put("rpi", r.rpi());
-            m.put("massey", r.masseyRating());
-            m.put("bt", r.bradleyTerryRating());
-            m.put("btw", r.bradleyTerryWeightedRating());
-            return m;
-        }).toList();
-        try {
-            return objectMapper.writeValueAsString(data);
-        } catch (JsonProcessingException e) {
-            return "[]";
-        }
     }
 
     private Season resolveSeason(Integer year, List<Season> allSeasons) {

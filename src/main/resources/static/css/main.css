@@ -5044,3 +5044,71 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     font-size: 0.8rem;
     max-width: 52rem;
 }
+
+/* Model-column header links on the comprehensive rankings table */
+.comp-rankings__model-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+
+/* ── Per-model power ranking pages (/rankings/{model}) ── */
+
+.power-ranking__explainer {
+    max-width: 46rem;
+}
+
+.power-ranking-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.power-ranking-table th {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 2px solid var(--color-border);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.power-ranking-table td {
+    padding: 0.35rem 0.6rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.power-ranking-table__num,
+.power-ranking-table th.power-ranking-table__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.power-ranking-table__value {
+    font-weight: 600;
+}
+
+.power-ranking-table__team {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+}
+
+.power-ranking-table__logo {
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.power-ranking-table__row--low-gp td {
+    color: var(--color-text-muted);
+    opacity: 0.75;
+}
+
+.power-ranking__footnote {
+    font-size: 0.8rem;
+    margin: 0.75rem 0 0;
+}

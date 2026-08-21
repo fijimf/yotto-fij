@@ -53,11 +53,11 @@
                         <th class="comp-rankings__g-scoring-col" onclick="compRankingsSort(6, 'num')">PPG</th>
                         <th class="comp-rankings__g-scoring-col" onclick="compRankingsSort(7, 'num')">OPP</th>
                         <th class="comp-rankings__g-scoring-col" onclick="compRankingsSort(8, 'num')">±</th>
-                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(9, 'num')">RPI</th>
+                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(9, 'num')"><a class="comp-rankings__model-link" th:href="@{/rankings/rpi}" onclick="event.stopPropagation()" title="Full RPI rankings">RPI</a></th>
                         <th class="comp-rankings__g-ratings-col comp-rankings__col--sort-active"
-                            onclick="compRankingsSort(10, 'num')" id="comp-sort-massey">Massey ▼</th>
-                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(11, 'num')">B-T</th>
-                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(12, 'num')">BTW</th>
+                            onclick="compRankingsSort(10, 'num')" id="comp-sort-massey"><a class="comp-rankings__model-link" th:href="@{/rankings/massey}" onclick="event.stopPropagation()" title="Full Massey rankings">Massey</a> ▼</th>
+                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(11, 'num')"><a class="comp-rankings__model-link" th:href="@{/rankings/bradley-terry}" onclick="event.stopPropagation()" title="Full Bradley-Terry rankings">B-T</a></th>
+                        <th class="comp-rankings__g-ratings-col" onclick="compRankingsSort(12, 'num')"><a class="comp-rankings__model-link" th:href="@{/rankings/bradley-terry-weighted}" onclick="event.stopPropagation()" title="Full weighted Bradley-Terry rankings">BTW</a></th>
                     </tr>
                 </thead>
                 <tbody>

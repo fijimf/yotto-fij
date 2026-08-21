@@ -200,31 +200,8 @@ class ComprehensiveRankingsControllerTest extends BaseIntegrationTest {
                 .andExpect(model().attribute("hasData", true));
     }
 
-    // -- GET /rankings/{year}/scatter-matrix ---------------------
-
-    @Test
-    void scatterMatrix_unknownYear_hasDataFalse() throws Exception {
-        mockMvc.perform(get("/rankings/9999/scatter-matrix")
-                        .param("date", SNAP_DATE.toString()))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("hasData", false))
-                .andExpect(model().attribute("scatterDataJson", "[]"));
-    }
-
-    @Test
-    void scatterMatrix_withData_hasDataTrueAndJsonContainsTeam() throws Exception {
-        addSeasonStats(teamA);
-        addStatSnapshot(teamA, 20, 5, 0.800, 80.0, 65.0, 15.0, 0.620);
-        addRating(teamA, MasseyRatingService.MODEL_TYPE, 12.5);
-
-        var result = mockMvc.perform(get("/rankings/2025/scatter-matrix")
-                        .param("date", SNAP_DATE.toString()))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("hasData", true))
-                .andReturn();
-        String json = (String) result.getModelAndView().getModel().get("scatterDataJson");
-        org.assertj.core.api.Assertions.assertThat(json).contains("Alabama");
-        org.assertj.core.api.Assertions.assertThat(json).contains("winPct");
-        org.assertj.core.api.Assertions.assertThat(json).contains("massey");
-    }
+    // The scatter-matrix and model-view tab endpoints were retired in the menu
+    // reorganization (spec §6.1) — superseded by /stats/correlation and the
+    // per-model /rankings/{slug} pages. Their absence is pinned by
+    // PowerRankingPageControllerTest.retiredTabEndpoints_noLongerServe.
 }

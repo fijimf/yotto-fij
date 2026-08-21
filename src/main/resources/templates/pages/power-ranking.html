@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${page.model().title} + ' — ' + ${page.year()}">Power Rankings</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <a class="stat-detail__crumb" th:href="@{/rankings}">&larr; Rankings overview</a>
+            <h1 class="page-title" th:text="${page.model().title} + ' Rankings'">Massey Rankings</h1>
+            <p class="page-header__subtitle power-ranking__explainer" th:text="${page.model().explainer}">
+                How this model works.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <select th:replace="~{fragments/controls :: seasonSelect(${page.availableSeasons()},
+                    ${page.year()}, '/seasons/{year}/rankings/' + ${page.model().slug})}"></select>
+        </div>
+    </div>
+
+    <div class="analytics-date-row" th:if="${page.latestDate() != null}">
+        <label class="form-label" for="pr-date">As of:</label>
+        <input type="date" id="pr-date" class="form-input form-input--sm"
+               th:value="${page.date()}" th:max="${page.latestDate()}"
+               th:attr="data-base=@{'/seasons/' + ${page.year()} + '/rankings/' + ${page.model().slug}}"
+               onchange="window.location = this.dataset.base + '?date=' + this.value"/>
+        <input type="search" id="pr-team-find" class="form-input form-input--sm stat-detail__find"
+               placeholder="Find team&hellip;" autocomplete="off" spellcheck="false"
+               aria-label="Filter teams"/>
+    </div>
+
+    <th:block th:if="${!page.hasData()}">
+        <div th:replace="~{fragments/empty-state :: emptyState('No ratings for this model yet — they appear after a power ratings calculation run.', null, null)}"></div>
+    </th:block>
+
+    <div class="card" th:if="${page.hasData()}" style="overflow-x: auto;">
+        <table class="power-ranking-table" id="pr-table">
+            <thead>
+            <tr>
+                <th class="power-ranking-table__num">#</th>
+                <th>Team</th>
+                <th>Conf</th>
+                <th class="power-ranking-table__num">Record</th>
+                <th class="power-ranking-table__num" th:each="c : ${page.columns()}" th:text="${c}">Rating</th>
+                <th class="power-ranking-table__num" title="Games played">GP</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${page.rows()}" th:classappend="${r.lowGp()} ? 'power-ranking-table__row--low-gp'">
+                <td class="power-ranking-table__num text-muted" th:text="${r.rank()}">1</td>
+                <td class="power-ranking-table__team">
+                    <img class="power-ranking-table__logo" th:if="${r.logoUrl() != null}" th:src="${r.logoUrl()}"
+                         alt="" width="20" height="20" loading="lazy"/>
+                    <a th:href="@{'/teams/' + ${r.teamId()}}" th:text="${r.teamName()}">Team</a>
+                </td>
+                <td class="text-muted" th:text="${r.confAbbr()}">SEC</td>
+                <td class="power-ranking-table__num" th:text="${r.record()}">24–3</td>
+                <td class="power-ranking-table__num power-ranking-table__value"
+                    th:each="v : ${r.values()}" th:text="${v}">+12.40</td>
+                <td class="power-ranking-table__num text-muted" th:text="${r.gamesPlayed()}">27</td>
+            </tr>
+            </tbody>
+        </table>
+        <p class="text-muted power-ranking__footnote" th:if="${!page.params().isEmpty()}">
+            Fitted parameters as of <span th:text="${page.date()}">2026-03-01</span>:
+            <span th:each="p, st : ${page.params()}">
+                <span th:text="${p.label()}">HCA</span> <strong th:text="${p.value()}">+3.2</strong><th:block th:if="${!st.last}">, </th:block>
+            </span>
+        </p>
+        <p class="text-muted power-ranking__footnote">
+            Greyed rows have fewer than 5 games played — ratings are still converging.
+        </p>
+    </div>
+
+</main>
+
+<th:block layout:fragment="scripts">
+    <script>
+    (function () {
+        // Filter rows by team name as you type
+        var input = document.getElementById("pr-team-find");
+        var table = document.getElementById("pr-table");
+        if (!input || !table) return;
+        input.addEventListener("input", function () {
+            var q = this.value.trim().toLowerCase();
+            table.querySelectorAll("tbody tr").forEach(function (row) {
+                var link = row.querySelector("a");
+                var name = link ? link.textContent.toLowerCase() : "";
+                row.style.display = (!q || name.indexOf(q) !== -1) ? "" : "none";
+            });
+        });
+    })();
+    </script>
+</th:block>
+</body>
+</html>

@@ -4,18 +4,26 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}">
 <head>
-                <title th:text="${season != null} ? ${season.year} + ' Rankings' : 'Rankings'">Rankings</title>
+    <title th:text="${season != null} ? ${season.year} + ' Rankings' : 'Rankings'">Rankings</title>
 </head>
 <body>
 <main layout:fragment="content">
 
     <div class="page-header">
-        <h1 class="page-title"
-            th:text="${season != null} ? ${season.year} + ' Rankings' : 'Rankings'">
-            2026 Rankings
-        </h1>
+        <div>
+            <h1 class="page-title"
+                th:text="${season != null} ? ${season.year} + ' Rankings' : 'Rankings'">
+                2026 Rankings
+            </h1>
+            <p class="page-header__subtitle">
+                Every team's record, scoring, and model ratings side by side. Each rating column
+                header links to that model's full page.
+            </p>
+        </div>
         <div class="page-header__actions">
-            <select class="form-input form-input--sm"
+            <a class="btn btn--outline btn--sm" th:if="${season != null}"
+               th:href="@{'/seasons/' + ${season.year} + '/stats/correlation'}">Correlation explorer</a>
+            <select class="form-input form-input--sm" aria-label="Season"
                     onchange="window.location='/rankings?year='+this.value">
                 <option value="" th:if="${season == null}">Select season</option>
                 <option th:each="s : ${allSeasons}"
@@ -55,108 +63,12 @@
             No ratings calculated yet for this season. Use the admin panel to run a power ratings calculation.
         </div>
 
-        <div th:if="${latestDate != null}">
-
-            <!-- Tab strip -->
-            <div class="comp-tab-strip">
-                <button class="comp-tab comp-tab--active"
-                        id="comp-tab-table"
-                        onclick="switchCompTab('table')">Table</button>
-                <button class="comp-tab"
-                        id="comp-tab-model"
-                        onclick="switchCompTab('model')">Model View</button>
-                <button class="comp-tab"
-                        id="comp-tab-scatter"
-                        onclick="switchCompTab('scatter')">Scatter Matrix</button>
-            </div>
-
-            <!-- Table tab (pre-loaded on page render) -->
-            <div id="comp-rankings-container">
-                <div th:replace="~{fragments/comprehensive-rankings-table :: comp-rankings-table}"></div>
-            </div>
-
-            <!-- Model view tab (lazy-loaded via HTMX on first click) -->
-            <div id="model-view-container"
-                 th:attr="data-year=${season.year}, data-date=${selectedDate}"
-                 style="display:none">
-            </div>
-
-            <!-- Scatter matrix tab (lazy-loaded via HTMX on first click) -->
-            <div id="scatter-matrix-container"
-                 th:attr="data-year=${season.year}, data-date=${selectedDate}"
-                 style="display:none">
-            </div>
-
+        <div id="comp-rankings-container" th:if="${latestDate != null}">
+            <div th:replace="~{fragments/comprehensive-rankings-table :: comp-rankings-table}"></div>
         </div>
 
     </div>
 
 </main>
-
-<th:block layout:fragment="scripts">
-<script>
-(function () {
-    var scatterLoaded = false;
-    var modelViewLoaded = false;
-
-    window.switchCompTab = function (tabName) {
-        document.querySelectorAll('.comp-tab').forEach(function (btn) {
-            btn.classList.remove('comp-tab--active');
-        });
-        var activeBtn = document.getElementById('comp-tab-' + tabName);
-        if (activeBtn) activeBtn.classList.add('comp-tab--active');
-
-        var tableContainer     = document.getElementById('comp-rankings-container');
-        var modelContainer     = document.getElementById('model-view-container');
-        var scatterContainer   = document.getElementById('scatter-matrix-container');
-        if (tableContainer)   tableContainer.style.display   = (tabName === 'table')   ? '' : 'none';
-        if (modelContainer)   modelContainer.style.display   = (tabName === 'model')   ? '' : 'none';
-        if (scatterContainer) scatterContainer.style.display = (tabName === 'scatter') ? '' : 'none';
-
-        if (tabName === 'model' && !modelViewLoaded && modelContainer) {
-            var year = modelContainer.dataset.year;
-            var date = modelContainer.dataset.date;
-            htmx.ajax('GET',
-                '/rankings/' + year + '/model-view?date=' + date,
-                { target: '#model-view-container', swap: 'innerHTML' });
-            modelViewLoaded = true;
-        }
-
-        if (tabName === 'scatter' && !scatterLoaded && scatterContainer) {
-            var year = scatterContainer.dataset.year;
-            var date = scatterContainer.dataset.date;
-            htmx.ajax('GET',
-                '/rankings/' + year + '/scatter-matrix?date=' + date,
-                { target: '#scatter-matrix-container', swap: 'innerHTML' });
-            scatterLoaded = true;
-        }
-    };
-
-    // When date picker swaps the table, clear lazy-loaded tabs so they reload fresh
-    document.body.addEventListener('htmx:afterSwap', function (evt) {
-        if (evt.detail.target && evt.detail.target.id === 'comp-rankings-container') {
-            var dateSelect = document.getElementById('rankings-date');
-            var newDate = dateSelect ? dateSelect.value : '';
-
-            var modelContainer = document.getElementById('model-view-container');
-            if (modelContainer) {
-                modelContainer.textContent = '';
-                if (newDate) modelContainer.dataset.date = newDate;
-            }
-            modelViewLoaded = false;
-
-            var scatterContainer = document.getElementById('scatter-matrix-container');
-            if (scatterContainer) {
-                scatterContainer.textContent = '';
-                if (newDate) scatterContainer.dataset.date = newDate;
-            }
-            scatterLoaded = false;
-
-            switchCompTab('table');
-        }
-    });
-})();
-</script>
-</th:block>
 </body>
 </html>
