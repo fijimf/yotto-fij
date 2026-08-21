@@ -11,7 +11,10 @@
 
     <div class="page-header">
         <div>
-            <a class="stat-detail__crumb" th:href="@{/stats}">&larr; All stats</a>
+            <a class="stat-detail__crumb" th:if="${categorySlug != null}"
+               th:href="@{'/seasons/' + ${statPage.season().year()} + '/stats/' + ${categorySlug}}"
+               th:text="'← ' + ${categoryTitle}">&larr; Shooting</a>
+            <a class="stat-detail__crumb" th:if="${categorySlug == null}" th:href="@{/stats}">&larr; All stats</a>
             <h1 class="page-title" th:text="${statPage.meta().title()}">Effective Field Goal Percentage</h1>
             <p class="stat-detail__desc" th:if="${statPage.meta().description() != null}"
                th:text="${statPage.meta().description()}">A short description of the stat.</p>
@@ -37,19 +40,9 @@
     <!-- Charts row -->
     <div class="stat-detail__charts">
 
-        <!-- Entering-value scatter -->
-        <div class="card stat-detail__card">
-            <h3 class="stat-detail__card-title">Game Outcomes</h3>
-            <p class="stat-detail__card-sub">
-                Each point is a completed game — x: home team's season-to-date value entering the game, y: away team's.
-                <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--win"></span>home win</span>
-                <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--loss"></span>home loss</span>
-            </p>
-            <div id="stat-scatter" class="stat-detail__chart"></div>
-            <div class="stat-detail__chart-empty" th:if="${statPage.scatter().points().isEmpty()}">
-                No completed games where both teams had a prior season-to-date value yet.
-            </div>
-
+        <!-- Predictiveness cross-link (the scatter lives on the Predictor page now) -->
+        <div class="card stat-detail__card stat-detail__card--predictor">
+            <h3 class="stat-detail__card-title">Does it predict winners?</h3>
             <p class="stat-detail__metric" th:if="${statPage.scatter().predictive().show()}">
                 Predicts home win:
                 <strong th:text="'AUC ' + ${#numbers.formatDecimal(statPage.scatter().predictive().auc(), 1, 2)}">AUC 0.78</strong>
@@ -61,11 +54,9 @@
                th:unless="${statPage.scatter().predictive().show()}">
                 Weak standalone predictor of the winner.
             </p>
-
-            <p class="stat-detail__caveat text-muted"
-               th:text="'Based on ' + ${#numbers.formatInteger(statPage.scatter().gamesPlotted(), 1)} + ' of '
-                        + ${#numbers.formatInteger(statPage.scatter().gamesTotal(), 1)} + ' completed games where both teams entered with a season-to-date value.'">
-                Based on 1,204 of 1,330 completed games where both teams entered with a season-to-date value.
+            <p class="stat-detail__caveat">
+                <a th:href="@{'/seasons/' + ${statPage.season().year()} + '/stats/predictor/' + ${statPage.meta().name()}}">
+                    See the game-by-game scatter on the Predictor page &rarr;</a>
             </p>
         </div>
 
@@ -124,7 +115,7 @@
 
 <!-- Load D3 + chart script only on this page -->
 <th:block layout:fragment="scripts">
-    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
     <script th:src="@{/js/stat-page.js}"></script>
 </th:block>
 </body>

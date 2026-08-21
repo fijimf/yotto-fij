@@ -4802,3 +4802,245 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     color: var(--color-text-muted);
     margin: 0;
 }
+
+/* ── Stat category pages (/stats/{category}) ── */
+
+.cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.cat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.cat-card__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.cat-card__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+}
+
+.cat-card__dir {
+    font-size: 0.72rem;
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+
+.cat-card__desc {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.cat-card__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.cat-card__table td {
+    padding: 0.25rem 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.cat-card__table tr:last-child td {
+    border-bottom: none;
+}
+
+.cat-card__rank {
+    width: 2rem;
+    color: var(--color-text-muted);
+    text-align: right;
+}
+
+.cat-card__team {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.cat-card__logo {
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.cat-card__value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.cat-card__links {
+    display: flex;
+    gap: 1rem;
+    margin-top: auto;
+    padding-top: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.cat-card__empty {
+    font-size: 0.85rem;
+}
+
+/* ── Predictor pages (/stats/predictor) ── */
+
+.predictor-intro {
+    max-width: 52rem;
+    font-size: 0.92rem;
+    color: var(--color-text);
+    margin-bottom: 1.25rem;
+}
+
+.predictor-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.predictor-table th {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 2px solid var(--color-border);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-muted);
+}
+
+.predictor-table td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.predictor-table__num,
+.predictor-table th.predictor-table__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.predictor-table__bar-col {
+    width: 18%;
+    min-width: 90px;
+}
+
+.predictor-table__row--weak td {
+    color: var(--color-text-muted);
+}
+
+.auc-bar {
+    height: 8px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.auc-bar__fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 4px;
+}
+
+.predictor-footnote {
+    font-size: 0.8rem;
+    margin: 0.75rem 0 0;
+}
+
+.predictor-summary {
+    display: flex;
+    gap: 2rem;
+    margin: 0.5rem 0 0.75rem;
+}
+
+.predictor-summary__item dt {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+
+.predictor-summary__item dd {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.predictor-band {
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+}
+
+.predictor-reading {
+    font-size: 0.85rem;
+}
+
+/* ── Correlation explorer (/stats/correlation) ── */
+
+.corr-picker {
+    margin-bottom: 1.25rem;
+}
+
+.corr-picker__groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+}
+
+.corr-picker__group {
+    border: none;
+    padding: 0;
+    margin: 0;
+    min-width: 10rem;
+}
+
+.corr-picker__legend {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin-bottom: 0.35rem;
+}
+
+.corr-picker__option {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    padding: 0.12rem 0;
+    cursor: pointer;
+}
+
+.corr-picker__option input[disabled] + span {
+    opacity: 0.45;
+}
+
+.corr-picker__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.corr-picker__count {
+    font-size: 0.85rem;
+    margin-right: auto;
+}
+
+.corr-footnote {
+    font-size: 0.8rem;
+    max-width: 52rem;
+}

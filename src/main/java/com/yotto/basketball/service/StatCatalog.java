@@ -53,6 +53,31 @@ public final class StatCatalog {
             + "FGA − OffReb + TO + 0.475×FTA (the standard estimator).";
 
     private static final List<StatInfo> CATALOG = List.of(
+            // Results & Scoring (ResultsStatCalculator — game results, no box scores)
+            new StatInfo("wp", "Win Percentage (WP)", "Results", Format.PERCENT, true,
+                    "Games won divided by games played."),
+            new StatInfo("owp", "Opponents' Win Percentage (OWP)", "Results", Format.PERCENT, true,
+                    "How good this team's opponents are — the strength-of-schedule half of RPI.",
+                    "The average winning percentage of every opponent faced, with each opponent's "
+                    + "games against this team excluded (so playing — and beating — a team doesn't "
+                    + "drag down its contribution). This is the OWP component of RPI, which weights "
+                    + "it at 50%."),
+            new StatInfo("oowp", "Opponents' Opponents' Win Percentage (OOWP)", "Results", Format.PERCENT, true,
+                    "How good the opponents' opponents are — the second-order schedule strength in RPI.",
+                    "The average OWP of every distinct opponent faced. Second-order strength of "
+                    + "schedule: it credits playing teams that themselves played tough schedules. "
+                    + "RPI weights it at 25%."),
+            new StatInfo("ppg", "Points Per Game", "Scoring", Format.PER_GAME, true,
+                    "Season points scored divided by games played."),
+            new StatInfo("opp_ppg", "Opponent Points Per Game", "Scoring", Format.PER_GAME, false,
+                    "Season points allowed divided by games played."),
+            new StatInfo("scoring_margin", "Scoring Margin", "Scoring", Format.RATING, true,
+                    "Average points scored minus points allowed per game."),
+            new StatInfo("margin_volatility", "Scoring Volatility", "Scoring", Format.RATING, false,
+                    "How much a team's game margins swing — the standard deviation of margin.",
+                    "Sample standard deviation of per-game scoring margin. Low volatility means "
+                    + "consistent performances; high volatility means blowouts mixed with duds, "
+                    + "which makes a team's record less predictive."),
             new StatInfo("pace", "Pace", "Efficiency", Format.RATING, true,
                     "Possessions per game; how fast a team plays.",
                     POSS_NOTE + " Each game's possession count is the average of the two teams' "

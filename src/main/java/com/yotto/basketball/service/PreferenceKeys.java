@@ -9,6 +9,9 @@ public final class PreferenceKeys {
     /** Followed teams: CSV of team ids in follow order, capped by {@code FavoriteTeamService}. */
     public static final String FAVORITE_TEAM_IDS = "favorite.team-ids";
 
+    /** Correlation explorer: CSV of saved variable ids (validated on read, capped at 8). */
+    public static final String STATS_CORRELATION_VARS = "stats.correlation-vars";
+
     private PreferenceKeys() {
     }
 }

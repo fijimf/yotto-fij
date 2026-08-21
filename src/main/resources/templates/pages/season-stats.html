@@ -4,16 +4,17 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}">
 <head>
-    <title th:text="${season.year} + ' Season Analytics'">Season Analytics</title>
+    <title th:text="${season.year} + ' League Overview'">League Overview</title>
 </head>
 <body>
 <main layout:fragment="content">
 
     <div class="page-header">
-        <h1 class="page-title" th:text="${season.year} + ' Season — League Analytics'">2026 Season — League Analytics</h1>
+        <h1 class="page-title" th:text="${season.year} + ' Season — League Overview'">2026 Season — League Overview</h1>
         <div class="page-header__actions">
             <a class="btn btn--outline btn--sm" th:href="@{/stats}">Stats glossary</a>
-            <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${season.year} + '/bracket'}">Bracket</a>
+            <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${season.year} + '/stats/predictor'}">Predictor</a>
+            <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${season.year} + '/stats/correlation'}">Correlation</a>
             <select th:replace="~{fragments/controls :: seasonSelect(${seasonYears}, ${season.year}, '/seasons/{year}/stats')}"></select>
         </div>
     </div>

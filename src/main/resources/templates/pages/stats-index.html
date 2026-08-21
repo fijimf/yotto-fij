@@ -18,7 +18,12 @@
     <p class="stat-detail__desc">Every derived team statistic. Pick one to see how it splits games and how teams stack up.</p>
 
     <div class="stat-index__group" th:each="entry : ${statsByCategory}">
-        <h2 class="stat-index__category" th:text="${entry.key}">Category</h2>
+        <h2 class="stat-index__category">
+            <a th:if="${categorySlugs.containsKey(entry.key)}"
+               th:href="@{'/stats/' + ${categorySlugs.get(entry.key)}}"
+               th:text="${entry.key}">Category</a>
+            <th:block th:unless="${categorySlugs.containsKey(entry.key)}" th:text="${entry.key}">Category</th:block>
+        </h2>
         <div class="stat-index__grid">
             <a th:each="stat : ${entry.value}" class="card stat-index__item"
                th:href="@{'/stats/' + ${stat.name()}}">

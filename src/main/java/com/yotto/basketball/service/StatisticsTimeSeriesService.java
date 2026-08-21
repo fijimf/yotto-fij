@@ -29,7 +29,13 @@ public class StatisticsTimeSeriesService {
 
     private static final Logger log = LoggerFactory.getLogger(StatisticsTimeSeriesService.class);
 
-    private static final List<String> STAT_NAMES =
+    /**
+     * Population-stat names owned by this service (z-score inputs for the wide
+     * snapshot). season_population_stats deletes are scoped by stat name and the
+     * table is shared with TeamStatTimeSeriesService's calculators — every other
+     * writer MUST use disjoint names (guarded by StatCatalogTest).
+     */
+    static final List<String> STAT_NAMES =
             List.of("win_pct", "mean_pts_for", "mean_pts_against", "mean_margin", "correlation_pts");
 
     private final SeasonGameDataLoader seasonGameDataLoader;
@@ -102,7 +108,7 @@ public class StatisticsTimeSeriesService {
         Map<LocalDate, List<Game>> gamesByDate = data.gamesByDate();
 
         Map<Long, TeamAcc> accumulators = new HashMap<>();
-        Map<Long, List<GameRecord>> gamesList = new HashMap<>();
+        Map<Long, List<RpiCalculator.GameRecord>> gamesList = new HashMap<>();
         List<TeamSeasonStatSnapshot> allSnapshots = new ArrayList<>();
         List<SeasonPopulationStat> allPopStats = new ArrayList<>();
 
@@ -120,10 +126,7 @@ public class StatisticsTimeSeriesService {
                 accumulators.computeIfAbsent(homeId, k -> new TeamAcc()).addGame(homeScore, awayScore, homeWon);
                 accumulators.computeIfAbsent(awayId, k -> new TeamAcc()).addGame(awayScore, homeScore, !homeWon);
                 boolean neutral = Boolean.TRUE.equals(game.getNeutralSite());
-                gamesList.computeIfAbsent(homeId, k -> new ArrayList<>())
-                         .add(new GameRecord(awayId, !neutral, neutral, homeWon));
-                gamesList.computeIfAbsent(awayId, k -> new ArrayList<>())
-                         .add(new GameRecord(homeId, false, neutral, !homeWon));
+                RpiCalculator.addGame(gamesList, homeId, awayId, neutral, homeWon);
             }
 
             // Before the watermark, only the accumulators matter — nothing is persisted
@@ -142,9 +145,9 @@ public class StatisticsTimeSeriesService {
             }
 
             // Compute and apply RPI
-            Map<Long, RpiComponents> rpiByTeam = computeRpi(gamesList);
+            Map<Long, RpiCalculator.RpiComponents> rpiByTeam = RpiCalculator.compute(gamesList);
             for (TeamSeasonStatSnapshot snap : dateSnaps) {
-                RpiComponents rpiC = rpiByTeam.get(snap.getTeam().getId());
+                RpiCalculator.RpiComponents rpiC = rpiByTeam.get(snap.getTeam().getId());
                 if (rpiC != null) {
                     snap.setRpi(rpiC.rpi());
                     snap.setRpiWp(rpiC.wp());
@@ -297,75 +300,6 @@ public class StatisticsTimeSeriesService {
     // ── Inner helpers ─────────────────────────────────────────────────────────
 
     private record PopData(double mean, double stddev, double min, double max, int count) {}
-
-    private record GameRecord(long opponentId, boolean isHome, boolean isNeutral, boolean isWin) {}
-
-    private record RpiComponents(double wp, double owp, double oowp, double rpi) {}
-
-    // ── RPI computation ───────────────────────────────────────────────────────
-
-    private Map<Long, RpiComponents> computeRpi(Map<Long, List<GameRecord>> gamesList) {
-        // Pre-compute OWP for all teams; reused when building OOWP
-        Map<Long, Double> owpCache = new HashMap<>();
-        for (Long teamId : gamesList.keySet()) {
-            owpCache.put(teamId, calcOwpForTeam(teamId, gamesList));
-        }
-
-        Map<Long, RpiComponents> result = new HashMap<>();
-        for (Long teamId : gamesList.keySet()) {
-            List<GameRecord> games = gamesList.get(teamId);
-            if (games.isEmpty()) continue;
-
-            double wp = calcAdjustedWp(games);
-            Double owp = owpCache.get(teamId);
-            if (owp == null) continue;
-
-            // OOWP: average OWP(O) for each distinct opponent O
-            Set<Long> opponents = games.stream().map(GameRecord::opponentId).collect(Collectors.toSet());
-            double oowpSum = 0;
-            int oowpCount = 0;
-            for (Long oppId : opponents) {
-                Double oppOwp = owpCache.get(oppId);
-                if (oppOwp != null) { oowpSum += oppOwp; oowpCount++; }
-            }
-            if (oowpCount == 0) continue;
-            double oowp = oowpSum / oowpCount;
-
-            double rpi = 0.25 * wp + 0.50 * owp + 0.25 * oowp;
-            result.put(teamId, new RpiComponents(wp, owp, oowp, rpi));
-        }
-        return result;
-    }
-
-    /** Location-adjusted WP (used only for a team's own WP component). */
-    private double calcAdjustedWp(List<GameRecord> games) {
-        double sumWins = 0, sumTotal = 0;
-        for (GameRecord g : games) {
-            double mult = g.isNeutral() ? 1.0 : (g.isHome() ? (g.isWin() ? 0.6 : 1.4) : (g.isWin() ? 1.4 : 0.6));
-            if (g.isWin()) sumWins += mult;
-            sumTotal += mult;
-        }
-        return sumTotal == 0 ? 0 : sumWins / sumTotal;
-    }
-
-    /** OWP for teamId: average raw WP of each distinct opponent, excluding games vs teamId. */
-    private Double calcOwpForTeam(long teamId, Map<Long, List<GameRecord>> gamesList) {
-        List<GameRecord> myGames = gamesList.get(teamId);
-        if (myGames == null || myGames.isEmpty()) return null;
-        Set<Long> opponents = myGames.stream().map(GameRecord::opponentId).collect(Collectors.toSet());
-        double sum = 0;
-        int count = 0;
-        for (Long oppId : opponents) {
-            List<GameRecord> oppGames = gamesList.get(oppId);
-            if (oppGames == null) continue;
-            long oppWins = oppGames.stream().filter(g -> g.opponentId() != teamId && g.isWin()).count();
-            long oppTotal = oppGames.stream().filter(g -> g.opponentId() != teamId).count();
-            if (oppTotal == 0) continue;
-            sum += (double) oppWins / oppTotal;
-            count++;
-        }
-        return count == 0 ? null : sum / count;
-    }
 
     /**
      * Maintains running sums for efficient per-game-date stat computation.

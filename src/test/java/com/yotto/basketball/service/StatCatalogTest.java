@@ -15,9 +15,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 class StatCatalogTest {
 
+    /** The union of every DailyStatCalculator's registry — must mirror createCalculators(). */
+    private static List<StatMeta> allRegistryMetas() {
+        List<StatMeta> all = new java.util.ArrayList<>(ResultsStatCalculator.statMetas());
+        all.addAll(BoxScoreStatCalculator.statMetas());
+        return all;
+    }
+
     @Test
     void everyRegistryStatHasCompleteCatalogMetadata() {
-        List<StatMeta> registry = BoxScoreStatCalculator.statMetas();
+        List<StatMeta> registry = allRegistryMetas();
 
         for (StatMeta meta : registry) {
             StatCatalog.StatInfo info = StatCatalog.require(meta.name());
@@ -30,9 +37,23 @@ class StatCatalogTest {
         }
     }
 
+    /**
+     * season_population_stats deletes are stat-name-scoped and the table is shared
+     * between the wide-snapshot service and the long-format calculators — a name
+     * collision would make the two writers clobber each other's rows.
+     */
+    @Test
+    void calculatorStatNamesDisjointFromWideSnapshotPopulationNames() {
+        List<String> calculatorNames = allRegistryMetas().stream().map(StatMeta::name).toList();
+        for (String wideName : StatisticsTimeSeriesService.STAT_NAMES) {
+            assertFalse(calculatorNames.contains(wideName),
+                    () -> "calculator stat name collides with wide population-stat name: " + wideName);
+        }
+    }
+
     @Test
     void catalogHasNoEntriesBeyondTheRegistry() {
-        List<String> registryNames = BoxScoreStatCalculator.statMetas().stream().map(StatMeta::name).toList();
+        List<String> registryNames = allRegistryMetas().stream().map(StatMeta::name).toList();
         assertEquals(registryNames.size(), StatCatalog.all().size(),
                 "catalog and registry must be the same size");
         for (StatCatalog.StatInfo info : StatCatalog.all()) {

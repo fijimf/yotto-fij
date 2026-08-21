@@ -54,7 +54,7 @@ public class TeamStatTimeSeriesService {
 
     /** Calculators are stateful per run — create fresh instances, never share beans. */
     private List<DailyStatCalculator> createCalculators() {
-        return List.of(new BoxScoreStatCalculator());
+        return List.of(new ResultsStatCalculator(), new BoxScoreStatCalculator());
     }
 
     @Transactional

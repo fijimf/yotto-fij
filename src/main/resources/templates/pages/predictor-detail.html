@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="'Predictor: ' + ${statPage.meta().title()} + ' — ' + ${statPage.season().year()}">Predictor</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <a class="stat-detail__crumb"
+               th:href="@{'/seasons/' + ${statPage.season().year()} + '/stats/predictor'}">&larr; Predictor</a>
+            <h1 class="page-title" th:text="'Does ' + ${statPage.meta().title()} + ' predict winners?'">Does eFG% predict winners?</h1>
+            <p class="stat-detail__desc" th:if="${statPage.meta().description() != null}"
+               th:text="${statPage.meta().description()}">Stat description.</p>
+        </div>
+        <div class="page-header__actions">
+            <select th:replace="~{fragments/controls :: seasonSelect(${statPage.season().availableSeasons()},
+                    ${statPage.season().year()}, '/seasons/{year}/stats/predictor/' + ${statPage.meta().name()})}"></select>
+        </div>
+    </div>
+
+    <div class="stat-detail__charts">
+
+        <!-- Entering-value scatter -->
+        <div class="card stat-detail__card">
+            <h3 class="stat-detail__card-title">Game Outcomes</h3>
+            <p class="stat-detail__card-sub">
+                Each point is a completed game — x: home team's season-to-date value entering the game, y: away team's.
+                <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--win"></span>home win</span>
+                <span class="stat-legend"><span class="stat-legend__dot stat-legend__dot--loss"></span>home loss</span>
+            </p>
+            <div id="stat-scatter" class="stat-detail__chart"></div>
+            <div class="stat-detail__chart-empty" th:if="${statPage.scatter().points().isEmpty()}">
+                No completed games where both teams had a prior season-to-date value yet.
+            </div>
+            <p class="stat-detail__caveat text-muted"
+               th:text="'Based on ' + ${#numbers.formatInteger(statPage.scatter().gamesPlotted(), 1)} + ' of '
+                        + ${#numbers.formatInteger(statPage.scatter().gamesTotal(), 1)} + ' completed games where both teams entered with a season-to-date value.'">
+                Based on 1,204 of 1,330 completed games.
+            </p>
+        </div>
+
+        <!-- Usefulness summary -->
+        <div class="card stat-detail__card">
+            <h3 class="stat-detail__card-title">How useful is it?</h3>
+
+            <dl class="predictor-summary">
+                <div class="predictor-summary__item">
+                    <dt>AUC</dt>
+                    <dd th:text="${statPage.scatter().predictive().auc() != null
+                            ? #numbers.formatDecimal(statPage.scatter().predictive().auc(), 1, 3) : '—'}">0.712</dd>
+                </div>
+                <div class="predictor-summary__item">
+                    <dt>Better team wins</dt>
+                    <dd th:text="${statPage.scatter().predictive().naiveAccuracy() != null
+                            ? #numbers.formatDecimal(statPage.scatter().predictive().naiveAccuracy() * 100, 1, 1) + '%' : '—'}">64.2%</dd>
+                </div>
+                <div class="predictor-summary__item">
+                    <dt>Games</dt>
+                    <dd th:text="${#numbers.formatInteger(statPage.scatter().gamesPlotted(), 0, 'COMMA')}">4,820</dd>
+                </div>
+            </dl>
+
+            <p class="predictor-band" th:text="${aucBand}">A moderate signal.</p>
+
+            <p class="text-muted predictor-reading">
+                Reading the chart: points below the dashed diagonal are games where the home team
+                entered with the better value<span th:if="${!statPage.meta().higherIsBetter()}">
+                (for this stat, lower)</span>; a predictive stat shows more green there and more
+                red above the diagonal. AUC summarizes exactly that separation — 0.50 is a coin
+                flip, 1.00 is perfect.
+            </p>
+
+            <div class="cat-card__links">
+                <a th:href="@{'/seasons/' + ${statPage.season().year()} + '/stats/' + ${statPage.meta().name()}}">Rankings &amp; distribution &rarr;</a>
+                <a th:href="@{/models/compare}">The real models &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inline chart data -->
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        var STAT_PAGE_DATA = JSON.parse(/*[[${statPageJson}]]*/ "null");
+        /*]]>*/
+    </script>
+
+</main>
+
+<th:block layout:fragment="scripts">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+    <script th:src="@{/js/predictor-page.js}"></script>
+</th:block>
+</body>
+</html>

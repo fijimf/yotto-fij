@@ -19,6 +19,17 @@ import java.util.stream.Collectors;
  */
 public enum TeamStatDisplay {
 
+    // Results
+    WP("wp", "Win%", Category.RESULTS, Format.PERCENT_1),
+    OWP("owp", "Opp Win% (OWP)", Category.RESULTS, Format.PERCENT_1),
+    OOWP("oowp", "Opp Opp Win% (OOWP)", Category.RESULTS, Format.PERCENT_1),
+
+    // Scoring
+    PPG("ppg", "Points / Game", Category.SCORING, Format.DECIMAL_1),
+    OPP_PPG("opp_ppg", "Opp Points / Game", Category.SCORING, Format.DECIMAL_1),
+    SCORING_MARGIN("scoring_margin", "Scoring Margin", Category.SCORING, Format.DECIMAL_1),
+    MARGIN_VOLATILITY("margin_volatility", "Scoring Volatility", Category.SCORING, Format.DECIMAL_1),
+
     // Efficiency
     PACE("pace", "Pace", Category.EFFICIENCY, Format.DECIMAL_1),
     OFF_EFFICIENCY("off_efficiency", "Offensive Rtg", Category.EFFICIENCY, Format.DECIMAL_1),
@@ -61,6 +72,8 @@ public enum TeamStatDisplay {
 
     /** Display groups, rendered in declaration order. */
     public enum Category {
+        RESULTS("Results"),
+        SCORING("Scoring"),
         EFFICIENCY("Efficiency"),
         FOUR_FACTORS_OFF("Four Factors — Offense"),
         FOUR_FACTORS_DEF("Four Factors — Defense"),

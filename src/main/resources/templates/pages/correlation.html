@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="'Correlation — ' + ${page.year()}">Correlation</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Correlation Explorer</h1>
+            <p class="page-header__subtitle">
+                How do team stats and ratings move together? Pick up to
+                <span th:text="${maxVars}">8</span> variables.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <select th:replace="~{fragments/controls :: seasonSelect(${page.availableSeasons()},
+                    ${page.year()}, '/seasons/{year}/stats/correlation')}"></select>
+        </div>
+    </div>
+
+    <div class="alert alert--success" th:if="${success}" th:text="${success}">Saved.</div>
+
+    <!-- Variable picker: plain GET form so every selection is a shareable URL -->
+    <form class="card corr-picker" method="get"
+          th:action="@{'/seasons/' + ${page.year()} + '/stats/correlation'}"
+          id="corr-picker-form">
+        <input type="hidden" name="date" th:if="${page.date() != null}" th:value="${page.date()}"/>
+        <div class="corr-picker__groups">
+            <fieldset class="corr-picker__group" th:each="group : ${variablesByGroup}">
+                <legend class="corr-picker__legend" th:text="${group.key}">Ratings</legend>
+                <label class="corr-picker__option" th:each="v : ${group.value}">
+                    <input type="checkbox" name="vars" th:value="${v.id()}"
+                           th:checked="${selectedIds.contains(v.id())}"/>
+                    <span th:text="${v.label()}">RPI</span>
+                </label>
+            </fieldset>
+        </div>
+        <div class="corr-picker__actions">
+            <span class="corr-picker__count text-muted" id="corr-count"
+                  th:text="${selectedIds.size()} + ' of ' + ${maxVars} + ' selected'">8 of 8 selected</span>
+            <button type="submit" class="btn btn--sm">Apply</button>
+            <button type="submit" class="btn btn--outline btn--sm" sec:authorize="isAuthenticated()"
+                    form="corr-save-form">Save as my default</button>
+        </div>
+    </form>
+
+    <!-- Separate POST form for the preference save (CSRF-protected) -->
+    <form id="corr-save-form" method="post" th:action="@{/stats/correlation/save-default}"
+          sec:authorize="isAuthenticated()">
+        <input type="hidden" name="year" th:value="${page.year()}"/>
+        <input type="hidden" name="vars" id="corr-save-vars"
+               th:value="${#strings.listJoin(selectedIds, ',')}"/>
+    </form>
+
+    <div class="analytics-date-row" th:if="${page.latestDate() != null}">
+        <label class="form-label" for="corr-date">As of:</label>
+        <input type="date" id="corr-date" class="form-input form-input--sm"
+               th:value="${page.date()}" th:min="${page.seasonStart()}" th:max="${page.latestDate()}"
+               th:attr="data-base=@{'/seasons/' + ${page.year()} + '/stats/correlation'},data-vars=${#strings.listJoin(selectedIds, ',')}"
+               onchange="window.location = this.dataset.base + '?vars=' + this.dataset.vars + '&amp;date=' + this.value"/>
+    </div>
+
+    <th:block th:if="${page.rows().isEmpty()}">
+        <div th:replace="~{fragments/empty-state :: emptyState('No data for this selection yet — snapshots appear after the first stats calculation run.', null, null)}"></div>
+    </th:block>
+
+    <th:block th:if="${!page.rows().isEmpty()}">
+        <!-- Selected-team banner -->
+        <div class="scatter-selected-label" id="scatter-selected-label" style="display:none"></div>
+
+        <div class="scatter-matrix-wrap">
+            <div id="scatter-matrix-root" class="scatter-matrix-grid"></div>
+        </div>
+
+        <!-- Legend (populated by JS) -->
+        <div id="scatter-legend" class="scatter-legend"></div>
+
+        <!-- Tooltip -->
+        <div class="scatter-tooltip" id="scatter-tooltip" style="display:none"></div>
+
+        <!-- Modal (populated by JS on upper-triangle click) -->
+        <div id="scatter-modal-overlay" class="scatter-modal-overlay" style="display:none">
+            <div class="scatter-modal">
+                <div class="scatter-modal-header">
+                    <span id="scatter-modal-title" class="scatter-modal-title"></span>
+                    <button class="scatter-modal-close" id="scatter-modal-close" aria-label="Close">&#x2715;</button>
+                </div>
+                <div id="scatter-modal-body" class="scatter-modal-body"></div>
+            </div>
+        </div>
+
+        <p class="text-muted corr-footnote">
+            Lower triangle: team scatter plots (dots colored by conference; click a dot to
+            track that team across every panel). Upper triangle: Pearson correlation —
+            click to expand the pair. n = teams with data on the selected date;
+            correlations are across teams, not games.
+        </p>
+    </th:block>
+
+    <!-- Matrix payload -->
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        var MATRIX_DATA = JSON.parse(/*[[${matrixJson}]]*/ "null");
+        /*]]>*/
+    </script>
+
+</main>
+
+<th:block layout:fragment="scripts">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+    <script th:src="@{/js/scatter-matrix.js}"></script>
+    <script>
+        (function () {
+            if (window.MATRIX_DATA) window.renderScatterMatrix(window.MATRIX_DATA);
+
+            // Picker: live count + cap enforcement + keep the save-form in sync
+            var form = document.getElementById("corr-picker-form");
+            if (!form) return;
+            function boxes() { return Array.prototype.slice.call(form.querySelectorAll('input[name="vars"]')); }
+            function update() {
+                var checked = boxes().filter(function (b) { return b.checked; });
+                document.getElementById("corr-count").textContent = checked.length + " of 8 selected";
+                boxes().forEach(function (b) {
+                    b.disabled = !b.checked && checked.length >= 8;
+                });
+                var save = document.getElementById("corr-save-vars");
+                if (save) save.value = checked.map(function (b) { return b.value; }).join(",");
+            }
+            form.addEventListener("change", update);
+            update();
+        })();
+    </script>
+</th:block>
+</body>
+</html>

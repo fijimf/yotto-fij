@@ -6,6 +6,7 @@ import com.yotto.basketball.controller.dto.StatPageDto;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.service.StatCatalog;
+import com.yotto.basketball.service.StatCategory;
 import com.yotto.basketball.service.StatFormat;
 import com.yotto.basketball.service.StatPageService;
 import jakarta.persistence.EntityNotFoundException;
@@ -25,13 +26,16 @@ import java.util.Map;
 public class StatPageController {
 
     private final StatPageService statPageService;
+    private final com.yotto.basketball.service.StatCategoryPageService categoryPageService;
     private final SeasonRepository seasonRepository;
     private final ObjectMapper objectMapper;
 
     public StatPageController(StatPageService statPageService,
+                              com.yotto.basketball.service.StatCategoryPageService categoryPageService,
                               SeasonRepository seasonRepository,
                               ObjectMapper objectMapper) {
         this.statPageService = statPageService;
+        this.categoryPageService = categoryPageService;
         this.seasonRepository = seasonRepository;
         this.objectMapper = objectMapper;
     }
@@ -45,17 +49,28 @@ public class StatPageController {
         }
         Integer latestYear = seasonRepository.findTopByOrderByYearDesc()
                 .map(Season::getYear).orElse(null);
+        Map<String, String> categorySlugs = new LinkedHashMap<>();
+        for (StatCategory c : StatCategory.values()) {
+            categorySlugs.put(c.getCatalogCategory(), c.getSlug());
+        }
         model.addAttribute("currentPage", "seasons");
         model.addAttribute("currentSection", "stats");
         model.addAttribute("statsByCategory", byCategory);
+        model.addAttribute("categorySlugs", categorySlugs);
         model.addAttribute("latestYear", latestYear);
         return "pages/stats-index";
     }
 
-    /** Year-less entry point: redirect to the latest season's page for this stat. */
+    /**
+     * Year-less entry point: redirect to the latest season's page. The path
+     * segment is a category slug or a stat name (the sets are disjoint —
+     * guarded by StatCategoryTest); unknown names 404 early.
+     */
     @GetMapping("/stats/{statName}")
     public String statLatest(@PathVariable String statName) {
-        StatCatalog.require(statName); // 404 early on unknown stat
+        if (StatCategory.fromSlug(statName).isEmpty()) {
+            StatCatalog.require(statName); // 404 early on unknown stat
+        }
         int latestYear = seasonRepository.findTopByOrderByYearDesc()
                 .map(Season::getYear)
                 .orElseThrow(() -> new EntityNotFoundException("No seasons found"));
@@ -68,11 +83,40 @@ public class StatPageController {
                              @RequestParam(required = false)
                              @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                              Model model) {
+        var category = StatCategory.fromSlug(statName);
+        if (category.isPresent()) {
+            return categoryPage(year, category.get(), date, model);
+        }
         StatPageDto dto = statPageService.build(year, statName, date);
         addStatPageModel(model, dto);
+        model.addAttribute("categorySlug", StatCategory.forCatalogCategory(dto.meta().category())
+                .map(StatCategory::getSlug).orElse(null));
+        model.addAttribute("categoryTitle", dto.meta().category());
         model.addAttribute("currentPage", "seasons");
         model.addAttribute("currentSection", "stats");
         return "pages/stat-detail";
+    }
+
+    private String categoryPage(int year, StatCategory category, LocalDate date, Model model) {
+        model.addAttribute("categoryPage", categoryPageService.build(year, category, date));
+        model.addAttribute("fmt", new StatFormat());
+        model.addAttribute("currentPage", "seasons");
+        model.addAttribute("currentSection", "stats");
+        return "pages/stat-category";
+    }
+
+    /** HTMX fragment: re-render a category's leader cards for a different date. */
+    @GetMapping("/seasons/{year}/stats/{categorySlug}/cards")
+    public String categoryCards(@PathVariable int year,
+                                @PathVariable String categorySlug,
+                                @RequestParam(required = false)
+                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                Model model) {
+        StatCategory category = StatCategory.fromSlug(categorySlug)
+                .orElseThrow(() -> new EntityNotFoundException("Unknown stat category: " + categorySlug));
+        model.addAttribute("categoryPage", categoryPageService.build(year, category, date));
+        model.addAttribute("fmt", new StatFormat());
+        return "fragments/stat-category-cards :: cards";
     }
 
     /** HTMX fragment: re-render the ranking table for a different date. */

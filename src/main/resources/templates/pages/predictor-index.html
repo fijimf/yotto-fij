@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="'Predictor — ' + ${index.year()}">Predictor</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">The Predictor</h1>
+            <p class="page-header__subtitle">Which single stat best picks winners?</p>
+        </div>
+        <div class="page-header__actions">
+            <select th:replace="~{fragments/controls :: seasonSelect(${index.availableSeasons()},
+                    ${index.year()}, '/seasons/{year}/stats/predictor')}"></select>
+        </div>
+    </div>
+
+    <p class="predictor-intro">
+        For every stat, each completed game is scored by which team entered with the better
+        season-to-date value — built only from snapshots dated before tip-off, so nothing leaks.
+        <strong>AUC</strong> measures how well that ordering separates winners from losers
+        (0.50 = coin flip, 1.00 = perfect); <strong>better team wins</strong> is the plain
+        share of games won by the team entering with the better value. Single stats are weak
+        predictors on their own — the <a th:href="@{/models/compare}">prediction models</a>
+        combine dozens of them.
+        <span class="text-muted" th:if="${index.asOfDate() != null}"
+              th:text="'As of ' + ${index.asOfDate()} + '.'">As of 2026-03-01.</span>
+    </p>
+
+    <th:block th:if="${index.rows().isEmpty()}">
+        <div th:replace="~{fragments/empty-state :: emptyState('No snapshot data for this season yet — stats appear after the first calculation run.', null, null)}"></div>
+    </th:block>
+
+    <div class="card" th:if="${!index.rows().isEmpty()}" style="overflow-x: auto;">
+        <table class="predictor-table">
+            <thead>
+            <tr>
+                <th>Stat</th>
+                <th>Category</th>
+                <th class="predictor-table__num" title="Area under the ROC curve: 0.50 = coin flip, 1.00 = perfect">AUC</th>
+                <th class="predictor-table__bar-col"></th>
+                <th class="predictor-table__num" title="Share of games won by the team entering with the better value">Better team wins</th>
+                <th class="predictor-table__num">Games</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${index.rows()}" th:classappend="${!r.strongEnoughToShow()} ? 'predictor-table__row--weak'">
+                <td>
+                    <a th:href="@{'/seasons/' + ${index.year()} + '/stats/predictor/' + ${r.info().name()}}"
+                       th:text="${r.info().title()}">Effective Field Goal Percentage</a>
+                </td>
+                <td class="text-muted" th:text="${r.info().category()}">Four Factors</td>
+                <td class="predictor-table__num"
+                    th:text="${r.auc() != null ? #numbers.formatDecimal(r.auc(), 1, 3) : '—'}">0.712</td>
+                <td class="predictor-table__bar-col">
+                    <div class="auc-bar" th:if="${r.auc() != null}">
+                        <div class="auc-bar__fill"
+                             th:style="'width:' + ${#numbers.formatDecimal(r.aucBarPercent(), 1, 1)} + '%'"></div>
+                    </div>
+                </td>
+                <td class="predictor-table__num"
+                    th:text="${r.naiveAccuracy() != null ? #numbers.formatDecimal(r.naiveAccuracy() * 100, 1, 1) + '%' : '—'}">64.2%</td>
+                <td class="predictor-table__num text-muted"
+                    th:text="${#numbers.formatInteger(r.gamesPlotted(), 0, 'COMMA')}">4,820</td>
+            </tr>
+            </tbody>
+        </table>
+        <p class="text-muted predictor-footnote">
+            Rows in grey fall below AUC 0.55 — effectively no standalone predictive power.
+            Defensive-direction stats are scored with their direction (lower is better) already applied.
+        </p>
+    </div>
+
+</main>
+</body>
+</html>
