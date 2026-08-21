@@ -13,15 +13,10 @@
         <h1 class="page-title" th:text="${season.year} + ' NCAA Tournament'">2026 NCAA Tournament</h1>
         <div class="page-header__actions">
             <a class="btn btn--outline btn--sm" th:href="@{'/seasons/' + ${season.year} + '/stats'}">Season Stats</a>
-            <select class="form-input form-input--sm"
-                    onchange="window.location='/seasons/'+this.value+'/bracket'">
-                <option th:each="s : ${allSeasons}"
-                        th:value="${s.year}"
-                        th:text="${s.year}"
-                        th:selected="${s.year == season.year}">2026</option>
-            </select>
         </div>
     </div>
+
+    <nav th:replace="~{fragments/tabs :: tabs(${yearTabs})}"></nav>
 
     <div th:if="${bracket == null}" class="bracket-empty">
         <p class="bracket-empty__title">No bracket yet</p>

@@ -1,5 +1,6 @@
 package com.yotto.basketball.controller;
 
+import com.yotto.basketball.controller.dto.NavTab;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.service.BracketService;
@@ -39,13 +40,21 @@ public class BracketWebController {
         Season season = seasonRepository.findByYear(year)
                 .orElseThrow(() -> new EntityNotFoundException("Season not found: " + year));
 
-        List<Season> allSeasons = seasonRepository.findAll();
-        allSeasons.sort((a, b) -> b.getYear().compareTo(a.getYear()));
+        // Year tabs: only seasons that actually have tournament games (plus the
+        // current page's season so the active tab always exists)
+        List<Integer> bracketYears = new java.util.ArrayList<>(bracketService.bracketYears());
+        if (!bracketYears.contains(year)) {
+            bracketYears.add(year);
+            bracketYears.sort(java.util.Comparator.reverseOrder());
+        }
+        List<NavTab> yearTabs = bracketYears.stream()
+                .map(y -> new NavTab(String.valueOf(y), "/seasons/" + y + "/bracket", y.equals(year)))
+                .toList();
 
         model.addAttribute("currentPage", "bracket");
         model.addAttribute("currentSection", "games");
         model.addAttribute("season", season);
-        model.addAttribute("allSeasons", allSeasons);
+        model.addAttribute("yearTabs", yearTabs);
         model.addAttribute("bracket", bracketService.buildBracket(year).orElse(null));
         return "pages/bracket";
     }

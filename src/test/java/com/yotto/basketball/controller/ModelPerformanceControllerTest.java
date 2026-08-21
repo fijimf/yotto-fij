@@ -51,7 +51,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
 
     @Test
     void performancePage_emptyState_rendersWithoutData() throws Exception {
-        mockMvc.perform(get("/predictions/performance"))
+        mockMvc.perform(get("/models/compare"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("pages/model-performance"))
                 .andExpect(content().string(containsString("No prediction evaluations yet")));
@@ -61,7 +61,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     void performancePage_rendersMetricsTablesAndBenchmark() throws Exception {
         seedEvaluations();
 
-        mockMvc.perform(get("/predictions/performance"))
+        mockMvc.perform(get("/models/compare"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Massey")))
                 .andExpect(content().string(containsString("Bradley-Terry")))
@@ -77,7 +77,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     void performancePage_rendersMonthlyTrendWithOneEntryPerMonth() throws Exception {
         seedEvaluations();
 
-        mockMvc.perform(get("/predictions/performance"))
+        mockMvc.perform(get("/models/compare"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Month by Month")))
                 // the inline chart data carries one point per model per month
@@ -89,7 +89,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     void performancePage_selectsRequestedYear() throws Exception {
         seedEvaluations();
 
-        mockMvc.perform(get("/predictions/performance").param("year", "2025").param("window", "season"))
+        mockMvc.perform(get("/models/compare").param("year", "2025").param("window", "season"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("2025")));
     }
@@ -99,7 +99,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         seedEvaluations();
 
         // Only the February game is NCAA_TOURNAMENT; Massey missed it by exactly 1.0
-        MvcResult res = mockMvc.perform(get("/predictions/performance").param("segment", "ncaa"))
+        MvcResult res = mockMvc.perform(get("/models/compare").param("segment", "ncaa"))
                 .andExpect(status().isOk())
                 .andReturn();
         @SuppressWarnings("unchecked")
@@ -116,7 +116,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         seedEvaluations();
 
         // Only the January game is regular season; Massey missed it by exactly 4.0
-        MvcResult res = mockMvc.perform(get("/predictions/performance").param("segment", "regular"))
+        MvcResult res = mockMvc.perform(get("/models/compare").param("segment", "regular"))
                 .andExpect(status().isOk())
                 .andReturn();
         @SuppressWarnings("unchecked")
@@ -132,7 +132,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     void performancePage_byConference_pairsModelWithBookOncePerGame() throws Exception {
         seedEvaluations();
 
-        MvcResult res = mockMvc.perform(get("/predictions/performance"))
+        MvcResult res = mockMvc.perform(get("/models/compare"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("By Conference")))
                 .andReturn();
@@ -163,7 +163,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         save(game, season, "ML:test", 7.0, null, null);
         save(game, season, "ML:other", 7.0, null, null);
 
-        MvcResult res = mockMvc.perform(get("/predictions/performance").param("year", "2025"))
+        MvcResult res = mockMvc.perform(get("/models/compare").param("year", "2025"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("insample-badge")))
                 .andReturn();
@@ -180,7 +180,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         seedEvaluations();
         mkMlModel("test", "2024,2025");
 
-        MvcResult res = mockMvc.perform(get("/predictions/performance").param("year", "ALL"))
+        MvcResult res = mockMvc.perform(get("/models/compare").param("year", "ALL"))
                 .andExpect(status().isOk())
                 .andReturn();
         @SuppressWarnings("unchecked")
@@ -194,7 +194,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         seedEvaluations();
         mkMlModel("test", "2024");
 
-        MvcResult res = mockMvc.perform(get("/predictions/performance").param("year", "2025"))
+        MvcResult res = mockMvc.perform(get("/models/compare").param("year", "2025"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("insample-badge"))))
                 .andReturn();
@@ -207,7 +207,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
     void performancePage_allSeasonsOption_rendersAggregatedData() throws Exception {
         seedEvaluations();
 
-        MvcResult res = mockMvc.perform(get("/predictions/performance").param("year", "ALL"))
+        MvcResult res = mockMvc.perform(get("/models/compare").param("year", "ALL"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Massey")))
                 .andExpect(content().string(not(containsString("No prediction evaluations yet"))))
@@ -255,7 +255,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         mkOdds(g1, "-6.5", "-4.5", "150.5");
         mkOdds(g2, "-4.0", "-5.0", "140.5");
 
-        MvcResult res = mockMvc.perform(get("/predictions/performance"))
+        MvcResult res = mockMvc.perform(get("/models/compare"))
                 .andExpect(status().isOk())
                 // subtitle only renders when the card itself does (the section comment always survives)
                 .andExpect(content().string(containsString("identical games only")))
@@ -289,7 +289,7 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
         // Model rows without any BOOK row for the game → empty card
         saveEval(g1, season, "ML:test", 9.0, 145.0, null, 5, 155);
 
-        MvcResult res = mockMvc.perform(get("/predictions/performance"))
+        MvcResult res = mockMvc.perform(get("/models/compare"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("identical games only"))))
                 .andReturn();

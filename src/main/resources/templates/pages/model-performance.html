@@ -11,7 +11,7 @@
 
     <div class="predictions-header">
         <h1 class="page-title">Model Performance</h1>
-        <form method="get" th:action="@{/predictions/performance}"
+        <form method="get" th:action="@{/models/compare}"
               class="predictions-controls" style="display: flex; gap: 0.5rem; align-items: center;">
             <select name="year" class="form-input form-input--sm" style="width: auto;"
                     onchange="this.form.submit()">
@@ -307,7 +307,7 @@
         <div class="card" style="margin-bottom: 1.5rem;" th:if="${!#lists.isEmpty(conferenceRows)}">
             <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
                 <h2 style="margin-top: 0;">By Conference <span style="font-weight: 400; color: var(--color-text-muted); font-size: 0.85rem;">where does the model beat the book?</span></h2>
-                <form method="get" th:action="@{/predictions/performance}"
+                <form method="get" th:action="@{/models/compare}"
                       style="display: flex; gap: 0.5rem; align-items: center;">
                     <input type="hidden" name="year" th:value="${allSeasons} ? 'ALL' : ${selectedYear}"/>
                     <input type="hidden" name="window" th:value="${window}"/>

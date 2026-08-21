@@ -290,6 +290,7 @@ a:hover {
     border: none;
     cursor: pointer;
     font-family: inherit;
+    white-space: nowrap;
 }
 
 .nav__dropdown-item:hover {

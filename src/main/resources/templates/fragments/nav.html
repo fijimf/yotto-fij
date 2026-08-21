@@ -11,18 +11,60 @@
         </a>
         <button class="nav__toggle" aria-label="Toggle navigation">&#9776;</button>
         <ul class="nav__links">
-            <li><a class="nav__link" th:href="@{/}" th:classappend="${#strings.equals(currentPage, 'home')} ? 'nav__link--active'">Home</a></li>
-            <li><a class="nav__link" th:href="@{/teams}" th:classappend="${#strings.equals(currentPage, 'teams')} ? 'nav__link--active'">Teams</a></li>
-            <li><a class="nav__link" th:href="@{/conferences}" th:classappend="${#strings.equals(currentPage, 'conferences')} ? 'nav__link--active'">Conferences</a></li>
-            <li><a class="nav__link" th:href="@{/games}" th:classappend="${#strings.equals(currentPage, 'games')} ? 'nav__link--active'">Games</a></li>
-            <li><a class="nav__link" th:href="@{/seasons/stats}" th:classappend="${#strings.equals(currentPage, 'seasons')} ? 'nav__link--active'">Season Stats</a></li>
-            <li><a class="nav__link" th:href="@{/rankings}" th:classappend="${#strings.equals(currentPage, 'rankings')} ? 'nav__link--active'">Rankings</a></li>
-            <li th:if="${seasonPhase != null and seasonPhase.showBracketLink()}">
-                <a class="nav__link" th:href="@{/bracket}" th:classappend="${#strings.equals(currentPage, 'bracket')} ? 'nav__link--active'">Bracket</a>
+            <li><a class="nav__link" th:href="@{/}" th:classappend="${#strings.equals(currentSection, 'home')} ? 'nav__link--active'">Home</a></li>
+            <li><a class="nav__link" th:href="@{/teams}" th:classappend="${#strings.equals(currentSection, 'teams')} ? 'nav__link--active'">Teams</a></li>
+            <li><a class="nav__link" th:href="@{/conferences}" th:classappend="${#strings.equals(currentSection, 'conferences')} ? 'nav__link--active'">Conferences</a></li>
+
+            <li class="nav__dropdown">
+                <button type="button" class="nav__link nav__link--button nav__dropdown-toggle"
+                        th:classappend="${#strings.equals(currentSection, 'games')} ? 'nav__link--active'"
+                        aria-haspopup="true" aria-expanded="false">
+                    Games<span class="nav__dropdown-caret">&#9662;</span>
+                </button>
+                <ul class="nav__dropdown-menu">
+                    <li><a class="nav__dropdown-item" th:href="@{/games}">Scores &amp; Schedule</a></li>
+                    <li><a class="nav__dropdown-item" th:href="@{/bracket}">NCAA Bracket</a></li>
+                </ul>
             </li>
-            <li><a class="nav__link" th:href="@{/predictions}" th:classappend="${#strings.equals(currentPage, 'predictions')} ? 'nav__link--active'">Predictions</a></li>
-            <li><a class="nav__link" th:href="@{/news}" th:classappend="${#strings.equals(currentPage, 'news')} ? 'nav__link--active'">News</a></li>
-            <li><a class="nav__link" th:href="@{/predictions/matchup}" th:classappend="${#strings.equals(currentPage, 'matchup')} ? 'nav__link--active'">Matchup</a></li>
+
+            <li class="nav__dropdown">
+                <button type="button" class="nav__link nav__link--button nav__dropdown-toggle"
+                        th:classappend="${#strings.equals(currentSection, 'stats')} ? 'nav__link--active'"
+                        aria-haspopup="true" aria-expanded="false">
+                    Statistics<span class="nav__dropdown-caret">&#9662;</span>
+                </button>
+                <ul class="nav__dropdown-menu">
+                    <li><a class="nav__dropdown-item" th:href="@{/seasons/stats}">League Overview</a></li>
+                    <li><a class="nav__dropdown-item" th:href="@{/stats}">Glossary</a></li>
+                </ul>
+            </li>
+
+            <li class="nav__dropdown">
+                <button type="button" class="nav__link nav__link--button nav__dropdown-toggle"
+                        th:classappend="${#strings.equals(currentSection, 'rankings')} ? 'nav__link--active'"
+                        aria-haspopup="true" aria-expanded="false">
+                    Power Rankings<span class="nav__dropdown-caret">&#9662;</span>
+                </button>
+                <ul class="nav__dropdown-menu">
+                    <li><a class="nav__dropdown-item" th:href="@{/rankings}">Overview</a></li>
+                </ul>
+            </li>
+
+            <li class="nav__dropdown">
+                <button type="button" class="nav__link nav__link--button nav__dropdown-toggle"
+                        th:classappend="${#strings.equals(currentSection, 'models')} ? 'nav__link--active'"
+                        aria-haspopup="true" aria-expanded="false">
+                    Models<span class="nav__dropdown-caret">&#9662;</span>
+                </button>
+                <ul class="nav__dropdown-menu">
+                    <li><a class="nav__dropdown-item" th:href="@{/models/compare}">Compare Models</a></li>
+                    <li><a class="nav__dropdown-item" th:href="@{/models/matchup}">Matchup Predictor</a></li>
+                    <!-- Temporary until the per-model schedule pages ship (spec phase 5.3) -->
+                    <li><a class="nav__dropdown-item" th:href="@{/predictions}">Today's Predictions</a></li>
+                </ul>
+            </li>
+
+            <li><a class="nav__link" th:href="@{/news}" th:classappend="${#strings.equals(currentSection, 'news')} ? 'nav__link--active'">News</a></li>
             <li class="nav__spacer" aria-hidden="true"></li>
             <li sec:authorize="hasRole('ADMIN')">
                 <a class="nav__link" th:href="@{/admin}">Admin</a>

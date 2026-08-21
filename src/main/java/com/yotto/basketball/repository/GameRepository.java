@@ -94,6 +94,9 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     @Query("SELECT MAX(s.year) FROM Game g JOIN g.season s WHERE g.tournamentType = :type")
     Integer findMaxSeasonYearByTournamentType(@Param("type") Game.TournamentType type);
 
+    @Query("SELECT DISTINCT s.year FROM Game g JOIN g.season s WHERE g.tournamentType = :type ORDER BY s.year DESC")
+    List<Integer> findSeasonYearsByTournamentType(@Param("type") Game.TournamentType type);
+
     @Query("SELECT g FROM Game g JOIN FETCH g.homeTeam JOIN FETCH g.awayTeam JOIN FETCH g.season LEFT JOIN FETCH g.bettingOdds " +
            "WHERE g.status = 'SCHEDULED' AND g.gameDate BETWEEN :start AND :end ORDER BY g.gameDate")
     List<Game> findScheduledBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

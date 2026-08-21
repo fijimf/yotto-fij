@@ -34,12 +34,13 @@ class SeasonPhaseWebTest extends BaseIntegrationTest {
     }
 
     @Test
-    void bracketLink_hiddenInSeason_shownInPostseason() throws Exception {
+    void bracketLink_alwaysVisibleRegardlessOfPhase() throws Exception {
+        // Since the menu reorganization (spec OQ-5) the bracket entry lives in the
+        // Games dropdown year-round — historical brackets are evergreen content.
         seasonPhaseService.setOverride(SeasonPhase.Phase.IN_SEASON, null);
         mockMvc.perform(get("/"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("href=\"/bracket\""))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/bracket\"")));
 
         seasonPhaseService.setOverride(SeasonPhase.Phase.POSTSEASON, null);
         mockMvc.perform(get("/"))

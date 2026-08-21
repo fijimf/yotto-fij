@@ -150,7 +150,7 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
         // Make sure mkTeam("Auburn") would appear before "Duke" if active and sorted
         mkTeam("Auburn", "AUB");
 
-        mockMvc.perform(get("/predictions/matchup"))
+        mockMvc.perform(get("/models/matchup"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("pages/matchup"))
                 .andExpect(model().attribute("currentPage", "matchup"))
@@ -167,7 +167,7 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
         inactive.setActive(false);
         teamRepo.save(inactive);
 
-        mockMvc.perform(get("/predictions/matchup"))
+        mockMvc.perform(get("/models/matchup"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("teams", org.hamcrest.Matchers.hasSize(2)))
                 .andExpect(model().attribute("teams", org.hamcrest.Matchers.everyItem(
@@ -179,7 +179,7 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
 
     @Test
     void matchupResult_sameTeam_returnsErrorAttribute() throws Exception {
-        mockMvc.perform(get("/predictions/matchup/result")
+        mockMvc.perform(get("/models/matchup/result")
                         .param("homeTeamId", home.getId().toString())
                         .param("awayTeamId", home.getId().toString())
                         .param("date", "2025-01-15"))
@@ -191,7 +191,7 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
 
     @Test
     void matchupResult_validMatchup_returnsResultAttribute() throws Exception {
-        mockMvc.perform(get("/predictions/matchup/result")
+        mockMvc.perform(get("/models/matchup/result")
                         .param("homeTeamId", home.getId().toString())
                         .param("awayTeamId", away.getId().toString())
                         .param("date", "2025-01-15")
@@ -205,7 +205,7 @@ class PredictionsPageControllerTest extends BaseIntegrationTest {
     @Test
     void matchupResult_predictMatchupThrows_setsErrorAttribute() throws Exception {
         // Unknown team id triggers EntityNotFoundException → caught and surfaced as error
-        mockMvc.perform(get("/predictions/matchup/result")
+        mockMvc.perform(get("/models/matchup/result")
                         .param("homeTeamId", "999999")
                         .param("awayTeamId", away.getId().toString())
                         .param("date", "2025-01-15"))

@@ -889,7 +889,7 @@ public class HomePageService {
                     sections.add(new DigestSection("Model Report Card", List.of(new DigestLine(
                             m.get("suWins") + "–" + m.get("suLosses") + " straight up · "
                                     + m.get("atsWins") + "–" + m.get("atsLosses") + " against the spread",
-                            m.get("modelLabel").toString(), "/predictions/performance"))));
+                            m.get("modelLabel").toString(), "/models/compare"))));
                     meaningful = true;
                 }
                 case "results", "tourney-results" -> {

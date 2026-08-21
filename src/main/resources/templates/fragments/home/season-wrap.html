@@ -8,7 +8,7 @@
         <h2 class="home-panel__title">
             <span th:text="'The ' + ${m.wrap.year} + ' Season, Wrapped'">The 2026 Season, Wrapped</span>
         </h2>
-        <a class="home-panel__more" th:href="@{/predictions/performance}">Full model performance →</a>
+        <a class="home-panel__more" th:href="@{/models/compare}">Full model performance →</a>
     </div>
     <div class="home-wrap">
         <div th:each="s : ${m.wrap.stats}" class="card home-wrap__card">

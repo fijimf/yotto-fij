@@ -52,7 +52,7 @@ public class PredictionsPageController {
         return "fragments/predictions-list :: predictions-list";
     }
 
-    @GetMapping("/predictions/matchup")
+    @GetMapping("/models/matchup")
     public String matchup(Model model) {
         List<Team> teams = teamService.findAll().stream()
                 .filter(t -> Boolean.TRUE.equals(t.getActive()))
@@ -65,7 +65,9 @@ public class PredictionsPageController {
         return "pages/matchup";
     }
 
-    @GetMapping("/predictions/matchup/result")
+    /* Old path kept as an alias for one release: HTMX pages cached by browsers
+       may still fire the legacy fragment URL. */
+    @GetMapping({"/models/matchup/result", "/predictions/matchup/result"})
     public String matchupResult(
             @RequestParam Long homeTeamId,
             @RequestParam Long awayTeamId,

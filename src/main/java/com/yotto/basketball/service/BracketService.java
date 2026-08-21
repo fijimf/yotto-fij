@@ -68,6 +68,12 @@ public class BracketService {
                 gameRepository.findMaxSeasonYearByTournamentType(Game.TournamentType.NCAA_TOURNAMENT));
     }
 
+    /** Every season year with at least one NCAA tournament game, newest first. */
+    @Transactional(readOnly = true)
+    public List<Integer> bracketYears() {
+        return gameRepository.findSeasonYearsByTournamentType(Game.TournamentType.NCAA_TOURNAMENT);
+    }
+
     static BracketView build(int year, List<Game> games) {
         Map<String, List<Game>> byRound = new HashMap<>();
         for (Game g : games) {

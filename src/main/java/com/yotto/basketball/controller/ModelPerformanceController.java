@@ -70,7 +70,7 @@ public class ModelPerformanceController {
         this.conferenceNamingService = conferenceNamingService;
     }
 
-    @GetMapping("/predictions/performance")
+    @GetMapping("/models/compare")
     public String performance(@RequestParam(required = false) String year,
                               @RequestParam(defaultValue = "season") String window,
                               @RequestParam(defaultValue = "all") String segment,
@@ -91,7 +91,7 @@ public class ModelPerformanceController {
         model.addAttribute("allSeasons", allSeasons);
         model.addAttribute("window", last30 ? "30" : "season");
         model.addAttribute("segment", selectedSegment);
-        model.addAttribute("currentPage", "predictions");
+        model.addAttribute("currentPage", "compare");
         model.addAttribute("currentSection", "models");
 
         boolean hasData = allSeasons || selectedYear != null;
