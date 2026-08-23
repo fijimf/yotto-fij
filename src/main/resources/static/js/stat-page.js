@@ -129,7 +129,7 @@
         var format = data.meta.format;
         var width = Math.max(280, el.clientWidth || 460);
         var rowH = 15;
-        var margin = { top: 6, right: 14, bottom: 40, left: 64 };
+        var margin = { top: 6, right: 14, bottom: 40, left: 78 };
         var w = width - margin.left - margin.right;
         var h = confs.length * rowH;
         var height = h + margin.top + margin.bottom;
@@ -181,6 +181,7 @@
             }
 
             var label = c.abbr && c.abbr.trim() !== "" ? c.abbr : c.name;
+            if (label.length > 13) label = label.slice(0, 12) + "…";
             row.append("text")
                 .attr("x", -8).attr("y", yMid).attr("dy", "0.32em")
                 .attr("text-anchor", "end")
