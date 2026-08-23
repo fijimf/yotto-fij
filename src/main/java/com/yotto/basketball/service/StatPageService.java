@@ -1,11 +1,14 @@
 package com.yotto.basketball.service;
 
 import com.yotto.basketball.controller.dto.StatPageDto;
+import com.yotto.basketball.entity.Conference;
+import com.yotto.basketball.entity.ConferenceMembership;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.SeasonPopulationStat;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamStatSnapshot;
+import com.yotto.basketball.repository.ConferenceMembershipRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonPopulationStatRepository;
 import com.yotto.basketball.repository.SeasonRepository;
@@ -34,15 +37,21 @@ public class StatPageService {
     private final TeamStatSnapshotRepository statSnapshotRepository;
     private final SeasonPopulationStatRepository popStatRepository;
     private final GameRepository gameRepository;
+    private final ConferenceMembershipRepository membershipRepository;
+    private final ConferenceNamingService namingService;
 
     public StatPageService(SeasonRepository seasonRepository,
                            TeamStatSnapshotRepository statSnapshotRepository,
                            SeasonPopulationStatRepository popStatRepository,
-                           GameRepository gameRepository) {
+                           GameRepository gameRepository,
+                           ConferenceMembershipRepository membershipRepository,
+                           ConferenceNamingService namingService) {
         this.seasonRepository = seasonRepository;
         this.statSnapshotRepository = statSnapshotRepository;
         this.popStatRepository = popStatRepository;
         this.gameRepository = gameRepository;
+        this.membershipRepository = membershipRepository;
+        this.namingService = namingService;
     }
 
     @Transactional(readOnly = true)
@@ -82,7 +91,49 @@ public class StatPageService {
                 population,
                 buildHistogram(snapshots),
                 buildScatter(seasonId, statName, info.higherIsBetter(), date),
+                buildConferences(seasonId, year, snapshots, info.higherIsBetter()),
                 buildRankings(snapshots, teamCount));
+    }
+
+    /**
+     * Conference strip-plot rows: teams grouped by their season's conference,
+     * best conference mean first (direction-aware). Teams with no membership
+     * row for the season (rare: mid-scrape or non-D-I strays) are omitted.
+     */
+    private List<StatPageDto.ConferenceStrip> buildConferences(Long seasonId, int year,
+                                                               List<TeamStatSnapshot> snapshots,
+                                                               boolean higherIsBetter) {
+        if (snapshots.isEmpty()) return List.of();
+
+        Map<Long, Conference> confByTeam = new HashMap<>();
+        for (ConferenceMembership cm : membershipRepository.findBySeasonIdWithTeamAndConference(seasonId)) {
+            confByTeam.put(cm.getTeam().getId(), cm.getConference());
+        }
+
+        Map<Long, Conference> conferencesById = new HashMap<>();
+        Map<Long, List<StatPageDto.StripTeam>> teamsByConf = new HashMap<>();
+        for (TeamStatSnapshot s : snapshots) {
+            if (s.getValue() == null) continue;
+            Conference conf = confByTeam.get(s.getTeam().getId());
+            if (conf == null) continue;
+            conferencesById.putIfAbsent(conf.getId(), conf);
+            teamsByConf.computeIfAbsent(conf.getId(), k -> new ArrayList<>())
+                    .add(new StatPageDto.StripTeam(s.getTeam().getName(), s.getValue(), s.getRank()));
+        }
+
+        ConferenceNamingService.ConferenceNames names = namingService.load();
+        List<StatPageDto.ConferenceStrip> rows = new ArrayList<>(teamsByConf.size());
+        for (Map.Entry<Long, List<StatPageDto.StripTeam>> e : teamsByConf.entrySet()) {
+            List<StatPageDto.StripTeam> teams = e.getValue();
+            teams.sort(Comparator.comparingDouble(StatPageDto.StripTeam::value));
+            double mean = teams.stream().mapToDouble(StatPageDto.StripTeam::value).average().orElse(Double.NaN);
+            ConferenceNamingService.ConferenceIdentity id =
+                    names.identity(conferencesById.get(e.getKey()), year);
+            rows.add(new StatPageDto.ConferenceStrip(id.name(), id.abbreviation(), mean, teams));
+        }
+        Comparator<StatPageDto.ConferenceStrip> byMean = Comparator.comparingDouble(StatPageDto.ConferenceStrip::mean);
+        rows.sort(higherIsBetter ? byMean.reversed() : byMean);
+        return rows;
     }
 
     private StatPageDto.Population buildPopulation(Long seasonId, String statName, LocalDate date, int fallbackCount) {

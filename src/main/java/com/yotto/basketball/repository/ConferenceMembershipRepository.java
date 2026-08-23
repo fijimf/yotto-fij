@@ -46,6 +46,10 @@ public interface ConferenceMembershipRepository extends JpaRepository<Conference
     @Query("SELECT COUNT(DISTINCT cm.conference.id) FROM ConferenceMembership cm WHERE cm.season.id = :seasonId")
     long countDistinctConferencesBySeasonId(@Param("seasonId") Long seasonId);
 
+    @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.team JOIN FETCH cm.conference " +
+           "WHERE cm.season.id = :seasonId")
+    List<ConferenceMembership> findBySeasonIdWithTeamAndConference(@Param("seasonId") Long seasonId);
+
     @Query("SELECT cm FROM ConferenceMembership cm JOIN FETCH cm.conference JOIN FETCH cm.season WHERE cm.team.id = :teamId ORDER BY cm.season.year DESC")
     List<ConferenceMembership> findByTeamIdOrderBySeasonDesc(@Param("teamId") Long teamId);
 

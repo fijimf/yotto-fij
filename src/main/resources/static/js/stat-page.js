@@ -1,7 +1,7 @@
-/* Per-statistic page charts: a team-distribution histogram with a KDE overlay
- * plus the rankings team-finder. All numbers are pre-computed server-side
- * (StatPageService) — this file only draws them with D3. The game-outcome
- * scatter moved to the Predictor page (js/predictor-page.js). */
+/* Per-statistic page charts: a team-distribution histogram with a KDE overlay,
+ * a per-conference strip plot, plus the rankings team-finder. All numbers are
+ * pre-computed server-side (StatPageService) — this file only draws them with
+ * D3. The game-outcome scatter moved to the Predictor page (js/predictor-page.js). */
 (function () {
     "use strict";
 
@@ -120,9 +120,109 @@
         }
     }
 
+    // ── conference strip plot: a dot per team, one row per conference ────────────
+    function renderConferenceStrip(el) {
+        var confs = data.conferences;
+        if (!confs || confs.length === 0) return;
+        clear(el);
+
+        var format = data.meta.format;
+        var width = Math.max(280, el.clientWidth || 460);
+        var rowH = 15;
+        var margin = { top: 6, right: 14, bottom: 40, left: 64 };
+        var w = width - margin.left - margin.right;
+        var h = confs.length * rowH;
+        var height = h + margin.top + margin.bottom;
+
+        var svg = d3.select(el).append("svg")
+            .attr("viewBox", "0 0 " + width + " " + height)
+            .attr("width", "100%");
+        var g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var min = Infinity, max = -Infinity;
+        confs.forEach(function (c) {
+            c.teams.forEach(function (t) {
+                if (t.value < min) min = t.value;
+                if (t.value > max) max = t.value;
+            });
+        });
+        var pad = (max - min || 1) * 0.04;
+        var x = d3.scaleLinear().domain([min - pad, max + pad]).range([0, w]);
+        var tf = axisTickFormat(format);
+
+        // recessive vertical gridlines + shared x axis
+        g.append("g").attr("transform", "translate(0," + h + ")")
+            .call(d3.axisBottom(x).ticks(6).tickFormat(tf).tickSizeInner(-h))
+            .call(function (sel) {
+                sel.selectAll("line").attr("stroke", GRID);
+                sel.selectAll("path").attr("stroke", GRID);
+                sel.selectAll("text").attr("fill", AXIS);
+            });
+
+        // league mean, same dashed style as the histogram's marker
+        var mean = data.population && data.population.mean;
+        if (mean != null && mean >= x.domain()[0] && mean <= x.domain()[1]) {
+            g.append("line").attr("x1", x(mean)).attr("x2", x(mean)).attr("y1", 0).attr("y2", h)
+                .attr("stroke", AXIS).attr("stroke-dasharray", "4,3");
+        }
+
+        var dotColor = cssVar("--color-nav-bg");
+        var accent = cssVar("--color-primary");
+
+        confs.forEach(function (c, i) {
+            var yTop = i * rowH;
+            var yMid = yTop + rowH / 2;
+            var row = g.append("g");
+
+            // alternate-row banding so 30 rows stay scannable
+            if (i % 2 === 1) {
+                row.append("rect").attr("x", 0).attr("y", yTop).attr("width", w).attr("height", rowH)
+                    .attr("fill", GRID).attr("fill-opacity", 0.25);
+            }
+
+            var label = c.abbr && c.abbr.trim() !== "" ? c.abbr : c.name;
+            row.append("text")
+                .attr("x", -8).attr("y", yMid).attr("dy", "0.32em")
+                .attr("text-anchor", "end")
+                .attr("fill", AXIS).attr("font-size", 10)
+                .text(label)
+                .style("cursor", "default")
+                .on("mouseenter", function (event) {
+                    showTip("<strong>" + c.name + "</strong><br>mean " + formatValue(c.mean, format)
+                        + " &middot; " + c.teams.length + " teams", event);
+                })
+                .on("mouseleave", hideTip);
+
+            row.selectAll("circle").data(c.teams).enter().append("circle")
+                .attr("cx", function (t) { return x(t.value); })
+                .attr("cy", yMid)
+                .attr("r", 4.5)
+                .attr("fill", dotColor).attr("fill-opacity", 0.5)
+                .on("mouseenter", function (event, t) {
+                    d3.select(this).attr("fill-opacity", 1);
+                    showTip("<strong>" + t.name + "</strong><br>" + formatValue(t.value, format)
+                        + (t.rank != null ? " &middot; #" + t.rank : "") + "<br>" + c.name, event);
+                })
+                .on("mouseleave", function () {
+                    d3.select(this).attr("fill-opacity", 0.5);
+                    hideTip();
+                });
+
+            // conference mean tick, drawn above the dots
+            if (c.mean != null) {
+                row.append("line")
+                    .attr("x1", x(c.mean)).attr("x2", x(c.mean))
+                    .attr("y1", yTop + 2).attr("y2", yTop + rowH - 2)
+                    .attr("stroke", accent).attr("stroke-width", 2);
+            }
+        });
+    }
+
     function renderAll() {
         var histEl = document.getElementById("stat-histogram");
         if (histEl) renderHistogram(histEl);
+        var stripEl = document.getElementById("stat-conf-strip");
+        if (stripEl) renderConferenceStrip(stripEl);
     }
 
     // ── team finder: highlight matching rows and scroll the table to them ────────

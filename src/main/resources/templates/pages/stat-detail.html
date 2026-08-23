@@ -40,26 +40,6 @@
     <!-- Charts row -->
     <div class="stat-detail__charts">
 
-        <!-- Predictiveness cross-link (the scatter lives on the Predictor page now) -->
-        <div class="card stat-detail__card stat-detail__card--predictor">
-            <h3 class="stat-detail__card-title">Does it predict winners?</h3>
-            <p class="stat-detail__metric" th:if="${statPage.scatter().predictive().show()}">
-                Predicts home win:
-                <strong th:text="'AUC ' + ${#numbers.formatDecimal(statPage.scatter().predictive().auc(), 1, 2)}">AUC 0.78</strong>
-                <span class="text-muted" th:if="${statPage.scatter().predictive().naiveAccuracy() != null}"
-                      th:text="'(team entering with the better value wins ' + ${#numbers.formatDecimal(statPage.scatter().predictive().naiveAccuracy() * 100, 1, 0)} + '% of games)'">
-                    (team entering with the better value wins 71% of games)</span>
-            </p>
-            <p class="stat-detail__metric text-muted"
-               th:unless="${statPage.scatter().predictive().show()}">
-                Weak standalone predictor of the winner.
-            </p>
-            <p class="stat-detail__caveat">
-                <a th:href="@{'/seasons/' + ${statPage.season().year()} + '/stats/predictor/' + ${statPage.meta().name()}}">
-                    See the game-by-game scatter on the Predictor page &rarr;</a>
-            </p>
-        </div>
-
         <!-- Team distribution -->
         <div class="card stat-detail__card">
             <h3 class="stat-detail__card-title">Team Distribution</h3>
@@ -75,6 +55,36 @@
                 <span>mean <strong th:text="${fmt.value(statPage.population().mean(), statPage.meta().format())}">50.4</strong></span>
                 <span>std <strong th:text="${fmt.value(statPage.population().stddev(), statPage.meta().format())}">3.1</strong></span>
                 <span th:if="${statPage.population().count() != null}">(n=<span th:text="${statPage.population().count()}">362</span>)</span>
+            </p>
+        </div>
+
+        <!-- Conference strip plot -->
+        <div class="card stat-detail__card">
+            <h3 class="stat-detail__card-title">By Conference</h3>
+            <p class="stat-detail__card-sub">A dot per team, best conference average at the top. The tick marks each conference's mean.</p>
+            <div id="stat-conf-strip" class="stat-detail__chart"></div>
+            <div class="stat-detail__chart-empty" th:if="${#lists.isEmpty(statPage.conferences())}">
+                No conference data yet.
+            </div>
+        </div>
+
+        <!-- Predictiveness cross-link (the scatter lives on the Predictor page now) -->
+        <div class="card stat-detail__card stat-detail__card--wide">
+            <h3 class="stat-detail__card-title">Does it predict winners?</h3>
+            <p class="stat-detail__metric" th:if="${statPage.scatter().predictive().show()}">
+                Predicts home win:
+                <strong th:text="'AUC ' + ${#numbers.formatDecimal(statPage.scatter().predictive().auc(), 1, 2)}">AUC 0.78</strong>
+                <span class="text-muted" th:if="${statPage.scatter().predictive().naiveAccuracy() != null}"
+                      th:text="'(team entering with the better value wins ' + ${#numbers.formatDecimal(statPage.scatter().predictive().naiveAccuracy() * 100, 1, 0)} + '% of games)'">
+                    (team entering with the better value wins 71% of games)</span>
+            </p>
+            <p class="stat-detail__metric text-muted"
+               th:unless="${statPage.scatter().predictive().show()}">
+                Weak standalone predictor of the winner.
+            </p>
+            <p class="stat-detail__caveat">
+                <a th:href="@{'/seasons/' + ${statPage.season().year()} + '/stats/predictor/' + ${statPage.meta().name()}}">
+                    See the game-by-game scatter on the Predictor page &rarr;</a>
             </p>
         </div>
     </div>

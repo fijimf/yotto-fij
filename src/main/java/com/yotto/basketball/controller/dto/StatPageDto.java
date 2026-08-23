@@ -13,6 +13,7 @@ public record StatPageDto(
         Population population,
         Histogram histogram,
         Scatter scatter,
+        List<ConferenceStrip> conferences,
         List<RankRow> rankings) {
 
     public record Meta(String name,
@@ -50,6 +51,15 @@ public record StatPageDto(
 
     /** AUC of the (direction-aware) home entering-stat advantage predicting a home win. */
     public record Predictive(Double auc, Double naiveAccuracy, boolean show) {}
+
+    /**
+     * One conference row of the strip plot: season-resolved branding, the mean of
+     * its members' values, and a dot per team. Rows arrive sorted best-mean first
+     * (direction-aware), teams within a row sorted by value.
+     */
+    public record ConferenceStrip(String name, String abbr, Double mean, List<StripTeam> teams) {}
+
+    public record StripTeam(String name, Double value, Integer rank) {}
 
     public record RankRow(Integer rank,
                           Long teamId,

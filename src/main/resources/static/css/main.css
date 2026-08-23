@@ -4608,6 +4608,7 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     margin: 1.25rem 0;
 }
 .stat-detail__card { padding: 1rem 1.1rem; display: flex; flex-direction: column; }
+.stat-detail__card--wide { grid-column: 1 / -1; }
 .stat-detail__card-title {
     font-family: var(--font-display);
     font-size: 1.15rem;

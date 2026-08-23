@@ -2,10 +2,14 @@ package com.yotto.basketball.service;
 
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.controller.dto.StatPageDto;
+import com.yotto.basketball.entity.Conference;
+import com.yotto.basketball.entity.ConferenceMembership;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamStatSnapshot;
+import com.yotto.basketball.repository.ConferenceMembershipRepository;
+import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamRepository;
@@ -34,6 +38,8 @@ class StatPageServiceTest extends BaseIntegrationTest {
     @Autowired TeamRepository teamRepo;
     @Autowired GameRepository gameRepo;
     @Autowired TeamStatSnapshotRepository snapshotRepo;
+    @Autowired ConferenceRepository conferenceRepo;
+    @Autowired ConferenceMembershipRepository membershipRepo;
 
     Season season;
     Team a, b;
@@ -100,6 +106,36 @@ class StatPageServiceTest extends BaseIntegrationTest {
     }
 
     @Test
+    void conferenceStrip_groupsTeamsAndSortsByMean() {
+        // efg_pct is higher-is-better: A (SEC, 0.55) should rank above B (ACC, 0.45)
+        mkMembership(a, mkConference("Southeastern Conference", "SEC", "C1"));
+        mkMembership(b, mkConference("Atlantic Coast Conference", "ACC", "C2"));
+
+        StatPageDto dto = service.build(2025, "efg_pct", SNAP2);
+
+        assertThat(dto.conferences()).hasSize(2);
+        StatPageDto.ConferenceStrip first = dto.conferences().get(0);
+        assertThat(first.abbr()).isEqualTo("SEC");
+        assertThat(first.mean()).isCloseTo(0.55, within(1e-9));
+        assertThat(first.teams()).hasSize(1);
+        assertThat(first.teams().get(0).name()).isEqualTo("Alabama");
+        assertThat(first.teams().get(0).value()).isCloseTo(0.55, within(1e-9));
+        assertThat(dto.conferences().get(1).abbr()).isEqualTo("ACC");
+    }
+
+    @Test
+    void conferenceStrip_omitsTeamsWithoutMembership() {
+        mkMembership(a, mkConference("Southeastern Conference", "SEC", "C1"));
+        // B has no membership row → no ACC row, and B appears nowhere
+
+        StatPageDto dto = service.build(2025, "efg_pct", SNAP2);
+
+        assertThat(dto.conferences()).hasSize(1);
+        assertThat(dto.conferences().get(0).teams()).extracting(StatPageDto.StripTeam::name)
+                .containsExactly("Alabama");
+    }
+
+    @Test
     void dateParamLimitsGamesAndSnapshots() {
         // As of Jan 10 only the opener has been played, and it has no entering values
         StatPageDto dto = service.build(2025, "efg_pct", SNAP1);
@@ -107,6 +143,22 @@ class StatPageServiceTest extends BaseIntegrationTest {
         assertThat(dto.scatter().gamesTotal()).isEqualTo(1);
         assertThat(dto.scatter().gamesPlotted()).isZero();
         assertThat(dto.scatter().points()).isEmpty();
+    }
+
+    private Conference mkConference(String name, String abbr, String espnId) {
+        Conference c = new Conference();
+        c.setName(name);
+        c.setAbbreviation(abbr);
+        c.setEspnId(espnId);
+        return conferenceRepo.save(c);
+    }
+
+    private void mkMembership(Team team, Conference conference) {
+        ConferenceMembership cm = new ConferenceMembership();
+        cm.setTeam(team);
+        cm.setConference(conference);
+        cm.setSeason(season);
+        membershipRepo.save(cm);
     }
 
     private Team mkTeam(String name, String espnId) {
