@@ -335,16 +335,6 @@ main {
     padding: 3.5rem 1.5rem 3rem;
 }
 
-.home-hero__eyebrow {
-    font-family: var(--font-display);
-    font-size: 0.85rem;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--color-primary);
-    margin-bottom: 0.5rem;
-}
-
 .home-hero__title {
     font-family: var(--font-display);
     font-size: clamp(3.5rem, 8vw, 6rem);
