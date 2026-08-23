@@ -84,7 +84,7 @@ class HomeControllerTest extends BaseIntegrationTest {
 
         MvcResult res = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn();
         assertThat(res.getResponse().getContentAsString())
-                .contains("This Day in Season History")
+                .contains("Hits and Misses")
                 .contains("Decided by 1 point");
     }
 

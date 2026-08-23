@@ -693,7 +693,7 @@ public class HomePageService {
                     .map(g -> toHistoryView(g, closestFraming(g)));
         }
         return view.map(v -> new HomePanel("history", model(
-                "title", "This Day in Season History", "view", v)));
+                "title", HISTORY_TITLE, "view", v)));
     }
 
     private HistoryView toHistoryView(Game g, String framing) {
@@ -863,7 +863,7 @@ public class HomePageService {
 
     private static final int DIGEST_GAME_LINES = 4;
     private static final int DIGEST_NEWS_LINES = 3;
-    private static final String HISTORY_TITLE = "This Day in Season History";
+    private static final String HISTORY_TITLE = "Hits and Misses";
 
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")

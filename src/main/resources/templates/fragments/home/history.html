@@ -6,7 +6,7 @@
 <section th:fragment="panel(m)" class="home-panel">
     <div class="home-panel__header">
         <h2 class="home-panel__title">
-            <span th:text="${m.title}">This Day in Season History</span>
+            <span th:text="${m.title}">Hits and Misses</span>
             <span class="home-panel__date"
                   th:text="${#temporals.format(m.view.gameDate, 'MMMM d, yyyy')}">January 17, 2024</span>
         </h2>
