@@ -64,6 +64,7 @@ See [UI.md](UI.md) for more details and guidelines.
 - `POST /admin/scrape/full/{year}` - trigger full season scrape (async)
 - `POST /admin/scrape/current/{year}` - trigger current season re-scrape (async)
 - `POST /admin/scrape/odds/{year}` - trigger odds backfill (async)
+- `POST /admin/scrape/standings/{year}` - standings only: backfill conference memberships + season stats (async); unknown conferences with entries are auto-created from the feed (historical seasons carry defunct conferences, e.g. Pac-12)
 - `GET /admin/scrape-history` - HTMX fragment for live scrape status
 - `POST /admin/ml/reload` - rescan/reload all model bundles; `POST /admin/ml/evaluate[/rebuild]` - (re)build prediction evaluations (async, all seasons)
 - `POST /admin/ml/train` (params modelSlug, featureSet; optional spreadTarget margin|residual_massey, winprobMode classifier|derived, tune (Optuna trials), seasonDecay) - train a named model on the trainer service; `GET /admin/ml/training-status` - HTMX-polled run history (completion auto-reloads bundles + re-runs evaluation). Runs recorded in ml_training_runs

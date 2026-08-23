@@ -64,13 +64,19 @@ public class StandingsScraper {
                     continue;
                 }
 
+                JsonNode entries = confChild.path("standings").path("entries");
+
                 Conference conference = conferenceRepository.findByEspnId(confEspnId).orElse(null);
                 if (conference == null) {
-                    log.warn("Unknown conference with ESPN ID: {}, skipping", confEspnId);
-                    continue;
+                    // Historical seasons carry conferences the current-conference scrape
+                    // never sees (e.g. the Pac-12 after dissolution). Create the row from
+                    // the standings child so their standings aren't silently dropped —
+                    // but only when it actually has entries, to avoid junk rows.
+                    if (entries.isEmpty()) {
+                        continue;
+                    }
+                    conference = createFromStandingsChild(confChild, confEspnId);
                 }
-
-                JsonNode entries = confChild.path("standings").path("entries");
                 for (JsonNode entry : entries) {
                     processStandingsEntry(entry, conference, season, batch);
                 }
@@ -85,6 +91,24 @@ public class StandingsScraper {
         }
 
         return scrapeBatchRepository.save(batch);
+    }
+
+    /**
+     * Minimal conference row from a standings child node (ESPN reports current branding).
+     * shortName ("Pac-12") is the display-quality abbreviation, matching what
+     * ConferenceScraper stores; "abbreviation" is the lowercase slug ("pac12").
+     */
+    private Conference createFromStandingsChild(JsonNode confChild, String confEspnId) {
+        Conference conference = new Conference();
+        conference.setEspnId(confEspnId);
+        conference.setName(confChild.path("name").asText("Conference " + confEspnId));
+        String abbr = confChild.path("shortName").asText(confChild.path("abbreviation").asText(null));
+        if (abbr != null && !abbr.isBlank()) {
+            conference.setAbbreviation(abbr);
+        }
+        conference.setDivision("Division I");
+        log.info("Created conference {} (ESPN ID {}) from standings feed", conference.getName(), confEspnId);
+        return conferenceRepository.save(conference);
     }
 
     private void processStandingsEntry(JsonNode entry, Conference conference, Season season, ScrapeBatch batch) {

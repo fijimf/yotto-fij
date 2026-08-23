@@ -38,6 +38,17 @@ public class AsyncScrapeService {
         scrapeFullSeasonAsync(seasonYear, ScrapeBatch.Source.MANUAL);
     }
 
+    /** Standings only — backfills conference memberships + season stats for one season. */
+    @Async("scrapeExecutor")
+    public void scrapeStandingsAsync(int seasonYear) {
+        log.info("Async standings scrape started for {}", seasonYear);
+        try {
+            orchestrator.scrapeStandings(seasonYear);
+        } catch (Exception e) {
+            log.error("Async standings scrape failed for {}", seasonYear, e);
+        }
+    }
+
     /**
      * Runs the full scrape pipeline for every supplied season sequentially in a
      * single background task — each season completes before the next begins so

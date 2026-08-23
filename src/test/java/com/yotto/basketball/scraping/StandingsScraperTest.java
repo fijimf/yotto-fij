@@ -98,15 +98,7 @@ class StandingsScraperTest extends BaseIntegrationTest {
                   "id": "99999",
                   "name": "Unknown Conference",
                   "standings": {
-                    "entries": [
-                      {
-                        "team": { "id": "8888" },
-                        "stats": [
-                          { "type": "wins", "value": 1 },
-                          { "type": "losses", "value": 1 }
-                        ]
-                      }
-                    ]
+                    "entries": []
                   }
                 }
               ]
@@ -163,14 +155,47 @@ class StandingsScraperTest extends BaseIntegrationTest {
     }
 
     @Test
-    void scrape_skipsUnknownConferences() throws Exception {
+    void scrape_unknownConferenceWithoutEntries_isNotCreated() throws Exception {
         when(espnApiClient.fetchStandings(2025)).thenReturn(mapper.readTree(STANDINGS_JSON));
 
         scraper.scrape(2025);
 
-        // Conference "99999" doesn't exist in the DB → its entries are skipped.
-        // Team 8888 should never be created (no fetchAndSaveUnknownTeam triggered).
-        assertThat(teamRepo.findByEspnId("8888")).isEmpty();
+        // Conference "99999" has no entries → no row is created for it.
+        assertThat(conferenceRepo.findByEspnId("99999")).isEmpty();
+    }
+
+    @Test
+    void scrape_autoCreatesUnknownConferenceWithEntries() throws Exception {
+        // Historical feeds carry conferences the current-conference scrape never
+        // sees (the Pac-12 after dissolution) — they must be created, not dropped.
+        String json = """
+                {
+                  "children": [
+                    {
+                      "id": "21",
+                      "name": "Pac-12 Conference",
+                      "abbreviation": "pac12",
+                      "shortName": "Pac-12",
+                      "standings": { "entries": [
+                        { "team": { "id": "333" }, "stats": [ { "type": "wins", "value": 22 } ] }
+                      ] }
+                    }
+                  ]
+                }
+                """;
+        when(espnApiClient.fetchStandings(2022)).thenReturn(mapper.readTree(json));
+
+        ScrapeBatch batch = scraper.scrape(2022);
+
+        assertThat(batch.getStatus()).isEqualTo(ScrapeBatch.ScrapeStatus.COMPLETED);
+        Conference pac12 = conferenceRepo.findByEspnId("21").orElseThrow();
+        assertThat(pac12.getName()).isEqualTo("Pac-12 Conference");
+        assertThat(pac12.getAbbreviation()).isEqualTo("Pac-12"); // shortName, not the "pac12" slug
+
+        Long alabamaId = teamRepo.findByEspnId("333").orElseThrow().getId();
+        Long seasonId  = seasonRepo.findByYear(2022).orElseThrow().getId();
+        ConferenceMembership m = membershipRepo.findByTeamIdAndSeasonId(alabamaId, seasonId).orElseThrow();
+        assertThat(m.getConference().getId()).isEqualTo(pac12.getId());
     }
 
     @Test
