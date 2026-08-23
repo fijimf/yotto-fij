@@ -238,8 +238,12 @@ surface is the **Models** section:
   CANDIDATE/RETIRED bundles never appear here.
   **Ops note:** `ml_models.display_name` is now user-facing (nav dropdown,
   hub pages) — rename admin-flavored names ("model-4") to something public
-  before promoting: `UPDATE ml_models SET display_name = '…' WHERE slug = '…';`
-  then **Reload Models**.
+  before promoting. The bundle manifest is the source of truth: **Reload
+  Models** overwrites the DB column from `display_name` in
+  `/models/<slug>/features.json` (on the `model_data` volume), so edit the
+  manifest and then **Reload Models** — a bare `UPDATE ml_models SET
+  display_name = …` is clobbered on the next reload. (Retraining the slug
+  regenerates the manifest, so re-apply the name after retraining.)
 - **After deploying a build that adds long-format stats** (e.g. the Results/
   Scoring stats from the reorganization): run **Time Series** from `/admin`
   for each season — the change-detection gate won't trigger recalculation on

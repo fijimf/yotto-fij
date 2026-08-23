@@ -289,6 +289,20 @@ def display_name_for(slug):
     return " ".join(part.capitalize() for part in slug.split("-") if part)
 
 
+def existing_display_name(output_dir):
+    """Operator-set display name from a previous manifest of this slug, if any.
+
+    The manifest is the source of truth for ml_models.display_name (Reload Models
+    copies it into the DB), so a retrain must not regress a curated public name
+    back to the slug-derived default.
+    """
+    try:
+        with open(os.path.join(output_dir, "features.json")) as f:
+            return json.load(f).get("display_name")
+    except (OSError, ValueError):
+        return None
+
+
 # ── Database helpers ───────────────────────────────────────────────────────────
 
 def build_db_url(args):
@@ -1618,7 +1632,7 @@ def main():
     features_meta = {
         "version": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "slug": model_name,
-        "display_name": display_name_for(model_name),
+        "display_name": existing_display_name(output_dir) or display_name_for(model_name),
         "feature_set": feature_set,
         # What the final model actually trained on: the requested train seasons minus
         # the held-out test season (unless the in-sample fallback kicked in).
