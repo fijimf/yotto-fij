@@ -15,6 +15,13 @@ public class ScrapingProperties {
     private int seasonEndDay = 30;
     private String schedule = "0 0 */12 * * *";
 
+    /**
+     * User-Agent for ESPN API requests. ESPN's Akamai edge 403s the Java default
+     * (and most other agents) from datacenter IPs; plain curl passes, so that is
+     * the default. Override via espn.scraping.user-agent if the policy shifts.
+     */
+    private String userAgent = "curl/8.5.0";
+
     public int getBaseDelayMs() {
         return baseDelayMs;
     }
@@ -65,6 +72,14 @@ public class ScrapingProperties {
 
     public String getSchedule() {
         return schedule;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
     }
 
     public void setSchedule(String schedule) {

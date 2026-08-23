@@ -31,6 +31,7 @@ public class EspnApiClient {
     public EspnApiClient(ScrapingProperties properties, RestClient.Builder restClientBuilder) {
         this.restClient = restClientBuilder
                 .defaultHeader("Accept", "application/json")
+                .defaultHeader("User-Agent", properties.getUserAgent())
                 .build();
         this.properties = properties;
     }
