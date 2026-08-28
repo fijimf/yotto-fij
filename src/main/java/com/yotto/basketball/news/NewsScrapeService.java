@@ -192,13 +192,19 @@ public class NewsScrapeService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime oldestAllowed = now.minusDays(properties.getMaxItemAgeDays());
 
-        // Cheap pre-fetch skips: known URL, or feed-dated far in the past
+        // Cheap pre-fetch skips: known URL, feed-dated far in the past, or a feed
+        // link whose path already names another sport (2026-08: Yahoo's CBB feed
+        // began carrying celebrity/NBA/fantasy items — fetching them just burns
+        // the host's rate-limit budget and 429s the whole source).
         String preliminaryCanonical = UrlCanonicalizer.canonicalize(item.link());
         if (articleRepository.existsByUrlCanonical(preliminaryCanonical)) {
             return;
         }
         LocalDateTime feedDate = item.publishedDate() != null ? item.publishedDate() : item.updatedDate();
         if (feedDate != null && feedDate.isBefore(oldestAllowed)) {
+            return;
+        }
+        if (Boolean.FALSE.equals(SportFilter.urlVerdict(preliminaryCanonical))) {
             return;
         }
 

@@ -49,7 +49,8 @@ public final class SportFilter {
     static final List<String> URL_DISCARD_MARKERS = List.of(
             "womens-college-basketball", "/womens-basketball", "college-football",
             "/nfl/", "/nba/", "/wnba/", "/mlb/", "/nhl/", "/soccer/", "/golf/",
-            "/tennis/", "/racing/", "/mma/", "/boxing/", "/olympics/");
+            "/tennis/", "/racing/", "/mma/", "/boxing/", "/olympics/",
+            "/entertainment/", "/celebrity/", "/fantasy/");
 
     static final List<String> URL_KEEP_MARKERS = List.of(
             "mens-college-basketball", "college-basketball", "/mens-basketball",
