@@ -46,6 +46,25 @@ class SportFilterTest {
     }
 
     @Test
+    void rejectsProBasketballStoryThatNameDropsACollege() {
+        // The 2026-08 Yahoo failure mode: an NBA/WNBA story whose snippet mentions
+        // the player's college scores a gazetteer hit + a "basketball" keyword.
+        assertFalse(SportFilter.keep(
+                "Caitlin Clark draws major praise as WNBA analyst credits the former Iowa "
+                        + "basketball star for the league's historic growth", true));
+        assertFalse(SportFilter.keep(
+                "NBA veteran and former Kentucky guard nears 20-year basketball milestone "
+                        + "as NBA contenders circle", true));
+    }
+
+    @Test
+    void keepsCbbStoryThatMentionsTheNbaDraft() {
+        assertTrue(SportFilter.keep(
+                "Duke's point guard declares for the NBA draft after a Final Four run and a "
+                        + "record field goal percentage season", true));
+    }
+
+    @Test
     void urlVerdictRecognizesBasketballPaths() {
         assertEquals(Boolean.TRUE, SportFilter.urlVerdict(
                 "https://www.espn.com/mens-college-basketball/story/_/id/1/recruiting-rankings"));

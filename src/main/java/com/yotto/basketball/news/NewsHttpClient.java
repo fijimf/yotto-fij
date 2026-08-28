@@ -115,7 +115,7 @@ public class NewsHttpClient {
 
             HttpRequest.Builder request = HttpRequest.newBuilder(uri)
                     .timeout(Duration.ofMillis(properties.getTimeoutMs()))
-                    .header("User-Agent", properties.getUserAgent())
+                    .header("User-Agent", properties.userAgentFor(uri.getHost()))
                     .header("Accept", "text/html, application/xhtml+xml, application/xml, application/rss+xml, */*")
                     .GET();
             if (etag != null) {
@@ -230,7 +230,7 @@ public class NewsHttpClient {
                 rateLimit(host);
                 HttpRequest request = HttpRequest.newBuilder(URI.create(uri.getScheme() + "://" + host + "/robots.txt"))
                         .timeout(Duration.ofMillis(properties.getTimeoutMs()))
-                        .header("User-Agent", properties.getUserAgent())
+                        .header("User-Agent", properties.userAgentFor(host))
                         .GET().build();
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() != 200) {

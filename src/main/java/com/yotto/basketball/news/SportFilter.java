@@ -27,11 +27,17 @@ public final class SportFilter {
             // women's basketball (excluded in v1 by decision on open question 1)
             "women's basketball", "womens basketball", "wbb", "women's hoops",
             "women's college basketball",
+            // pro basketball (2026-08: Yahoo's college-basketball feed began carrying
+            // general NBA/WNBA content; pro stories name-drop colleges enough to score
+            // a gazetteer hit, so the leagues must count against them. Word-boundary
+            // matching keeps "wnba" from also counting as "nba". A CBB story that
+            // mentions the NBA draft once still passes — basketball hits outnumber.)
+            "nba", "wnba", "g league", "g-league", "euroleague",
             // other sports
             "football", "quarterback", "touchdown", "gridiron",
             "volleyball", "baseball", "softball", "soccer", "hockey", "lacrosse",
             "wrestling", "gymnastics", "track and field", "cross country",
-            "swimming", "golf", "tennis", "rowing");
+            "swimming", "golf", "tennis", "rowing", "boxing", "nascar", "formula 1");
 
     /**
      * URL-path markers checked BEFORE keyword counting: major sites encode the

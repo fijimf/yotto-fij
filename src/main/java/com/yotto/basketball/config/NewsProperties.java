@@ -27,11 +27,19 @@ public class NewsProperties {
     private boolean allowPrivateAddresses = false;
     /**
      * ESPN's Akamai edge started 403ing unrecognized User-Agents (~2026-07-27): custom bot UAs
-     * are blocked on every HTTP stack while recognized product tokens (curl/*, Java/*, real
-     * browsers) pass. "Java/21" is the platform-truthful token the game scrapers have always
-     * sent implicitly; the comment suffix keeps our contact URL — verified to pass.
+     * were blocked while recognized product tokens (curl/*, Java/*, real browsers) passed, so
+     * "Java/21" was chosen as the platform-truthful token. By ~2026-08-19 Akamai blocked Java/*
+     * from this server too — curl/* is the only verified-passing token — hence the per-host
+     * override below. The default stays honest for every other publisher.
      */
     private String userAgent = "Java/21 (+https://fijimf.com/about)";
+
+    /**
+     * Per-host User-Agent overrides, keyed by exact host. site.api.espn.com must send a curl
+     * token (matches espn.scraping.user-agent used by the game scrapers) or every request 403s.
+     */
+    private java.util.Map<String, String> userAgentOverrides =
+            new java.util.HashMap<>(java.util.Map.of("site.api.espn.com", "curl/8.5.0"));
     private int maxResponseBytes = 2 * 1024 * 1024;
     private int maxRedirects = 5;
     private int subtitleMaxChars = 300;
@@ -277,6 +285,20 @@ public class NewsProperties {
 
     public void setUserAgent(String userAgent) {
         this.userAgent = userAgent;
+    }
+
+    public java.util.Map<String, String> getUserAgentOverrides() {
+        return userAgentOverrides;
+    }
+
+    public void setUserAgentOverrides(java.util.Map<String, String> userAgentOverrides) {
+        this.userAgentOverrides = userAgentOverrides;
+    }
+
+    /** The User-Agent to send to {@code host}: its override, or the default. */
+    public String userAgentFor(String host) {
+        String override = host == null ? null : userAgentOverrides.get(host);
+        return override != null ? override : userAgent;
     }
 
     public int getMaxResponseBytes() {
