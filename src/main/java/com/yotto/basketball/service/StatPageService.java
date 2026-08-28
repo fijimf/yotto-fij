@@ -54,6 +54,9 @@ public class StatPageService {
         this.namingService = namingService;
     }
 
+    @org.springframework.cache.annotation.Cacheable(
+            value = com.yotto.basketball.config.CacheConfig.STAT_PAGE,
+            key = "#year + ':' + #statName + ':' + #requestedDate")
     @Transactional(readOnly = true)
     public StatPageDto build(int year, String statName, LocalDate requestedDate) {
         StatCatalog.StatInfo info = StatCatalog.require(statName);

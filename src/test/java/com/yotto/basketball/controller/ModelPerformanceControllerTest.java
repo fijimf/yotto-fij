@@ -137,13 +137,13 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
                 .andExpect(content().string(containsString("By Conference")))
                 .andReturn();
         @SuppressWarnings("unchecked")
-        List<ModelPerformanceController.ConferenceRow> rows =
-                (List<ModelPerformanceController.ConferenceRow>) res.getModelAndView().getModel().get("conferenceRows");
+        List<com.yotto.basketball.service.ModelComparePageService.ConferenceRow> rows =
+                (List<com.yotto.basketball.service.ModelComparePageService.ConferenceRow>) res.getModelAndView().getModel().get("conferenceRows");
         // No ML bundles in this context → default comparison model is Massey
         assertThat(res.getModelAndView().getModel().get("confModel")).isEqualTo("MASSEY");
         // Both teams are in the ACC: each game must count once, not once per membership
         assertThat(rows).hasSize(1);
-        ModelPerformanceController.ConferenceRow acc = rows.get(0);
+        com.yotto.basketball.service.ModelComparePageService.ConferenceRow acc = rows.get(0);
         assertThat(acc.name()).isEqualTo("ACC");
         assertThat(acc.n()).isEqualTo(2L);
         // Massey errors 4.0 and 1.0 → MAE 2.5; book errors 1.5 and 0.5 → MAE 1.0; Δ +1.5
@@ -261,10 +261,10 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
                 .andExpect(content().string(containsString("identical games only")))
                 .andReturn();
         @SuppressWarnings("unchecked")
-        List<ModelPerformanceController.VsBookRow> rows =
-                (List<ModelPerformanceController.VsBookRow>) res.getModelAndView().getModel().get("vsBookRows");
+        List<com.yotto.basketball.service.ModelComparePageService.VsBookRow> rows =
+                (List<com.yotto.basketball.service.ModelComparePageService.VsBookRow>) res.getModelAndView().getModel().get("vsBookRows");
         assertThat(rows).hasSize(1);
-        ModelPerformanceController.VsBookRow r = rows.get(0);
+        com.yotto.basketball.service.ModelComparePageService.VsBookRow r = rows.get(0);
         assertThat(r.modelType()).isEqualTo("ML:test");
         assertThat(r.spreadN()).isEqualTo(3L);
         assertThat(r.modelMae()).isCloseTo((4.0 + 1.0 + 2.0) / 3, within(1e-6));
@@ -294,8 +294,8 @@ class ModelPerformanceControllerTest extends BaseIntegrationTest {
                 .andExpect(content().string(not(containsString("identical games only"))))
                 .andReturn();
         @SuppressWarnings("unchecked")
-        List<ModelPerformanceController.VsBookRow> rows =
-                (List<ModelPerformanceController.VsBookRow>) res.getModelAndView().getModel().get("vsBookRows");
+        List<com.yotto.basketball.service.ModelComparePageService.VsBookRow> rows =
+                (List<com.yotto.basketball.service.ModelComparePageService.VsBookRow>) res.getModelAndView().getModel().get("vsBookRows");
         assertThat(rows).isEmpty();
     }
 

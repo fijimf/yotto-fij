@@ -148,7 +148,7 @@ class TeamWebControllerTest extends BaseIntegrationTest {
         teamStatTimeSeriesService.calculateAndStoreForSeason(2025);
     }
 
-    private static TeamWebController.StatRow findRow(TeamWebController.TeamStatPanel panel, String statName) {
+    private static com.yotto.basketball.service.TeamPageDataService.StatRow findRow(com.yotto.basketball.service.TeamPageDataService.TeamStatPanel panel, String statName) {
         return panel.groups().stream().flatMap(g -> g.rows().stream())
                 .filter(r -> r.statName().equals(statName)).findFirst().orElse(null);
     }
@@ -257,20 +257,20 @@ class TeamWebControllerTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        TeamWebController.SeasonSchedule schedule = (TeamWebController.SeasonSchedule)
+        com.yotto.basketball.service.TeamPageDataService.SeasonSchedule schedule = (com.yotto.basketball.service.TeamPageDataService.SeasonSchedule)
                 res.getModelAndView().getModel().get("schedule");
         assertThat(schedule).isNotNull();
         assertThat(schedule.year()).isEqualTo(2025);
         assertThat(schedule.games()).hasSize(2);
         // Home win against teamB → result "W", location "vs"
-        TeamWebController.GameRow homeGame = schedule.games().stream()
+        com.yotto.basketball.service.TeamPageDataService.GameRow homeGame = schedule.games().stream()
                 .filter(r -> "vs".equals(r.location())).findFirst().orElseThrow();
         assertThat(homeGame.opponentName()).isEqualTo("Auburn");
         assertThat(homeGame.result()).isEqualTo("W");
         assertThat(homeGame.teamScore()).isEqualTo(80);
         assertThat(homeGame.opponentScore()).isEqualTo(70);
         // Away loss → result "L", location "@"
-        TeamWebController.GameRow awayGame = schedule.games().stream()
+        com.yotto.basketball.service.TeamPageDataService.GameRow awayGame = schedule.games().stream()
                 .filter(r -> "@".equals(r.location())).findFirst().orElseThrow();
         assertThat(awayGame.result()).isEqualTo("L");
         assertThat(awayGame.teamScore()).isEqualTo(60);
@@ -284,7 +284,7 @@ class TeamWebControllerTest extends BaseIntegrationTest {
 
         MvcResult res = mockMvc.perform(get("/teams/{id}", teamA.getId())).andReturn();
 
-        TeamWebController.SeasonSchedule schedule = (TeamWebController.SeasonSchedule)
+        com.yotto.basketball.service.TeamPageDataService.SeasonSchedule schedule = (com.yotto.basketball.service.TeamPageDataService.SeasonSchedule)
                 res.getModelAndView().getModel().get("schedule");
         assertThat(schedule.games()).hasSize(1);
         assertThat(schedule.games().get(0).location()).isEqualTo("N");
@@ -342,7 +342,7 @@ class TeamWebControllerTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        TeamWebController.TeamStatPanel panel = (TeamWebController.TeamStatPanel)
+        com.yotto.basketball.service.TeamPageDataService.TeamStatPanel panel = (com.yotto.basketball.service.TeamPageDataService.TeamStatPanel)
                 res.getModelAndView().getModel().get("statPanel");
         assertThat(panel).isNotNull();
         assertThat(panel.year()).isEqualTo(2025);
@@ -350,7 +350,7 @@ class TeamWebControllerTest extends BaseIntegrationTest {
         assertThat(panel.groups()).isNotEmpty();
 
         // eFG% for A = (30 + 0.5×5) / 60 = 0.5417 → "54.2%"; A leads B → rank 1 of 2.
-        TeamWebController.StatRow efg = findRow(panel, "efg_pct");
+        com.yotto.basketball.service.TeamPageDataService.StatRow efg = findRow(panel, "efg_pct");
         assertThat(efg).isNotNull();
         assertThat(efg.formattedValue()).isEqualTo("54.2%");
         assertThat(efg.rank()).isEqualTo(1);
@@ -360,14 +360,14 @@ class TeamWebControllerTest extends BaseIntegrationTest {
         assertThat(efg.higherIsBetter()).isTrue();
 
         // Offensive Rtg = 100 × 80 / 71.5 possessions = 111.9 (DECIMAL_1).
-        TeamWebController.StatRow offRtg = findRow(panel, "off_efficiency");
+        com.yotto.basketball.service.TeamPageDataService.StatRow offRtg = findRow(panel, "off_efficiency");
         assertThat(offRtg.formattedValue()).isEqualTo("111.9");
 
         // Groups appear in the panel display order. No TeamSeasonStatSnapshot is
         // seeded here, so the Scoring group is absent and Shooting leads; Shooting
         // precedes Efficiency under the new ordering.
         List<String> headers = panel.groups().stream()
-                .map(TeamWebController.StatGroup::header).toList();
+                .map(com.yotto.basketball.service.TeamPageDataService.StatGroup::header).toList();
         assertThat(headers).doesNotContain("Scoring");
         assertThat(headers.get(0)).isEqualTo("Shooting");
         assertThat(headers.indexOf("Shooting")).isLessThan(headers.indexOf("Efficiency"));

@@ -40,6 +40,7 @@ public class AdminController {
     private final TournamentReclassifier tournamentReclassifier;
     private final com.yotto.basketball.news.NewsAdminService newsAdminService;
     private final SeasonPhaseService seasonPhaseService;
+    private final com.yotto.basketball.service.PageCacheEvictionService pageCacheEvictionService;
 
     public AdminController(SeasonRepository seasonRepository,
                            AsyncScrapeService asyncScrapeService,
@@ -51,7 +52,8 @@ public class AdminController {
                            AutomationService automationService,
                            TournamentReclassifier tournamentReclassifier,
                            com.yotto.basketball.news.NewsAdminService newsAdminService,
-                           SeasonPhaseService seasonPhaseService) {
+                           SeasonPhaseService seasonPhaseService,
+                           com.yotto.basketball.service.PageCacheEvictionService pageCacheEvictionService) {
         this.seasonRepository    = seasonRepository;
         this.asyncScrapeService  = asyncScrapeService;
         this.mlModelRegistryService = mlModelRegistryService;
@@ -63,6 +65,7 @@ public class AdminController {
         this.tournamentReclassifier = tournamentReclassifier;
         this.newsAdminService = newsAdminService;
         this.seasonPhaseService = seasonPhaseService;
+        this.pageCacheEvictionService = pageCacheEvictionService;
     }
 
     @GetMapping
@@ -304,6 +307,9 @@ public class AdminController {
                            @RequestHeader(value = "HX-Request", required = false) String htmxRequest,
                            RedirectAttributes redirectAttributes) {
         var statuses = mlModelRegistryService.reloadAndReconcile();
+        // The serving plan (display names, evaluable versions) feeds the cached
+        // compare/about pages — drop them so the new roster shows immediately.
+        pageCacheEvictionService.evictAll();
         if (htmxRequest != null) {
             model.addAttribute("mlModels", mlModelRegistryService.modelViews());
             return "admin/fragments/ml-status :: ml-status-card";

@@ -13,10 +13,13 @@ public class AsyncScrapeService {
 
     private final ScrapeOrchestrator orchestrator;
     private final ScrapeScheduler scheduler;
+    private final com.yotto.basketball.service.PageCacheEvictionService pageCacheEvictionService;
 
-    public AsyncScrapeService(ScrapeOrchestrator orchestrator, ScrapeScheduler scheduler) {
+    public AsyncScrapeService(ScrapeOrchestrator orchestrator, ScrapeScheduler scheduler,
+                              com.yotto.basketball.service.PageCacheEvictionService pageCacheEvictionService) {
         this.orchestrator = orchestrator;
         this.scheduler = scheduler;
+        this.pageCacheEvictionService = pageCacheEvictionService;
     }
 
     /**
@@ -165,5 +168,7 @@ public class AsyncScrapeService {
                 log.error("Async prediction evaluation failed for {}", year, e);
             }
         }
+        // Evaluation rows changed — compare/about/predictor caches are stale.
+        pageCacheEvictionService.evictAll();
     }
 }

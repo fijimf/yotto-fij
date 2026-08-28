@@ -2,6 +2,7 @@ package com.yotto.basketball.scraping;
 
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.service.ConferenceGameFlagService;
+import com.yotto.basketball.service.PageCacheEvictionService;
 import com.yotto.basketball.service.PredictionEvaluationService;
 import com.yotto.basketball.service.PowerRatingService;
 import com.yotto.basketball.service.SeasonGameData;
@@ -35,6 +36,7 @@ public class ScrapeOrchestrator {
     private final PowerRatingService powerRatingService;
     private final TeamStatTimeSeriesService teamStatTimeSeriesService;
     private final PredictionEvaluationService predictionEvaluationService;
+    private final PageCacheEvictionService pageCacheEvictionService;
 
     public ScrapeOrchestrator(ConferenceScraper conferenceScraper, TeamScraper teamScraper,
                               StandingsScraper standingsScraper, GameScraper gameScraper,
@@ -47,7 +49,8 @@ public class ScrapeOrchestrator {
                               StatisticsTimeSeriesService timeSeriesService,
                               PowerRatingService powerRatingService,
                               TeamStatTimeSeriesService teamStatTimeSeriesService,
-                              PredictionEvaluationService predictionEvaluationService) {
+                              PredictionEvaluationService predictionEvaluationService,
+                              PageCacheEvictionService pageCacheEvictionService) {
         this.conferenceScraper = conferenceScraper;
         this.teamScraper = teamScraper;
         this.standingsScraper = standingsScraper;
@@ -62,6 +65,7 @@ public class ScrapeOrchestrator {
         this.powerRatingService = powerRatingService;
         this.teamStatTimeSeriesService = teamStatTimeSeriesService;
         this.predictionEvaluationService = predictionEvaluationService;
+        this.pageCacheEvictionService = pageCacheEvictionService;
     }
 
     public void scrapeFullSeason(int seasonYear) {
@@ -174,6 +178,9 @@ public class ScrapeOrchestrator {
         } catch (Exception e) {
             log.error("Prediction evaluation failed for season {}", seasonYear, e);
         }
+
+        // Snapshots/evaluations changed — page caches built from them are stale.
+        pageCacheEvictionService.evictAll();
     }
 
     public void evaluatePredictions(int seasonYear) {

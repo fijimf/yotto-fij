@@ -83,7 +83,7 @@ public class ModelAboutService {
                             TotalMetrics total, TotalMetrics bookTotal,
                             ProbMetrics prob, ProbMetrics bookProb,
                             VsBookMetrics vsBook,
-                            List<com.yotto.basketball.controller.ModelPerformanceController.CalibrationPoint> calibration,
+                            List<ModelComparePageService.CalibrationPoint> calibration,
                             String inSampleNote) {
 
         public boolean hasEvalData() {
@@ -98,6 +98,9 @@ public class ModelAboutService {
         }
     }
 
+    @org.springframework.cache.annotation.Cacheable(
+            value = com.yotto.basketball.config.CacheConfig.MODEL_ABOUT,
+            key = "#slug + ':' + #yearParam + ':' + #segmentParam")
     @Transactional(readOnly = true)
     public AboutPage build(String slug, String yearParam, String segmentParam) {
         PublicModel model = publicModelService.find(slug)
@@ -166,11 +169,11 @@ public class ModelAboutService {
                 .filter(m -> m.getSpreadN() > 0 || m.getOuN() > 0)
                 .findFirst().orElse(null);
 
-        List<com.yotto.basketball.controller.ModelPerformanceController.CalibrationPoint> calibration =
+        List<ModelComparePageService.CalibrationPoint> calibration =
                 evaluationRepository.calibrationBuckets(seasonId, BEGINNING, allSegments, types).stream()
                         .filter(b -> modelType.equals(b.getModelType())
                                 || PredictionEvaluationService.MODEL_BOOK.equals(b.getModelType()))
-                        .map(b -> new com.yotto.basketball.controller.ModelPerformanceController.CalibrationPoint(
+                        .map(b -> new ModelComparePageService.CalibrationPoint(
                                 b.getModelType(),
                                 PredictionEvaluationService.MODEL_BOOK.equals(b.getModelType())
                                         ? "Book Closing Line" : model.displayName(),
@@ -185,6 +188,7 @@ public class ModelAboutService {
     /** All-seasons/all-segments headline per model type for the /models index cards. */
     public record Headline(Double spreadMae, Double logLoss, Double bookSpreadMae, Double bookLogLoss) {}
 
+    @org.springframework.cache.annotation.Cacheable(com.yotto.basketball.config.CacheConfig.MODEL_HEADLINES)
     @Transactional(readOnly = true)
     public Map<String, Headline> headlines() {
         Double bookMae = null, bookLl = null;

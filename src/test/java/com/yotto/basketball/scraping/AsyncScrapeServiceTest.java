@@ -27,7 +27,8 @@ class AsyncScrapeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AsyncScrapeService(orchestrator, scheduler);
+        service = new AsyncScrapeService(orchestrator, scheduler,
+                org.mockito.Mockito.mock(com.yotto.basketball.service.PageCacheEvictionService.class));
     }
 
     @Test

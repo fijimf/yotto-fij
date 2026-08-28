@@ -16,6 +16,14 @@ Docker Compose services:
 
 Files to copy to server: `.env`, `config/mysite`, `docker-compose.yml`, `netdata/`. The `deploy.sh` script handles the full build-transfer-restart cycle.
 
+# nginx anonymous page cache (2026-08)
+
+`config/mysite` runs a `proxy_cache` (zone `deepfij`, 60s TTL, ephemeral in-container storage) for **anonymous GETs only** on the main 443 site, plus gzip. Invariants:
+- Requests carrying `JSESSIONID`/`remember-me` cookies, and all `/admin`,`/account`,`/login`,`/logout`,`/register`,`/verify`,`/forgot-password`,`/reset-password`,`/error` paths, bypass the cache — never widen the cache to them (CSRF tokens, personalized nav).
+- `proxy_ignore_headers Cache-Control` is deliberate (the app marks everything no-store); freshness is the 60s TTL. Set-Cookie responses are still never cached — do NOT add `Set-Cookie` to `proxy_ignore_headers`.
+- `proxy_cache_lock` + `use_stale updating` are what protect the 2-core box from request stampedes; keep them if the block is edited.
+- Debug with the `X-Cache-Status` response header (HIT/MISS/BYPASS/STALE/UPDATING). Full purge: `docker exec deepfij-nginx-1 sh -c 'rm -rf /var/cache/nginx/deepfij/*' && docker exec deepfij-nginx-1 nginx -s reload`.
+
 # Monitoring (Netdata)
 
 Spec: `docs/monitoring-spec-netdata.md`. Netdata runs as a compose service; configs live in `netdata/` (go.d collector configs, `health.d/` alarms, ntfy notification override). Key invariants:

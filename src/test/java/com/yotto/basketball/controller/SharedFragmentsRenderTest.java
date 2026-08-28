@@ -98,8 +98,10 @@ class SharedFragmentsRenderTest extends BaseIntegrationTest {
 
     @Test
     void chartThemeScript_isLoadedInLayout() throws Exception {
+        // The resource chain rewrites asset URLs to content-hashed versions
+        // (/js/chart-theme-<md5>.js), so match the stable prefix only.
         mockMvc.perform(get("/seasons/{year}/stats", 2025))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("/js/chart-theme.js")));
+                .andExpect(content().string(containsString("/js/chart-theme")));
     }
 }

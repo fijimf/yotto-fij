@@ -33,6 +33,9 @@ public abstract class BaseIntegrationTest {
     @Autowired
     private com.yotto.basketball.security.RateLimitService rateLimitService;
 
+    @Autowired
+    private com.yotto.basketball.service.PageCacheEvictionService pageCacheEvictionService;
+
     @BeforeEach
     void wipeDatabase() {
         jdbcTemplate.execute("TRUNCATE TABLE " + SharedPostgresContainer.TABLES_TO_TRUNCATE
@@ -40,5 +43,8 @@ public abstract class BaseIntegrationTest {
         // In-memory auth rate limiter is context-scoped; without a reset,
         // login-heavy test classes would trip it for everyone after them
         rateLimitService.clear();
+        // RESTART IDENTITY reuses entity IDs across tests, so page-data caches
+        // keyed on them would serve one test's data to the next — always drop them
+        pageCacheEvictionService.evictAll();
     }
 }
