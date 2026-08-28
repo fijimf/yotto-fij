@@ -239,9 +239,15 @@ public class NewsScrapeService {
         if (Boolean.FALSE.equals(urlVerdict)) {
             return;
         }
+        String fullText = title + " " + nullToEmpty(subtitle) + " " + body;
         if (!Boolean.TRUE.equals(feedSource.getDedicatedCbb()) && !Boolean.TRUE.equals(urlVerdict)) {
-            String fullText = title + " " + nullToEmpty(subtitle) + " " + body;
             if (!SportFilter.keep(fullText, tags.hasAnyMatch())) {
+                return;
+            }
+        } else if (!Boolean.TRUE.equals(urlVerdict)) {
+            // Dedicated feeds skip the full filter, but a story with strong
+            // other-sport signal (SEC football news in a CBB feed) still goes.
+            if (!SportFilter.keepDedicated(fullText)) {
                 return;
             }
         }
@@ -503,12 +509,16 @@ public class NewsScrapeService {
             return new DryRunItem(title, canonical, publishedAt, true,
                     "Page fetch failed — would ingest with feed metadata only", tagSummaries);
         }
+        String fullText = title + " " + nullToEmpty(item.summary()) + " " + body;
         if (!dedicatedCbb && !Boolean.TRUE.equals(urlVerdict)) {
-            String fullText = title + " " + nullToEmpty(item.summary()) + " " + body;
             if (!SportFilter.keep(fullText, tags.hasAnyMatch())) {
                 return new DryRunItem(title, canonical, publishedAt, false,
                         "Discarded by sport filter (not men's college basketball)", tagSummaries);
             }
+        } else if (dedicatedCbb && !Boolean.TRUE.equals(urlVerdict)
+                && !SportFilter.keepDedicated(fullText)) {
+            return new DryRunItem(title, canonical, publishedAt, false,
+                    "Discarded — strong other-sport signal despite dedicated-CBB feed", tagSummaries);
         }
         return new DryRunItem(title, canonical, publishedAt, true,
                 tagSummaries.isEmpty() ? "Would ingest (untagged)" : "Would ingest", tagSummaries);

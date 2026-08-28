@@ -20,7 +20,7 @@
                 <span th:text="${m.view.awayName}">Auburn</span>
                 <strong th:text="${m.view.awayScore}">72</strong>
             </span>
-            <span class="home-row__at">@</span>
+            <span class="home-row__at" th:text="${m.view.neutralSite} ? 'vs' : '@'">@</span>
             <span class="home-history__team">
                 <img th:if="${m.view.homeLogo}" th:src="${m.view.homeLogo}"
                      class="home-history__logo" loading="lazy" width="28" height="28" alt=""/>

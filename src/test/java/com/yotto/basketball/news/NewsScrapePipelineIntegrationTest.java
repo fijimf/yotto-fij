@@ -319,6 +319,61 @@ class NewsScrapePipelineIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void sameStoryRewriteClustersByTitleWhenBodiesHashApart() {
+        // Two outlets write their own copy of one story: bodies are far apart in
+        // simhash space, but the headlines share almost every meaningful token —
+        // the title-similarity fallback must cluster them (2026-08: the Todd
+        // Golden contract story appeared three times on the front page).
+        String blogUrl = "https://hoopsblog.example.com/self-contract-extension";
+        feed(BLOG_FEED, item("Kansas coach Self gets another contract extension and $1.5M raise",
+                blogUrl, hoursAgo(5)));
+        page(blogUrl, "Kansas coach Self gets another contract extension and $1.5M raise", """
+                Kansas has rewarded its basketball coach with another contract extension and a
+                significant raise, the athletic department announced Tuesday. The new deal keeps
+                the Jayhawks coach in Lawrence through the end of the decade and lifts his annual
+                compensation by one and a half million dollars. Boosters praised the move as a
+                statement of stability for the basketball program after a strong season that
+                ended in the second weekend of the NCAA tournament. The extension also increases
+                the assistant coaching pool and adds new retention bonuses for the basketball
+                staff, according to documents released by the university on Tuesday afternoon.
+                """);
+        scrapeService.pollAll(ScrapeBatch.Source.MANUAL);
+
+        NewsArticle blogArticle = articleRepository.findAll().get(0);
+        assertNull(blogArticle.getDuplicateOf());
+
+        // ESPN's own rewrite arrives on the next poll at authority 100
+        String espnUrl = "https://www.espn.com/story/_/id/2002/self-contract";
+        feed(BLOG_FEED, "");
+        feed(ESPN_FEED, item("Kansas basketball coach Bill Self gets another contract extension and a $1.5M raise",
+                espnUrl, hoursAgo(6)));
+        page(espnUrl, "Kansas basketball coach Bill Self gets another contract extension and a $1.5M raise", """
+                Bill Self is staying at Kansas on new terms. The school confirmed Tuesday that
+                its Hall of Fame basketball coach signed a fresh extension worth an additional
+                million and a half dollars per year. Sources told ESPN the agreement had been in
+                the works since the spring and was finalized after meetings with the chancellor
+                last week. Self, who has won two national championships with the Jayhawks, said
+                he expects the roster to contend for a Big 12 basketball title again. The deal
+                restructures his retirement package and guarantees money for his top assistants
+                while adding basketball facility commitments the coach had sought for years.
+                """);
+        scrapeService.pollAll(ScrapeBatch.Source.MANUAL);
+
+        assertEquals(2, articleRepository.count());
+        NewsArticle espnArticle = articleRepository.findByUrlCanonical(
+                "https://espn.com/story/_/id/2002/self-contract").orElseThrow();
+        NewsArticle refreshedBlog = articleRepository.findById(blogArticle.getId()).orElseThrow();
+        // distinct bodies really do miss the simhash threshold...
+        assertNotNull(espnArticle.getSimhash());
+        assertNotNull(refreshedBlog.getSimhash());
+        assertTrue(SimHasher.hammingDistance(espnArticle.getSimhash(), refreshedBlog.getSimhash()) > 10);
+        // ...yet the title layer clustered them, with authority picking the representative
+        assertNull(espnArticle.getDuplicateOf());
+        assertNotNull(refreshedBlog.getDuplicateOf());
+        assertEquals(espnArticle.getId(), refreshedBlog.getDuplicateOf().getId());
+    }
+
+    @Test
     void notModifiedFeedIsSuccessWithoutWork() {
         when(httpClient.fetchFeed(eq(ESPN_FEED), any(), any())).thenReturn(
                 new NewsHttpClient.FetchResult(304, ESPN_FEED, null, null, null, null));

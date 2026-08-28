@@ -14,8 +14,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
  * Slice test for {@link GlobalExceptionHandler}. Uses @WebMvcTest with a stub
@@ -95,6 +98,55 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.error").value("Bad Request"));
+    }
+
+    // ── HTML mode: browser requests get the branded error views, same statuses ──
+
+    private static final String BROWSER_ACCEPT =
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+
+    @Test
+    void entityNotFound_browserAccept_rendersHtml404View() throws Exception {
+        mockMvc.perform(get("/stub/not-found").header("Accept", BROWSER_ACCEPT))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/404"))
+                .andExpect(model().attribute("message", "ghost entity"));
+    }
+
+    @Test
+    void unmatchedPath_browserAccept_rendersHtml404View() throws Exception {
+        mockMvc.perform(get("/no/such/endpoint").header("Accept", BROWSER_ACCEPT))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/404"));
+    }
+
+    @Test
+    void typeMismatch_browserAccept_rendersHtml400WithoutJavaTypeDetail() throws Exception {
+        // The raw conversion message names parameters and Java types — HTML mode
+        // must not surface it.
+        mockMvc.perform(get("/stub/typed/idaho-vandals").header("Accept", BROWSER_ACCEPT))
+                .andExpect(status().isBadRequest())
+                .andExpect(view().name("error/400"))
+                .andExpect(model().attribute("message", org.hamcrest.Matchers.nullValue()))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("java.lang"))));
+    }
+
+    @Test
+    void uncaughtException_browserAccept_rendersHtml500() throws Exception {
+        mockMvc.perform(get("/stub/boom").header("Accept", BROWSER_ACCEPT))
+                .andExpect(status().isInternalServerError())
+                .andExpect(view().name("error/500"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("kaboom"))));
+    }
+
+    @Test
+    void apiPath_browserAccept_staysJson() throws Exception {
+        // /api/** always speaks JSON regardless of what the client accepts.
+        mockMvc.perform(get("/api/no/such/endpoint").header("Accept", BROWSER_ACCEPT))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("Not Found"));
     }
 
     @Test

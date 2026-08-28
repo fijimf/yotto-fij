@@ -3818,7 +3818,11 @@ a.team-hero__conference:hover {
 .bracket-region__round-labels,
 .bracket-region__grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(112px, 1fr));
+    /* Later rounds hold fewer, better-known teams — give them wider tracks so
+       Sweet 16 / Elite 8 names don't truncate. Track order survives the
+       right-side rtl mirroring (track 1 = 1st round on both sides). */
+    grid-template-columns: minmax(112px, 1fr) minmax(112px, 1fr)
+                           minmax(122px, 1.15fr) minmax(130px, 1.3fr);
 }
 .bracket-region__round-labels span {
     font-size: 0.65rem;

@@ -65,6 +65,50 @@ class SportFilterTest {
     }
 
     @Test
+    void rejectsWomensRecruitStoryWhereBasketballHitsAreMostlyEmbedded() {
+        // The 2026-08 leak: a WBB recruit story whose only standalone basketball
+        // signal was "shooting guard" — the "basketball" occurrences all sat
+        // inside "women's basketball", which must not count as men's evidence.
+        assertFalse(SportFilter.keep(
+                "Four-star recruit decommits from Gophers. The Rosemount shooting guard was "
+                        + "Minnesota's lone women's basketball commit; the women's basketball staff "
+                        + "now has no commits for next season", true));
+    }
+
+    @Test
+    void rejectsFootballStoryUsingNflSignal() {
+        // "Texas judge puts SEC ban on hold, opening door for players on NFL
+        // rosters to return" — football eligibility news with no basketball signal
+        // beyond a gazetteer hit.
+        assertFalse(SportFilter.keep(
+                "Texas judge puts SEC ban on hold, opening door for players on NFL rosters "
+                        + "to return; Alabama and the NFL players association reacted", true));
+    }
+
+    @Test
+    void dedicatedFeedBackstopDiscardsFootballStory() {
+        // Dedicated-CBB feeds skip the full filter, but an outright football story
+        // (the 2026-08 Lane Kiffin leak) has ≥2 other-sport hits and no basketball.
+        assertFalse(SportFilter.keepDedicated(
+                "SEC schools approve penalties for signing returning pro athletes. Tigers "
+                        + "football coach Lane Kiffin has recruited at least two football players "
+                        + "made NCAA eligible by a Louisiana court injunction"));
+    }
+
+    @Test
+    void dedicatedFeedBackstopKeepsCbbStories() {
+        // An incidental football mention must not discard a real CBB story...
+        assertTrue(SportFilter.keepDedicated(
+                "Kansas basketball opens practice; the point guard rotation looks deep and the "
+                        + "football team's stadium hosted the hoops scrimmage"));
+        // ...nor may NBA-draft coverage, which dedicated feeds legitimately carry.
+        assertTrue(SportFilter.keepDedicated(
+                "Duke's point guard declares for the NBA draft; NBA scouts watched every game"));
+        // ...and metadata-only items (no fetched body) keep the feed's word.
+        assertTrue(SportFilter.keepDedicated(""));
+    }
+
+    @Test
     void urlVerdictRecognizesBasketballPaths() {
         assertEquals(Boolean.TRUE, SportFilter.urlVerdict(
                 "https://www.espn.com/mens-college-basketball/story/_/id/1/recruiting-rankings"));

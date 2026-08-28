@@ -275,6 +275,18 @@ Failed-fetch items from non-dedicated sources (metadata only, no body) get the
 same filter over title+subtitle alone; that's a thin signal, so in practice
 most survive only from dedicated sources. Fine.
 
+Basketball keyword hits that sit *inside* an exclusion phrase (the
+"basketball" in "women's basketball") are subtracted before comparing, so a
+WBB story can't out-vote its own exclusions (2026-08 leak: a WBB recruit
+story whose every "basketball" was inside "women's basketball").
+
+**Dedicated-source backstop** (2026-08): sources with `dedicated_cbb=true`
+skip the full filter, but general SEC/athletic-department feeds occasionally
+carry football stories. `SportFilter.keepDedicated` discards only on strong
+evidence: ≥2 WBB/other-sport keyword hits *and* more of them than basketball
+hits. Pro-basketball terms deliberately don't count — dedicated feeds
+legitimately cover NBA-draft news.
+
 ### 5.5 Dedup (SimHash layer)
 
 - 64-bit SimHash over shingled tokens (2-grams) of the extracted body,
@@ -286,7 +298,10 @@ most survive only from dedicated sources. Fine.
 - **Comparison window:** brute-force Hamming distance against articles from
   the **last 10 days** with non-null simhash (a few thousand rows at CBB news
   volume; in-memory scan per candidate is microseconds). No LSH, no index.
-- Threshold: Hamming ≤ 3 ⇒ same story.
+- Threshold: Hamming ≤ 10 ⇒ same story (configurable via
+  `news.dedup.hamming-threshold`; see §11 — the classic ≤ 3 assumes
+  full-page-length inputs, while 300-800-token bodies measure 4-8 for
+  verbatim republishes).
 - **Representative selection:** the incoming article joins the cluster of the
   first match found. Representative = highest `authority_weight` in the
   cluster, tie-broken by earliest `published_at` (wire original usually beats
@@ -295,6 +310,16 @@ most survive only from dedicated sources. Fine.
   `duplicate_of_article_id` to the newcomer and repoint all cluster members
   (single UPDATE). Tags are recomputed on the new representative; listings
   always show representatives only (`duplicate_of_article_id IS NULL`).
+- **Title-similarity fallback** (2026-08): body simhash only catches verbatim
+  republishes — three outlets each writing their own "Todd Golden contract
+  extension" story hash ~25-32 apart and all three hit the front page. When no
+  simhash match is found (including metadata-only articles, which have no
+  simhash), headlines within a short window (48 h, `news.dedup.title-window-hours`)
+  are compared as stopword-stripped token sets: Jaccard ≥ 0.6
+  (`title-jaccard-threshold`; set > 1.0 to disable) with ≥ 4 shared tokens
+  (`title-min-shared-tokens`) ⇒ same story. The window is deliberately short so
+  recurring headline patterns ("College basketball rankings: ...") don't
+  false-cluster week over week.
 - Hash collisions across genuinely different stories (two 400-word game recaps
   with heavy shared boilerplate) are possible. Mitigation: extraction strips
   nav/boilerplate before hashing, and the admin article view (§7.3) can break

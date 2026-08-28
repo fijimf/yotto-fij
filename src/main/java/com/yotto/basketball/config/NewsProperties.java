@@ -56,6 +56,15 @@ public class NewsProperties {
         // (The classic threshold of 3 assumes full-page-length inputs.)
         private int hammingThreshold = 10;
         private int windowDays = 10;
+        // Title-similarity fallback (§5.5 second layer): same-story rewrites from
+        // different outlets miss the simhash threshold but share most meaningful
+        // headline tokens. Short window on purpose — wire coverage of one story
+        // lands within a couple of days, while recurring headline patterns
+        // ("College basketball rankings: ...") would false-cluster over longer
+        // spans. Set titleJaccardThreshold > 1.0 to disable the layer.
+        private double titleJaccardThreshold = 0.6;
+        private int titleMinSharedTokens = 4;
+        private int titleWindowHours = 48;
 
         public int getMinBodyTokens() {
             return minBodyTokens;
@@ -79,6 +88,30 @@ public class NewsProperties {
 
         public void setWindowDays(int windowDays) {
             this.windowDays = windowDays;
+        }
+
+        public double getTitleJaccardThreshold() {
+            return titleJaccardThreshold;
+        }
+
+        public void setTitleJaccardThreshold(double titleJaccardThreshold) {
+            this.titleJaccardThreshold = titleJaccardThreshold;
+        }
+
+        public int getTitleMinSharedTokens() {
+            return titleMinSharedTokens;
+        }
+
+        public void setTitleMinSharedTokens(int titleMinSharedTokens) {
+            this.titleMinSharedTokens = titleMinSharedTokens;
+        }
+
+        public int getTitleWindowHours() {
+            return titleWindowHours;
+        }
+
+        public void setTitleWindowHours(int titleWindowHours) {
+            this.titleWindowHours = titleWindowHours;
         }
     }
 

@@ -216,13 +216,21 @@ public class PowerRankingPageService {
         Map<Long, TeamPowerRatingSnapshot> def = byTeam(season, "ADJ_DEF", date);
         Map<Long, TeamPowerRatingSnapshot> tempo = byTeam(season, "ADJ_TEMPO", date);
 
+        // Stored ratings are centered team params where higher def = stronger defense
+        // (it subtracts from opponent efficiency — see AdjustedEfficiencyRatingService).
+        // Display as absolute per-100 values: AdjO = μ + off, AdjD = μ − def (lower is
+        // better), Tempo = baseline + τ; Net = AdjO − AdjD = off + def.
+        LocalDate before = date.plusDays(1);
+        double mu = param(season, "ADJ_OFF", "eff_intercept", before).orElse(0.0);
+        double tempoBase = param(season, "ADJ_TEMPO", "tempo_intercept", before).orElse(0.0);
+
         record NetRow(TeamPowerRatingSnapshot o, TeamPowerRatingSnapshot d, TeamPowerRatingSnapshot t, double net) {}
         List<NetRow> nets = new ArrayList<>();
         for (Map.Entry<Long, TeamPowerRatingSnapshot> e : off.entrySet()) {
             TeamPowerRatingSnapshot d = def.get(e.getKey());
             if (d == null || e.getValue().getRating() == null || d.getRating() == null) continue;
             nets.add(new NetRow(e.getValue(), d, tempo.get(e.getKey()),
-                    e.getValue().getRating() - d.getRating()));
+                    e.getValue().getRating() + d.getRating()));
         }
         nets.sort(Comparator.comparingDouble(NetRow::net).reversed());
 
@@ -231,10 +239,11 @@ public class PowerRankingPageService {
             NetRow n = nets.get(i);
             Team team = n.o().getTeam();
             rows.add(row(i + 1, team, ctx, n.o().getGamesPlayed(), ctx.record(team.getId()),
-                    List.of(fmt(n.o().getRating(), 1),
-                            fmt(n.d().getRating(), 1),
+                    List.of(fmt(mu + n.o().getRating(), 1),
+                            fmt(mu - n.d().getRating(), 1),
                             signed(n.net(), 1),
-                            n.t() != null ? fmt(n.t().getRating(), 1) : "—")));
+                            n.t() != null && n.t().getRating() != null
+                                    ? fmt(tempoBase + n.t().getRating(), 1) : "—")));
         }
         return rows;
     }

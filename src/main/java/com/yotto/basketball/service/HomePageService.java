@@ -661,7 +661,8 @@ public class HomePageService {
     /** The archive view backing the "this day in season history" panel. */
     public record HistoryView(int seasonYear, LocalDate gameDate, Long gameId,
                               String homeName, String awayName, String homeLogo, String awayLogo,
-                              Integer homeScore, Integer awayScore, String framing) {}
+                              Integer homeScore, Integer awayScore, boolean neutralSite,
+                              String framing) {}
 
     /**
      * Off-season days have no basketball history of their own, so the chooser walks the archive:
@@ -702,7 +703,8 @@ public class HomePageService {
                 EasternDates.toEasternDate(g.getGameDate()), g.getId(),
                 g.getHomeTeam().getName(), g.getAwayTeam().getName(),
                 g.getHomeTeam().getLogoUrl(), g.getAwayTeam().getLogoUrl(),
-                g.getHomeScore(), g.getAwayScore(), framing);
+                g.getHomeScore(), g.getAwayScore(),
+                Boolean.TRUE.equals(g.getNeutralSite()), framing);
     }
 
     private String closestFraming(Game g) {
@@ -922,8 +924,9 @@ public class HomePageService {
                 }
                 case "history" -> {
                     HistoryView v = (HistoryView) m.get("view");
+                    String sep = v.neutralSite() ? " vs " : " @ ";
                     sections.add(new DigestSection(HISTORY_TITLE, List.of(new DigestLine(
-                            v.awayName() + " " + v.awayScore() + " @ " + v.homeName() + " " + v.homeScore()
+                            v.awayName() + " " + v.awayScore() + sep + v.homeName() + " " + v.homeScore()
                                     + " (" + v.gameDate() + ")",
                             v.framing(), "/games/" + v.gameId()))));
                     // deliberately NOT meaningful: archive trivia alone doesn't justify an email

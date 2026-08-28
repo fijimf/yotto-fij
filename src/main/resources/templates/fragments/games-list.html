@@ -18,7 +18,7 @@
             <h1 class="games-nav__date"
                 th:text="${#temporals.format(date, 'EEEE, MMMM d, yyyy')}">Saturday, March 14, 2026</h1>
             <div class="games-nav__meta">
-                <span th:text="${gameCount} + ' games'">42 games</span>
+                <span th:text="${gameCount} + (${gameCount == 1} ? ' game' : ' games')">42 games</span>
                 <input type="date" class="form-input form-input--sm games-nav__picker"
                        th:value="${date}"
                        onchange="if(this.value) window.location='/games?date=' + this.value;" />

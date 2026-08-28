@@ -68,7 +68,8 @@
                         <td class="schedule-table__hide-mobile"
                             th:text="${snap.meanMargin != null ? #numbers.formatDecimal(snap.meanMargin, 1, 1) : '—'}">+6.8</td>
                         <td class="schedule-table__hide-mobile"
-                            th:text="${snap.correlationPts != null ? #numbers.formatDecimal(snap.correlationPts, 1, 3) : '—'}">0.421</td>
+                            th:with="corrDisplay=${snap.correlationPts != null and snap.correlationPts > -0.0005 and snap.correlationPts < 0.0005 ? 0.0 : snap.correlationPts}"
+                            th:text="${corrDisplay != null ? #numbers.formatDecimal(corrDisplay, 1, 3) : '—'}">0.421</td>
                         <td class="schedule-table__hide-mobile"
                             th:text="${(snap.rollingWins != null and snap.rollingLosses != null) ? snap.rollingWins + '-' + snap.rollingLosses : '—'}">7-3</td>
                         <td class="schedule-table__hide-mobile"

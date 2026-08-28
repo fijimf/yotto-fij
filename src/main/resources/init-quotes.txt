@@ -46,10 +46,10 @@
 'Don''t talk to me about your big, big heroes', '"Kelly''s Heroes" - Black Grape'
 'Trouble''s gonna come to you', '"Your Time is Gonna Come" - Led Zeppelin'
 'I don''t like drinking fancy champy, I''ll stick with Heineken beers.', '"Love Me or Hate Me" - Lady Sovereign'
-'They headed down to old El Paso; thats''s where they ran into a great big hassle.', '"Take the Money and Run" - The Steve Miller Band', 'utep');
+'They headed down to old El Paso; that''s where they ran into a great big hassle.', '"Take the Money and Run" - The Steve Miller Band'
 'I''ll write on your tombstone, "I thank you for dinner."', '"Bungle in the Jungle" - Jethro Tull'
 'Taking a bite on a biscuit, the record jumps on a scratch.', '"If I Didn''t Love You" - Squeeze'
-'They were all in love with Diane, they we''re doing it in Texas.', '"Pepper" - Butthole Surfers', 'texas');
+'They were all in love with dying, they were doing it in Texas.', '"Pepper" - Butthole Surfers'
 'I got a baby''s brain and an old man''s heart', '"I''m Eighteen" - Alice Cooper'
 'Let fury have the hour / Anger can be power.', '"Clampdown" - The Clash'
 'I like bread and butter. I like toast and jam.', '"Bread and Butter" - The Newbeats'

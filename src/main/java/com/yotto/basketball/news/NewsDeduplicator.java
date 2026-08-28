@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -36,27 +35,18 @@ public class NewsDeduplicator {
      * article joins an existing cluster as a suppressed duplicate, or — when it
      * outranks the current representative — the whole cluster is repointed at
      * it (§5.5: highest authority wins, earliest publish breaks ties).
+     *
+     * <p>Two layers: body simhash catches verbatim wire republishes; the
+     * title-similarity fallback catches same-story rewrites from different
+     * outlets, whose bodies hash far apart (and metadata-only articles, which
+     * have no simhash at all).
      */
     @Transactional
     public void cluster(NewsArticle article) {
-        if (article.getSimhash() == null) {
+        Long representativeId = simhashMatch(article).orElseGet(() -> titleMatch(article).orElse(null));
+        if (representativeId == null) {
             return;
         }
-        LocalDateTime since = LocalDateTime.now().minusDays(properties.getDedup().getWindowDays());
-        int threshold = properties.getDedup().getHammingThreshold();
-
-        List<SimhashCandidate> window = articleRepository.findSimhashCandidatesSince(since);
-        Optional<SimhashCandidate> match = window.stream()
-                .filter(c -> !c.id().equals(article.getId()))
-                .filter(c -> SimHasher.hammingDistance(c.simhash(), article.getSimhash()) <= threshold)
-                .min(Comparator.comparing(SimhashCandidate::publishedAt));
-        if (match.isEmpty()) {
-            return;
-        }
-
-        Long representativeId = match.get().duplicateOfId() != null
-                ? match.get().duplicateOfId()
-                : match.get().id();
         NewsArticle representative = articleRepository.findById(representativeId).orElse(null);
         if (representative == null || representative.getId().equals(article.getId())) {
             return;
@@ -71,6 +61,42 @@ public class NewsDeduplicator {
             articleRepository.save(article);
             log.debug("Article {} clustered under representative {}", article.getId(), representative.getId());
         }
+    }
+
+    /** Representative id of the closest simhash match within the window, if any. */
+    private Optional<Long> simhashMatch(NewsArticle article) {
+        if (article.getSimhash() == null) {
+            return Optional.empty();
+        }
+        LocalDateTime since = LocalDateTime.now().minusDays(properties.getDedup().getWindowDays());
+        int threshold = properties.getDedup().getHammingThreshold();
+
+        return articleRepository.findSimhashCandidatesSince(since).stream()
+                .filter(c -> !c.id().equals(article.getId()))
+                .filter(c -> SimHasher.hammingDistance(c.simhash(), article.getSimhash()) <= threshold)
+                .min(Comparator.comparing(SimhashCandidate::publishedAt))
+                .map(c -> c.duplicateOfId() != null ? c.duplicateOfId() : c.id());
+    }
+
+    /** Representative id of the closest same-headline match within the (short) title window. */
+    private Optional<Long> titleMatch(NewsArticle article) {
+        double threshold = properties.getDedup().getTitleJaccardThreshold();
+        int minShared = properties.getDedup().getTitleMinSharedTokens();
+        java.util.Set<String> tokens = TitleSimilarity.tokens(article.getTitle());
+        if (threshold > 1.0 || tokens.size() < minShared) {
+            return Optional.empty();
+        }
+        LocalDateTime since = LocalDateTime.now().minusHours(properties.getDedup().getTitleWindowHours());
+
+        return articleRepository.findTitleCandidatesSince(since).stream()
+                .filter(c -> !c.id().equals(article.getId()))
+                .filter(c -> {
+                    java.util.Set<String> other = TitleSimilarity.tokens(c.title());
+                    return TitleSimilarity.sharedCount(tokens, other) >= minShared
+                            && TitleSimilarity.jaccard(tokens, other) >= threshold;
+                })
+                .min(Comparator.comparing(TitleCandidate::publishedAt))
+                .map(c -> c.duplicateOfId() != null ? c.duplicateOfId() : c.id());
     }
 
     private static boolean outranks(NewsArticle candidate, NewsArticle representative) {

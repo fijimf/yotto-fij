@@ -87,7 +87,7 @@ public class ModelScheduleService {
         PublicModel model = publicModelService.find(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Unknown model: " + slug));
 
-        LocalDate date = requestedDate != null ? requestedDate : LocalDate.now(clock);
+        LocalDate date = requestedDate != null ? requestedDate : defaultDate();
 
         // Past mode: the model's leakage-free pre-game evaluations for the day
         List<PredictionEvaluation> evals = evaluationRepository.findByModelAndDate(model.modelType(), date);
@@ -102,6 +102,22 @@ public class ModelScheduleService {
         return new SchedulePage(model, publicModelService.list(),
                 date, date.minusDays(1), date.plusDays(1),
                 evaluated, rows, evaluated ? summarize(evals) : null);
+    }
+
+    /**
+     * Today, unless nothing is scheduled on or after it (offseason) — then the
+     * last played date, so the tab opens on real games instead of an empty page
+     * (mirrors /games).
+     */
+    private LocalDate defaultDate() {
+        LocalDate today = LocalDate.now(clock);
+        java.time.LocalDateTime[] window = com.yotto.basketball.util.EasternDates.dayWindowUtc(today);
+        if (gameRepository.findMinGameDateOnOrAfter(window[0]).isPresent()) {
+            return today;
+        }
+        return gameRepository.findMaxGameDateBefore(window[1])
+                .map(com.yotto.basketball.util.EasternDates::toEasternDate)
+                .orElse(today);
     }
 
     private static GameRow fromEvaluation(PredictionEvaluation e) {

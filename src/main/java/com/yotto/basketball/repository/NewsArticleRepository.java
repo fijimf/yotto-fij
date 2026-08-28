@@ -2,6 +2,7 @@ package com.yotto.basketball.repository;
 
 import com.yotto.basketball.entity.NewsArticle;
 import com.yotto.basketball.news.SimhashCandidate;
+import com.yotto.basketball.news.TitleCandidate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,6 +30,15 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, Long> 
             where a.simhash is not null and a.publishedAt >= :since
             """)
     List<SimhashCandidate> findSimhashCandidatesSince(@Param("since") LocalDateTime since);
+
+    /** Recent articles for the title-similarity dedup scan (metadata-only rows included). */
+    @Query("""
+            select new com.yotto.basketball.news.TitleCandidate(
+                a.id, a.title, a.staticScore, a.publishedAt, d.id)
+            from NewsArticle a left join a.duplicateOf d
+            where a.title is not null and a.publishedAt >= :since
+            """)
+    List<TitleCandidate> findTitleCandidatesSince(@Param("since") LocalDateTime since);
 
     List<NewsArticle> findByDuplicateOfId(Long representativeId);
 

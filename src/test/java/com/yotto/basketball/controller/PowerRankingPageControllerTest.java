@@ -34,6 +34,7 @@ class PowerRankingPageControllerTest extends BaseIntegrationTest {
     @Autowired TeamRepository teamRepo;
     @Autowired TeamPowerRatingSnapshotRepository ratingRepo;
     @Autowired TeamSeasonStatSnapshotRepository wideRepo;
+    @Autowired com.yotto.basketball.repository.PowerModelParamSnapshotRepository paramRepo;
 
     static final LocalDate SNAP = LocalDate.of(2025, 2, 1);
 
@@ -54,9 +55,15 @@ class PowerRankingPageControllerTest extends BaseIntegrationTest {
 
         mkRating(teamA, "MASSEY", 12.4, 1, 20);
         mkRating(teamB, "MASSEY", -3.1, 2, 3); // low GP row
-        mkRating(teamA, "ADJ_OFF", 118.2, 1, 20);
-        mkRating(teamA, "ADJ_DEF", 95.0, 1, 20);
-        mkRating(teamA, "ADJ_TEMPO", 68.5, 1, 20);
+
+        // ADJ ratings are centered team params (higher def = stronger defense);
+        // the page displays absolutes via the intercept params: AdjO = μ + off,
+        // AdjD = μ − def, Net = off + def, Tempo = baseline + τ.
+        mkRating(teamA, "ADJ_OFF", 8.2, 1, 20);
+        mkRating(teamA, "ADJ_DEF", 5.0, 1, 20);
+        mkRating(teamA, "ADJ_TEMPO", 0.5, 1, 20);
+        mkParam("ADJ_OFF", "eff_intercept", 110.0);
+        mkParam("ADJ_TEMPO", "tempo_intercept", 68.0);
 
         mkWide(teamA, 0.62, 18, 2);
         mkWide(teamB, 0.41, 9, 11);
@@ -81,6 +88,18 @@ class PowerRankingPageControllerTest extends BaseIntegrationTest {
         s.setGamesPlayed(gp);
         s.setCalculatedAt(java.time.LocalDateTime.of(2025, 2, 1, 6, 0));
         ratingRepo.save(s);
+    }
+
+    private void mkParam(String modelType, String name, double value) {
+        com.yotto.basketball.entity.PowerModelParamSnapshot p =
+                new com.yotto.basketball.entity.PowerModelParamSnapshot();
+        p.setSeason(season);
+        p.setModelType(modelType);
+        p.setSnapshotDate(SNAP);
+        p.setParamName(name);
+        p.setParamValue(value);
+        p.setCalculatedAt(java.time.LocalDateTime.of(2025, 2, 1, 6, 0));
+        paramRepo.save(p);
     }
 
     private void mkWide(Team team, double rpi, int wins, int losses) {
@@ -125,9 +144,10 @@ class PowerRankingPageControllerTest extends BaseIntegrationTest {
         mockMvc.perform(get("/seasons/2025/rankings/adjusted-efficiency"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("AdjO")))
-                .andExpect(content().string(containsString("118.2")))
-                .andExpect(content().string(containsString("+23.2"))) // Net = 118.2 − 95.0
-                .andExpect(content().string(containsString("68.5")))
+                .andExpect(content().string(containsString("118.2"))) // AdjO = 110 + 8.2
+                .andExpect(content().string(containsString("105.0"))) // AdjD = 110 − 5.0
+                .andExpect(content().string(containsString("+13.2"))) // Net = 8.2 + 5.0
+                .andExpect(content().string(containsString("68.5")))  // Tempo = 68 + 0.5
                 // Baylor has no ADJ rows — must be absent, not broken
                 .andExpect(content().string(not(containsString("Baylor"))));
     }

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>Page Not Found</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="auth-container">
+        <div class="auth-card card">
+            <h1 class="auth-card__title">Page not found</h1>
+            <p th:if="${message}" th:text="${message}">Not found.</p>
+            <p th:unless="${message}">We couldn't find anything at that address.</p>
+            <p style="margin-top: 1rem; text-align: center;">
+                <a th:href="@{/}" class="btn btn--outline btn--sm">Back to home</a>
+            </p>
+        </div>
+    </div>
+</main>
+</body>
+</html>
