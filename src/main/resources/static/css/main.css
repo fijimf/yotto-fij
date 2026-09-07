@@ -1956,48 +1956,6 @@ a.team-hero__conference:hover {
     border-color: var(--color-primary);
 }
 
-.analytics-charts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.25rem;
-    margin-bottom: 1.5rem;
-}
-
-@media (max-width: 768px) {
-    .analytics-charts {
-        grid-template-columns: 1fr;
-    }
-}
-
-.analytics-chart-card {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    padding: 1rem;
-}
-
-.analytics-chart-card__title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    margin-bottom: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.analytics-chart-wrap {
-    position: relative;
-}
-
-/* Fixed height only on team detail charts (time-series lines) */
-.analytics-section .analytics-chart-wrap {
-    height: 220px;
-}
-
-.analytics-section .analytics-chart-wrap canvas {
-    max-height: 220px;
-}
-
 .analytics-stats-row {
     display: flex;
     gap: 1rem;
