@@ -155,7 +155,6 @@ public class HomePageService {
         resultsPanel(resultsDate.orElse(null), resultRows, allResults.size(), today).ifPresent(panels::add);
         slatePanel(slateDate.orElse(null), slateRows, allSlate.size(), today, modelLabel).ifPresent(panels::add);
         newsPanel(true).ifPresent(panels::add);
-        panels.add(explorePanel());
 
         // the tagline describes the WHOLE slate/night, not just the marquee slice
         return new HomePage(phase, liveTagline(today, allSlate, allResults), panels);
@@ -313,7 +312,6 @@ public class HomePageService {
                 yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
             }
         }
-        panels.add(explorePanel());
         return new HomePage(phase, quietTagline(phase), panels);
     }
 
@@ -345,7 +343,6 @@ public class HomePageService {
         tourneyResultsPanel(phase, ncaa, modelKey).ifPresent(panels::add);
         tourneySlatePanel(phase, ncaa, modelKey, modelLabel).ifPresent(panels::add);
         newsPanel(true).ifPresent(panels::add);
-        panels.add(explorePanel());
 
         return new HomePage(phase, postseasonTagline(today, ncaa), panels);
     }
@@ -511,7 +508,6 @@ public class HomePageService {
                     .ifPresent(panels::add);
         }
         newsPanel(false).ifPresent(panels::add);
-        panels.add(explorePanel());
         return new HomePage(phase, quietTagline(phase), panels);
     }
 
@@ -996,10 +992,6 @@ public class HomePageService {
             cards = cards.subList(0, NEWS_COMPACT_COUNT);
         }
         return Optional.of(new HomePanel("news", model("cards", cards, "compact", compact)));
-    }
-
-    private HomePanel explorePanel() {
-        return new HomePanel("explore", Map.of());
     }
 
     private List<HomeGameRow> cap(List<HomeGameRow> rows) {

@@ -70,7 +70,7 @@ class HomePageServiceTest extends BaseIntegrationTest {
     }
 
     @Test
-    void inSeason_composesResultsSlateExplore_inOrder() {
+    void inSeason_composesResultsSlate_inOrder() {
         mkFinal(a, b, 71, 70, JAN_16.minusDays(1));
         mkScheduled(c, d, JAN_16);
         seasonPhaseService.setOverride(null, JAN_16);
@@ -79,7 +79,7 @@ class HomePageServiceTest extends BaseIntegrationTest {
 
         assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.IN_SEASON);
         assertThat(page.panels()).extracting(HomePageService.HomePanel::fragment)
-                .containsExactly("your-teams", "results", "slate", "explore"); // your-teams = anon teaser
+                .containsExactly("your-teams", "results", "slate"); // your-teams = anon teaser
         assertThat(page.heroTagline()).contains("1 game");
     }
 
@@ -183,14 +183,13 @@ class HomePageServiceTest extends BaseIntegrationTest {
     }
 
     @Test
-    void quietPhase_composesNewsAndExploreOnly() {
-        // mid-summer: OFFSEASON (no news seeded → just explore), brand tagline
+    void quietPhase_composesNothingWithoutNews() {
+        // mid-summer: OFFSEASON (no news seeded → no panels), brand tagline
         seasonPhaseService.setOverride(null, LocalDate.of(2026, 7, 15));
 
         HomePageService.HomePage page = service.build();
         assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.OFFSEASON);
-        assertThat(page.panels()).extracting(HomePageService.HomePanel::fragment)
-                .containsExactly("explore");
+        assertThat(page.panels()).isEmpty();
     }
 
     // ── Phase 3: your-teams strip ──
@@ -362,7 +361,7 @@ class HomePageServiceTest extends BaseIntegrationTest {
         HomePageService.HomePage page = service.build();
         assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.EPILOGUE);
         var fragments = page.panels().stream().map(HomePageService.HomePanel::fragment).toList();
-        assertThat(fragments).containsSubsequence("season-wrap", "championship-result", "explore");
+        assertThat(fragments).containsSubsequence("season-wrap", "championship-result");
 
         var wrapPanel = page.panels().stream()
                 .filter(p -> p.fragment().equals("season-wrap")).findFirst().orElseThrow();
@@ -434,7 +433,7 @@ class HomePageServiceTest extends BaseIntegrationTest {
 
         assertThat(page.phase().phase()).isEqualTo(SeasonPhase.Phase.PRESEASON);
         assertThat(page.panels()).extracting(HomePageService.HomePanel::fragment)
-                .containsExactly("preseason-split", "opening-night", "your-teams", "explore");
+                .containsExactly("preseason-split", "opening-night", "your-teams");
 
         var split = page.panels().get(0);
         assertThat(split.model().get("title").toString()).startsWith("Never-Too-Early");
