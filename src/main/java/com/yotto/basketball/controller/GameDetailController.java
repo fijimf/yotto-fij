@@ -3,7 +3,9 @@ package com.yotto.basketball.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yotto.basketball.controller.dto.ChartDataDto;
+import com.yotto.basketball.controller.dto.ChartModelPointDto;
 import com.yotto.basketball.controller.dto.LastMeetingDto;
+import com.yotto.basketball.controller.dto.PastMeetingDto;
 import com.yotto.basketball.controller.dto.SeasonGameMarkerDto;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
@@ -11,6 +13,7 @@ import com.yotto.basketball.service.ConferenceNamingService;
 import com.yotto.basketball.service.PredictionResult;
 import com.yotto.basketball.service.PredictionService;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +40,8 @@ public class GameDetailController {
     private final ObjectMapper objectMapper;
     private final TournamentBadgeFormatter tournamentBadgeFormatter;
     private final ConferenceNamingService namingService;
+    private final double marginSigma;
+    private final double totalSigma;
 
     public GameDetailController(GameRepository gameRepository,
                                 PredictionService predictionService,
@@ -45,7 +51,9 @@ public class GameDetailController {
                                 TeamStatSnapshotRepository derivedStatRepository,
                                 ObjectMapper objectMapper,
                                 TournamentBadgeFormatter tournamentBadgeFormatter,
-                                ConferenceNamingService namingService) {
+                                ConferenceNamingService namingService,
+                                @Value("${app.prediction.margin-sigma:11.0}") double marginSigma,
+                                @Value("${app.prediction.total-sigma:15.0}") double totalSigma) {
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
         this.seasonStatsRepository = seasonStatsRepository;
@@ -55,6 +63,8 @@ public class GameDetailController {
         this.objectMapper = objectMapper;
         this.tournamentBadgeFormatter = tournamentBadgeFormatter;
         this.namingService = namingService;
+        this.marginSigma = marginSigma;
+        this.totalSigma = totalSigma;
     }
 
     @GetMapping("/games/{id}")
@@ -222,23 +232,27 @@ public class GameDetailController {
         int[] awayForIqr = computeIqr(awayForArr);
         int[] awayAgainstIqr = computeIqr(awayAgainstArr);
 
-        double homeAvgFor = avg(homeStats != null ? homeStats.getCalcPointsFor() : null,
-                                homeStats != null ? totalGames(homeStats) : 0);
-        double homeAvgAgainst = avg(homeStats != null ? homeStats.getCalcPointsAgainst() : null,
-                                    homeStats != null ? totalGames(homeStats) : 0);
-        double awayAvgFor = avg(awayStats != null ? awayStats.getCalcPointsFor() : null,
-                                awayStats != null ? totalGames(awayStats) : 0);
-        double awayAvgAgainst = avg(awayStats != null ? awayStats.getCalcPointsAgainst() : null,
-                                    awayStats != null ? totalGames(awayStats) : 0);
+        // Pre-game averages from the same game lists as the markers/IQR (leakage-free;
+        // SeasonStatistics would leak the full-season record into early-season games)
+        double homeAvgFor = mean(homeForArr);
+        double homeAvgAgainst = mean(homeAgainstArr);
+        double awayAvgFor = mean(awayForArr);
+        double awayAvgAgainst = mean(awayAgainstArr);
 
         ChartDataDto chartData = new ChartDataDto(
                 home.getAbbreviation(), away.getAbbreviation(),
                 home.getColor(), away.getColor(),
                 home.getLogoUrl(), away.getLogoUrl(),
                 home.getName(), away.getName(),
-                game.getHomeScore(), game.getAwayScore(),
+                Boolean.TRUE.equals(game.getNeutralSite()),
+                // Postponed/cancelled rows can carry 0–0 scores; only a FINAL game has a result
+                game.getStatus() == Game.GameStatus.FINAL ? game.getHomeScore() : null,
+                game.getStatus() == Game.GameStatus.FINAL ? game.getAwayScore() : null,
                 odds != null ? (odds.getSpread() != null ? odds.getSpread().doubleValue() : null) : null,
                 odds != null ? (odds.getOverUnder() != null ? odds.getOverUnder().doubleValue() : null) : null,
+                odds != null ? (odds.getOpeningSpread() != null ? odds.getOpeningSpread().doubleValue() : null) : null,
+                odds != null ? (odds.getOpeningOverUnder() != null ? odds.getOpeningOverUnder().doubleValue() : null) : null,
+                marginSigma, totalSigma,
                 homeAvgFor, homeAvgAgainst, awayAvgFor, awayAvgAgainst,
                 homeForIqr != null ? homeForIqr[0] : null,
                 homeForIqr != null ? homeForIqr[1] : null,
@@ -259,7 +273,9 @@ public class GameDetailController {
                 awaySnap != null ? awaySnap.getStddevPtsAgainst() : null,
                 awaySnap != null ? awaySnap.getCorrelationPts() : null,
                 toMarkers(homeSeasonGames, home.getId()),
-                toMarkers(awaySeasonGames, away.getId())
+                toMarkers(awaySeasonGames, away.getId()),
+                toModelPoints(prediction),
+                toPastMeetings(h2hGames, home.getId())
         );
 
         try {
@@ -313,6 +329,47 @@ public class GameDetailController {
         );
     }
 
+    /**
+     * Every model that predicts both a spread and a total becomes a point in score
+     * space. Massey's spread is paired with the Massey Totals total; Bradley-Terry is
+     * win-probability only and has no point.
+     */
+    private List<ChartModelPointDto> toModelPoints(PredictionResult p) {
+        List<ChartModelPointDto> out = new ArrayList<>();
+        if (p == null) return out;
+        if (p.massey() != null && p.masseyTotal() != null) {
+            out.add(new ChartModelPointDto("MASSEY", "Massey",
+                    p.massey().spread(), p.masseyTotal().total(), p.massey().homeWinProbability()));
+        }
+        if (p.adjEfficiency() != null) {
+            out.add(new ChartModelPointDto("ADJ_EFF", "Adjusted Efficiency",
+                    p.adjEfficiency().spread(), p.adjEfficiency().total(),
+                    p.adjEfficiency().homeWinProbability()));
+        }
+        if (p.mlModels() != null) {
+            p.mlModels().forEach((slug, ml) -> {
+                if (ml != null) {
+                    out.add(new ChartModelPointDto("ML:" + slug, ml.displayName() != null ? ml.displayName() : slug,
+                            ml.spread(), ml.total(), ml.homeWinProbability()));
+                }
+            });
+        }
+        return out;
+    }
+
+    /** Prior meetings re-oriented to this game's home/away assignment. */
+    private List<PastMeetingDto> toPastMeetings(List<Game> h2h, Long thisHomeId) {
+        return h2h.stream().map(g -> {
+            boolean sameOrientation = g.getHomeTeam().getId().equals(thisHomeId);
+            int homeTeamScore = sameOrientation ? g.getHomeScore() : g.getAwayScore();
+            int awayTeamScore = sameOrientation ? g.getAwayScore() : g.getHomeScore();
+            boolean neutral = Boolean.TRUE.equals(g.getNeutralSite());
+            return new PastMeetingDto(g.getId(), g.getGameDate().toLocalDate().toString(),
+                    homeTeamScore, awayTeamScore,
+                    neutral ? null : g.getHomeTeam().getAbbreviation(), neutral);
+        }).toList();
+    }
+
     private List<SeasonGameMarkerDto> toMarkers(List<Game> games, Long teamId) {
         return games.stream().map(g -> {
             boolean isHome = g.getHomeTeam().getId().equals(teamId);
@@ -321,7 +378,7 @@ public class GameDetailController {
             String oppAbbr = isHome ? g.getAwayTeam().getAbbreviation() : g.getHomeTeam().getAbbreviation();
             boolean win = teamScore > oppScore;
             return new SeasonGameMarkerDto(g.getId(), g.getGameDate().toLocalDate().toString(),
-                    teamScore, oppScore, oppAbbr, win);
+                    teamScore, oppScore, oppAbbr, win, Boolean.TRUE.equals(g.getConferenceGame()));
         }).toList();
     }
 
@@ -335,14 +392,9 @@ public class GameDetailController {
         return new int[]{q1, q3};
     }
 
-    private int totalGames(SeasonStatistics s) {
-        int w = s.getCalcWins() != null ? s.getCalcWins() : 0;
-        int l = s.getCalcLosses() != null ? s.getCalcLosses() : 0;
-        return w + l;
-    }
-
-    private double avg(Integer total, int games) {
-        if (total == null || games == 0) return 0.0;
-        return (double) total / games;
+    /** Arithmetic mean, or 0.0 for an empty array (the chart treats 0 as "no marker"). */
+    private double mean(int[] values) {
+        if (values.length == 0) return 0.0;
+        return Arrays.stream(values).average().orElse(0.0);
     }
 }

@@ -3553,7 +3553,19 @@ a.team-hero__conference:hover {
     font-size: 0.85rem;
 }
 
-/* Desktop: place the legend as a column beside the chart to shorten the block */
+.game-detail-chart-legend__group {
+    flex-basis: 100%;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-top: 0.35rem;
+    text-align: center;
+}
+.game-detail-chart-legend__group:first-child { margin-top: 0; }
+
+/* Desktop: legend + readout as a column beside the chart to shorten the block */
 @media (min-width: 1024px) {
     .game-detail-chart-wrap {
         display: flex;
@@ -3565,15 +3577,20 @@ a.team-hero__conference:hover {
         margin: 0;
         flex: 0 1 700px;
     }
-    .game-detail-chart-legend {
+    .game-detail-chart-side {
         flex: 0 0 auto;
+        align-self: center;
+        max-width: 240px;
+    }
+    .game-detail-chart-legend {
         flex-direction: column;
         flex-wrap: nowrap;
         justify-content: flex-start;
         align-items: flex-start;
+        gap: 0.3rem;
         padding: 0;
-        align-self: center;
     }
+    .game-detail-chart-legend__group { flex-basis: auto; text-align: left; }
 }
 .game-detail-chart-legend__item {
     display: flex;
@@ -3588,9 +3605,21 @@ a.team-hero__conference:hover {
     opacity: 0.4;
 }
 .game-detail-chart-legend__swatch {
+    flex: 0 0 auto;
     width: 16px;
     height: 3px;
     border-radius: 2px;
+}
+.game-detail-chart-legend__swatch--dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+.game-detail-chart-legend__swatch--area {
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    opacity: 0.55;
 }
 .game-detail-chart-legend__swatch--rect {
     width: 12px;
@@ -3598,6 +3627,86 @@ a.team-hero__conference:hover {
     border-radius: 2px;
     border: 2px solid currentColor;
     background: transparent;
+}
+/* Chart header controls */
+.game-detail-chart-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.game-detail-chart-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+.game-detail-chart-select select {
+    font-size: 0.78rem;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+}
+
+/* Outcome-density readout (win / cover / over odds for the selected source) */
+.game-chart-readout {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg-surface);
+    font-size: 0.8rem;
+    color: var(--color-text);
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.game-chart-readout:empty { display: none; }
+.game-chart-readout__title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+.game-chart-readout__swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+.game-chart-readout__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.1rem 0;
+    font-variant-numeric: tabular-nums;
+}
+.game-chart-readout__note {
+    margin-top: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+}
+
+/* Chart tooltip (shared look with the rest of the site, theme-aware) */
+.game-chart-tooltip {
+    position: absolute;
+    display: none;
+    z-index: 50;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-line;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    max-width: 260px;
 }
 
 @media (max-width: 767px) {

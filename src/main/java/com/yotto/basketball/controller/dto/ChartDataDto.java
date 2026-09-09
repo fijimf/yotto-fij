@@ -13,13 +13,21 @@ public record ChartDataDto(
         String homeFullName,
         String awayFullName,
 
+        boolean neutralSite,
+
         // Actual result (null if not FINAL)
         Integer actualHomeScore,
         Integer actualAwayScore,
 
-        // Betting lines
+        // Betting lines (handicap orientation: negative spread = home favored)
         Double spread,
         Double overUnder,
+        Double openingSpread,
+        Double openingOverUnder,
+
+        // Residual scale used for the outcome-density blob and cover/over odds
+        double marginSigma,
+        double totalSigma,
 
         // Season averages (from SeasonStatistics calc fields)
         Double homeAvgFor,
@@ -54,5 +62,11 @@ public record ChartDataDto(
 
         // Season game markers for chart
         List<SeasonGameMarkerDto> homeGames,
-        List<SeasonGameMarkerDto> awayGames
+        List<SeasonGameMarkerDto> awayGames,
+
+        // Pre-game model predictions with both a spread and a total
+        List<ChartModelPointDto> models,
+
+        // Prior meetings between the two teams (any season), most recent first
+        List<PastMeetingDto> pastMeetings
 ) {}

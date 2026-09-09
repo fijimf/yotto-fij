@@ -43,6 +43,7 @@
             "MASSEY_TOTALS": t.series[3],
             "BRADLEY_TERRY": t.series[1],
             "BRADLEY_TERRY_W": t.series[2],
+            "ADJ_EFF": t.series[6],
             "BOOK": t.benchmark
         };
         if (FIXED[type]) return FIXED[type];

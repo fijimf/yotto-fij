@@ -507,10 +507,16 @@
 <section class="game-detail-section card">
     <div class="game-detail-chart-header">
         <h2 class="game-detail-section__title" style="margin:0">Game Analysis</h2>
-        <button id="game-chart-color-toggle" class="game-detail-chart-color-toggle"
-                title="Swap to standard blue/red colors for teams with similar palettes">
-            Swap Colors
-        </button>
+        <div class="game-detail-chart-controls">
+            <label class="game-detail-chart-select" title="Shade the likely outcomes around one prediction">
+                <span>Outcome density</span>
+                <select id="game-chart-density-select"></select>
+            </label>
+            <button id="game-chart-color-toggle" class="game-detail-chart-color-toggle"
+                    title="Swap to standard blue/red colors for teams with similar palettes">
+                Swap Colors
+            </button>
+        </div>
     </div>
     <div class="game-detail-chart-wrap">
         <div id="game-chart-loading" class="game-detail-chart-loading">Loading game analysis…</div>
@@ -519,7 +525,10 @@
             <button class="game-detail-chart-retry" id="game-chart-retry">Retry</button>
         </div>
         <div id="game-chart-container" class="game-detail-chart-container"></div>
-        <div id="game-chart-legend" class="game-detail-chart-legend"></div>
+        <div class="game-detail-chart-side">
+            <div id="game-chart-legend" class="game-detail-chart-legend"></div>
+            <div id="game-chart-readout" class="game-chart-readout"></div>
+        </div>
     </div>
 </section>
 

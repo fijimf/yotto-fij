@@ -6,5 +6,6 @@ public record SeasonGameMarkerDto(
         int teamScore,
         int opponentScore,
         String opponentAbbr,
-        boolean win
+        boolean win,
+        boolean conferenceGame
 ) {}
