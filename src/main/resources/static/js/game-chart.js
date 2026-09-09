@@ -966,20 +966,35 @@
     drawSeasonMarkers(homeGames, "home", homeColor, 450);
     drawSeasonMarkers(awayGames, "away", awayColor, 500);
 
+    // Per-game DOM nodes, indexed once so the scrubber never queries the DOM
+    // per tick. Visibility is driven through style.opacity with a CSS fade
+    // (cheap; no D3 transition objects per element per tick).
+    const gameNodes = new Map();
+    const nodeEntry = id => { let e = gameNodes.get(id); if (!e) { e = { markers: [], rugs: [] }; gameNodes.set(id, e); } return e; };
+    layers.seasonMarkers.selectAll(".gc-game").each(function (gm) {
+      this.style.transition = REDUCED_MOTION ? "" : "opacity 150ms linear";
+      nodeEntry(gm.gameId).markers.push(this);
+    });
+    g.selectAll(".gc-rug").each(function (gm) {
+      this.style.transition = REDUCED_MOTION ? "" : "opacity 150ms linear";
+      nodeEntry(gm.gameId).rugs.push(this);
+    });
+    const meetingNodes = [];
+    layers.pastMeetings.selectAll(".gc-meeting").each(function () {
+      this.style.transition = REDUCED_MOTION ? "" : "opacity 150ms linear";
+      meetingNodes.push({ node: this, day: +this.getAttribute("data-day") });
+    });
+
     function highlightGame(gameId, on) {
+      // Visibility/recency live in style.opacity (the scrubber drives them), so
+      // the hover highlight goes through style too and restores the scrub value.
       layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gameId}"]`)
         .attr("r", function () { const r = +this.getAttribute("data-r"); return on ? r * 1.8 : r; })
         .attr("stroke-width", on ? 2.5 : 1.5)
-        .attr("opacity", function () { return on ? 1 : null; })
-        .each(function () { if (on) this.parentNode.appendChild(this); });
-      if (!on) { // restore recency opacity
-        [homeGames, awayGames].forEach(games => {
-          games.forEach((gm, i) => {
-            if (gm.gameId === gameId) layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gameId}"]`)
-              .attr("opacity", recencyOpacity(games.length - 1 - i, games.length));
-          });
+        .each(function () {
+          if (on) { this.dataset.prevOpacity = this.style.opacity; this.style.opacity = 1; this.parentNode.appendChild(this); }
+          else { this.style.opacity = this.dataset.prevOpacity || ""; }
         });
-      }
       g.selectAll(`.gc-rug[data-game-id="${gameId}"]`)
         .attr("stroke-opacity", on ? 1 : 0.45).attr("stroke-width", on ? 3.5 : 2.25);
     }
@@ -1099,32 +1114,43 @@
     // day = null restores the pre-game state (all games, server-side stats,
     // result + misses shown). Otherwise everything derived from season games is
     // recomputed from the games on/before that day and the snapshot for it.
+    let lastScrubKey = null;
     applyScrub = function (day) {
       scrubDay = day;
       const atEnd = day == null;
+      // Games are date-sorted, so the visible set is always a prefix
+      const prefix = games => { let n = 0; if (atEnd) return games.length; while (n < games.length && isoToDay(games[n].date) <= day) n++; return n; };
+      const hN = prefix(homeGames), aN = prefix(awayGames);
+      const hSnap = atEnd ? null : snapAt(homeSeries, day), aSnap = atEnd ? null : snapAt(awaySeries, day);
+      const mN = atEnd ? meetingNodes.length : meetingNodes.filter(m => m.day <= day).length;
+
+      if (scrubDate && timeline) scrubDate.textContent = atEnd ? `Game day · ${fmtDate(data.gameDate)}` : fmtDate(dayToIso(day));
+      if (scrubRange && timeline) scrubRange.value = atEnd ? (timeline.end - timeline.start) : (day - timeline.start);
+
+      // Nothing derived changes on a day without a game for either team
+      const key = `${atEnd}:${hN}:${aN}:${mN}:${hSnap ? hSnap.date : ""}:${aSnap ? aSnap.date : ""}`;
+      if (key === lastScrubKey) return;
+      lastScrubKey = key;
+
+      const hVis = homeGames.slice(0, hN), aVis = awayGames.slice(0, aN);
       const dur = REDUCED_MOTION ? 0 : 160;
       const tr = sel => sel.transition("scrub").duration(dur).ease(d3.easeLinear);
-      const vis = gm => atEnd || isoToDay(gm.date) <= day;
-      const hVis = homeGames.filter(vis), aVis = awayGames.filter(vis);
 
       // Game markers + rugs: visibility and recency relative to the day
-      [[homeGames, hVis], [awayGames, aVis]].forEach(([games, visible]) => {
-        const n = visible.length;
-        games.forEach(gm => {
-          const on = visible.includes(gm);
-          const rank = on ? n - 1 - visible.indexOf(gm) : 0;
-          tr(layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gm.gameId}"]`))
-            .attr("opacity", on ? recencyOpacity(rank, n) : 0);
-          layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gm.gameId}"]`).attr("pointer-events", on ? null : "none");
-          tr(g.selectAll(`.gc-rug[data-game-id="${gm.gameId}"]`)).attr("stroke-opacity", on ? 0.45 : 0);
-          g.selectAll(`.gc-rug[data-game-id="${gm.gameId}"]`).attr("pointer-events", on ? null : "none");
+      [[homeGames, hN], [awayGames, aN]].forEach(([games, n]) => {
+        games.forEach((gm, i) => {
+          const on = i < n;
+          const entry = gameNodes.get(gm.gameId);
+          if (!entry) return;
+          const op = on ? recencyOpacity(n - 1 - i, n) : 0;
+          entry.markers.forEach(nd => { nd.style.opacity = op; nd.style.pointerEvents = on ? "" : "none"; });
+          entry.rugs.forEach(nd => { nd.style.opacity = on ? 1 : 0; nd.style.pointerEvents = on ? "" : "none"; });
         });
       });
       // This-season past meetings only once they have happened
-      layers.pastMeetings.selectAll(".gc-meeting").each(function () {
-        const on = atEnd || +this.getAttribute("data-day") <= day;
-        tr(d3.select(this)).attr("opacity", on ? 1 : 0);
-        d3.select(this).attr("pointer-events", on ? null : "none");
+      meetingNodes.forEach(m => {
+        const on = atEnd || m.day <= day;
+        m.node.style.opacity = on ? 1 : 0; m.node.style.pointerEvents = on ? "" : "none";
       });
 
       // Average markers
@@ -1155,16 +1181,17 @@
         }
       });
 
-      // Ellipses from the snapshot series
-      [["home", homeSeries], ["away", awaySeries]].forEach(([side, series]) => {
+      // Ellipses from the snapshot series (paths swap directly; only the
+      // centre glides — interpolating 121-point paths is what made this lag)
+      [["home", hSnap], ["away", aSnap]].forEach(([side, snap]) => {
         const ref = ellipseRefs[side]; if (!ref) return;
         const isHome = side === "home";
-        const geo = ellipseOf(atEnd ? preGameSnap(isHome) : snapAt(series, day), isHome);
+        const geo = ellipseOf(atEnd ? preGameSnap(isHome) : snap, isHome);
         if (geo) {
           ref.wrap.attr("display", null);
           tr(ref.wrap).attr("transform", `translate(${xScale(geo.cAway)},${yScale(geo.cHome)}) scale(1)`);
-          tr(ref.p95).attr("d", geo.d95);
-          tr(ref.p50).attr("d", geo.d50);
+          ref.p95.attr("d", geo.d95);
+          ref.p50.attr("d", geo.d50);
         } else {
           tr(ref.wrap).attr("transform", ref.wrap.attr("transform").replace(/scale\([^)]*\)/, "scale(0)"));
         }
@@ -1179,12 +1206,8 @@
       });
 
       // The result and misses only exist once we're back at game day
-      const showResult = atEnd;
-      layers.resultMarker.attr("display", showResult && state.resultMarker.visible ? null : "none");
-      layers.residuals.attr("display", showResult && state.residuals.visible ? null : "none");
-
-      if (scrubDate && timeline) scrubDate.textContent = atEnd ? `Game day · ${fmtDate(data.gameDate)}` : fmtDate(dayToIso(day));
-      if (scrubRange && timeline) scrubRange.value = atEnd ? (timeline.end - timeline.start) : (day - timeline.start);
+      layers.resultMarker.attr("display", atEnd && state.resultMarker.visible ? null : "none");
+      layers.residuals.attr("display", atEnd && state.residuals.visible ? null : "none");
     };
 
     // ── View rotation ──────────────────────────────────────────────────────
@@ -1317,7 +1340,7 @@
   // ── Season scrubber controls ──────────────────────────────────────────────
   const DAY_MS = 70;   // playback speed: one calendar day per tick
   function stopPlayback() {
-    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    if (playTimer) { clearTimeout(playTimer); playTimer = null; }
     if (scrubPlay) { scrubPlay.textContent = "\u25B6 Replay season"; scrubPlay.classList.remove("active"); }
   }
   function scrubTo(day) {
@@ -1330,11 +1353,13 @@
     let day = timeline.start - 1;   // first tick shows the empty plane
     scrubTo(day);
     if (scrubPlay) { scrubPlay.textContent = "\u23F8 Pause"; scrubPlay.classList.add("active"); }
-    playTimer = setInterval(() => {
+    const tick = () => {
       day += 1;
       scrubTo(day);
-      if (day >= timeline.end) stopPlayback();
-    }, REDUCED_MOTION ? 0 : DAY_MS);
+      if (day >= timeline.end) { stopPlayback(); return; }
+      playTimer = setTimeout(tick, REDUCED_MOTION ? 0 : DAY_MS);
+    };
+    playTimer = setTimeout(tick, REDUCED_MOTION ? 0 : DAY_MS);
   }
   if (scrubEl && timeline && scrubRange && scrubPlay) {
     scrubEl.hidden = false;
