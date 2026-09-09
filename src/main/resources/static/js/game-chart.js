@@ -349,6 +349,23 @@
     // Margin/Total grid + axes
     const tTicks = totalScale.ticks(8), mTicks = marginScale.ticks(8);
     drawGrid(frameClipM, tTicks, mTicks, [], [], totalScale, marginScale);
+    // Zero-margin line + win labels: the "who wins" boundary in this view
+    // (the rotated diagonal lands here too, but this survives layer toggles)
+    {
+      const y0 = marginScale(0);
+      frameClipM.append("line").attr("x1", 0).attr("x2", innerW).attr("y1", y0).attr("y2", y0)
+        .attr("stroke", THEME.neutral).attr("stroke-width", 1.25).attr("stroke-opacity", 0.7);
+      if (!compact) {
+        frameClipM.append("text").attr("x", 14).attr("y", y0 - 7)
+          .attr("font-size", "11px").attr("font-weight", "700").attr("letter-spacing", "0.08em")
+          .attr("fill", homeColor).attr("fill-opacity", 0.75)
+          .text(`${data.homeAbbr.toUpperCase()} WINS`);
+        frameClipM.append("text").attr("x", 14).attr("y", y0 + 16)
+          .attr("font-size", "11px").attr("font-weight", "700").attr("letter-spacing", "0.08em")
+          .attr("fill", awayColor).attr("fill-opacity", 0.75)
+          .text(`${data.awayAbbr.toUpperCase()} WINS`);
+      }
+    }
     mtFrame.append("g").attr("transform", `translate(0,${innerH})`)
       .call(d3.axisBottom(totalScale).tickValues(tTicks));
     mtFrame.append("g").call(d3.axisLeft(marginScale).tickValues(mTicks)
