@@ -65,6 +65,11 @@
     colorToggleBtn.title = "Team colors are too similar to tell apart; showing standard blue/red";
   }
 
+  // Domain fitting: below this many games a team's ellipse doesn't stretch the
+  // axes, and the whole span is capped so a handful of points fill the plot.
+  const MIN_GAMES_FOR_FIT = 10;
+  const SPARSE_MAX_SPAN = 70;
+
   // χ² (2 dof) quantiles for the density bands and the 95% form ellipse
   const CHI2 = { 25: 0.5754, 50: 1.3863, 75: 2.7726, 95: 5.9915 };
 
@@ -185,12 +190,15 @@
     if (isFinal) push(data.actualAwayScore, data.actualHomeScore);
     if (data.homeAvgFor > 0) push(data.homeAvgAgainst, data.homeAvgFor);
     if (data.awayAvgFor > 0) push(data.awayAvgFor, data.awayAvgAgainst);
+    // A team's 95% ellipse only stretches the domain once it has a real sample;
+    // early-season ellipses are huge and would dwarf the actual games.
     const k = Math.sqrt(CHI2[95]);
-    if (data.homeSdFor != null && data.homeSdAgainst != null) {
+    const sparse = homeGames.length < MIN_GAMES_FOR_FIT || awayGames.length < MIN_GAMES_FOR_FIT;
+    if (homeGames.length >= MIN_GAMES_FOR_FIT && data.homeSdFor != null && data.homeSdAgainst != null) {
       push(data.homeMeanAgainst - k * data.homeSdAgainst, data.homeMeanFor - k * data.homeSdFor);
       push(data.homeMeanAgainst + k * data.homeSdAgainst, data.homeMeanFor + k * data.homeSdFor);
     }
-    if (data.awaySdFor != null && data.awaySdAgainst != null) {
+    if (awayGames.length >= MIN_GAMES_FOR_FIT && data.awaySdFor != null && data.awaySdAgainst != null) {
       push(data.awayMeanFor - k * data.awaySdFor, data.awayMeanAgainst - k * data.awaySdAgainst);
       push(data.awayMeanFor + k * data.awaySdFor, data.awayMeanAgainst + k * data.awaySdAgainst);
     }
@@ -203,8 +211,14 @@
       push(ca - reach, ch - reach); push(ca + reach, ch + reach);
     }
     if (!xs.length) return [40, 120];
-    const min = Math.min(d3.min(xs), d3.min(ys));
-    const max = Math.max(d3.max(xs), d3.max(ys));
+    let min = Math.min(d3.min(xs), d3.min(ys));
+    let max = Math.max(d3.max(xs), d3.max(ys));
+    if (sparse && max - min > SPARSE_MAX_SPAN) {
+      // Cap the span around the centre of the point cloud; whatever falls
+      // outside is clipped at the plot edge rather than shrinking everything.
+      const mid = (min + max) / 2;
+      min = mid - SPARSE_MAX_SPAN / 2; max = mid + SPARSE_MAX_SPAN / 2;
+    }
     let lo = Math.floor((min - 4) / 5) * 5;
     let hi = Math.ceil((max + 4) / 5) * 5;
     lo = Math.max(20, lo); hi = Math.min(160, hi);
