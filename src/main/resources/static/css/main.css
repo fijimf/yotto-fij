@@ -3573,9 +3573,13 @@ a.team-hero__conference:hover {
         justify-content: center;
         gap: 1.5rem;
     }
+    .game-detail-chart-main {
+        flex: 0 1 700px;
+        min-width: 0;
+    }
     .game-detail-chart-container {
         margin: 0;
-        flex: 0 1 700px;
+        max-width: none;
     }
     .game-detail-chart-side {
         flex: 0 0 auto;
@@ -3648,6 +3652,35 @@ a.team-hero__conference:hover {
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     background: var(--color-bg-surface);
+    color: var(--color-text);
+}
+
+/* Season scrubber (replay the two teams' seasons up to game day) */
+.game-detail-chart-main {
+    width: 100%;
+    max-width: 700px;
+    margin: 0 auto;
+}
+.game-chart-scrub {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.25rem 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+.game-chart-scrub[hidden] { display: none; }
+.game-chart-scrub__play { white-space: nowrap; }
+.game-chart-scrub__range {
+    flex: 1 1 auto;
+    min-width: 0;
+    accent-color: var(--color-primary);
+}
+.game-chart-scrub__date {
+    flex: 0 0 auto;
+    min-width: 7.5em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
     color: var(--color-text);
 }
 

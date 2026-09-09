@@ -14,6 +14,7 @@ public record ChartDataDto(
         String awayFullName,
 
         boolean neutralSite,
+        String gameDate,        // ISO date of this game (end of the season scrubber)
 
         // Actual result (null if not FINAL)
         Integer actualHomeScore,
@@ -68,5 +69,9 @@ public record ChartDataDto(
         List<ChartModelPointDto> models,
 
         // Prior meetings between the two teams (any season), most recent first
-        List<PastMeetingDto> pastMeetings
+        List<PastMeetingDto> pastMeetings,
+
+        // Daily season-form snapshots before the game (season scrubber)
+        List<SnapshotPointDto> homeSeries,
+        List<SnapshotPointDto> awaySeries
 ) {}

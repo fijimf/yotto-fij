@@ -528,7 +528,16 @@
             <p>Failed to load game analysis.</p>
             <button class="game-detail-chart-retry" id="game-chart-retry">Retry</button>
         </div>
-        <div id="game-chart-container" class="game-detail-chart-container"></div>
+        <div class="game-detail-chart-main">
+            <div id="game-chart-container" class="game-detail-chart-container"></div>
+            <div id="game-chart-scrub" class="game-chart-scrub" hidden>
+                <button id="game-chart-scrub-play" class="game-detail-chart-color-toggle game-chart-scrub__play"
+                        title="Replay the season day by day">&#9654; Replay season</button>
+                <input id="game-chart-scrub-range" class="game-chart-scrub__range" type="range" min="0" max="0" value="0"
+                       aria-label="Season day">
+                <span id="game-chart-scrub-date" class="game-chart-scrub__date"></span>
+            </div>
+        </div>
         <div class="game-detail-chart-side">
             <div id="game-chart-legend" class="game-detail-chart-legend"></div>
             <div id="game-chart-readout" class="game-chart-readout"></div>

@@ -7,6 +7,7 @@ import com.yotto.basketball.controller.dto.ChartModelPointDto;
 import com.yotto.basketball.controller.dto.LastMeetingDto;
 import com.yotto.basketball.controller.dto.PastMeetingDto;
 import com.yotto.basketball.controller.dto.SeasonGameMarkerDto;
+import com.yotto.basketball.controller.dto.SnapshotPointDto;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
 import com.yotto.basketball.service.ConferenceNamingService;
@@ -245,6 +246,7 @@ public class GameDetailController {
                 home.getLogoUrl(), away.getLogoUrl(),
                 home.getName(), away.getName(),
                 Boolean.TRUE.equals(game.getNeutralSite()),
+                gameLocalDate.toString(),
                 // Postponed/cancelled rows can carry 0–0 scores; only a FINAL game has a result
                 game.getStatus() == Game.GameStatus.FINAL ? game.getHomeScore() : null,
                 game.getStatus() == Game.GameStatus.FINAL ? game.getAwayScore() : null,
@@ -275,7 +277,9 @@ public class GameDetailController {
                 toMarkers(homeSeasonGames, home.getId()),
                 toMarkers(awaySeasonGames, away.getId()),
                 toModelPoints(prediction),
-                toPastMeetings(h2hGames, home.getId())
+                toPastMeetings(h2hGames, home.getId()),
+                toSeries(home.getId(), seasonId, gameLocalDate),
+                toSeries(away.getId(), seasonId, gameLocalDate)
         );
 
         try {
@@ -355,6 +359,16 @@ public class GameDetailController {
             });
         }
         return out;
+    }
+
+    /** Daily snapshot series strictly before the game date (same cut as findLatestBefore). */
+    private List<SnapshotPointDto> toSeries(Long teamId, Long seasonId, LocalDate beforeDate) {
+        return statSnapshotRepository.findByTeamAndSeason(teamId, seasonId).stream()
+                .filter(s -> s.getSnapshotDate().isBefore(beforeDate))
+                .map(s -> new SnapshotPointDto(s.getSnapshotDate().toString(), s.getGamesPlayed(),
+                        s.getMeanPtsFor(), s.getStddevPtsFor(), s.getMeanPtsAgainst(), s.getStddevPtsAgainst(),
+                        s.getCorrelationPts()))
+                .toList();
     }
 
     /** Prior meetings re-oriented to this game's home/away assignment. */

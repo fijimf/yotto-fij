@@ -27,6 +27,10 @@
   const colorToggleBtn = document.getElementById("game-chart-color-toggle");
   const viewToggleBtn  = document.getElementById("game-chart-view-toggle");
   const densitySelect  = document.getElementById("game-chart-density-select");
+  const scrubEl    = document.getElementById("game-chart-scrub");
+  const scrubPlay  = document.getElementById("game-chart-scrub-play");
+  const scrubRange = document.getElementById("game-chart-scrub-range");
+  const scrubDate  = document.getElementById("game-chart-scrub-date");
 
   if (!data) {
     if (loadingEl) loadingEl.style.display = "none";
@@ -98,6 +102,20 @@
   function sortByDate(games) {
     return games.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   }
+  const homeSeries = Array.isArray(data.homeSeries) ? data.homeSeries : [];
+  const awaySeries = Array.isArray(data.awaySeries) ? data.awaySeries : [];
+
+  // ── Season timeline (calendar days from the first game to game day) ──────
+  const isoToDay = iso => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 86400000);
+  const dayToIso = d => new Date(d * 86400000).toISOString().slice(0, 10);
+  const allGames = homeGames.concat(awayGames);
+  const timeline = (allGames.length && data.gameDate) ? {
+    start: Math.min(...allGames.map(gm => isoToDay(gm.date))),
+    end: isoToDay(data.gameDate),
+  } : null;
+  let scrubDay = null;      // null = pre-game (full) state; otherwise an absolute day number
+  let applyScrub = null;    // assigned by drawChart
+  let playTimer = null;
 
   // Book implied point (handicap spread: negative = home favored)
   const implied = hasBook
@@ -609,9 +627,10 @@
           lbl.append("text").attr("text-anchor", "middle").attr("font-size", "11px").attr("font-weight", "700")
             .attr("fill", THEME.axis).text(w.text).call(labelHalo);
           if (homeGames.length || awayGames.length) {
-            lbl.append("text").attr("text-anchor", "middle").attr("y", 14).attr("font-size", "10px")
+            lbl.append("text").attr("class", "gc-quadrant-count").attr("text-anchor", "middle").attr("y", 14).attr("font-size", "10px")
               .attr("fill", THEME.axis).call(labelHalo)
-              .text(`${data.homeAbbr} ${hCount}/${homeGames.length} · ${data.awayAbbr} ${aCount}/${awayGames.length}`);
+              .text(`${data.homeAbbr} ${hCount}/${homeGames.length} · ${data.awayAbbr} ${aCount}/${awayGames.length}`)
+              .datum(w.hp);
           }
         }
         grp.on("mouseover", (e) => {
@@ -730,6 +749,7 @@
       parent.selectAll(null).data(ticks).enter().append("line")
         .attr("class", "gc-rug")
         .attr("data-game-id", gm => gm.gameId)
+        .attr("data-day", gm => isoToDay(gm.date))
         .each(function (gm) {
           const s = value(gm);
           let x1, y1, x2, y2;
@@ -789,19 +809,28 @@
     }
     fadeIn(rugScore, 1, T(350, 600));
 
-    // ── 7. IQR boxes ───────────────────────────────────────────────────────
-    function drawIqrBox(xa, xb, ya, yb, color, t) {
-      const w = Math.abs(xScale(xb) - xScale(xa)), h = Math.abs(yScale(yb) - yScale(ya));
-      popGroup(layers.iqrBox, (xa + xb) / 2, (ya + yb) / 2, t, d3.easeCubicOut).append("rect")
-        .attr("x", -w / 2).attr("y", -h / 2).attr("width", w).attr("height", h)
-        .attr("fill", "none").attr("stroke", color).attr("stroke-width", 2).attr("stroke-opacity", 0.4);
+    // ── Season-form geometry helpers (shared by first draw and the scrubber) ─
+    /** [Q1, Q3] with the same index rule as the server (n/4, 3n/4), or null under 4 values. */
+    function iqrOf(values) {
+      if (values.length < 4) return null;
+      const s = values.slice().sort((a, b) => a - b);
+      return [s[Math.floor(s.length / 4)], s[Math.floor(s.length * 3 / 4)]];
     }
-    if (data.homeForQ1 != null && data.homeAgainstQ1 != null)
-      drawIqrBox(data.homeAgainstQ1, data.homeAgainstQ3, data.homeForQ1, data.homeForQ3, homeColor, T(250, 600));
-    if (data.awayForQ1 != null && data.awayAgainstQ1 != null)
-      drawIqrBox(data.awayForQ1, data.awayForQ3, data.awayAgainstQ1, data.awayAgainstQ3, awayColor, T(300, 600));
-
-    // ── 8. Season form ellipses (95% + inner 50%) ──────────────────────────
+    const meanOf = values => values.length ? d3.mean(values) : null;
+    /** IQR box in score space {cAway, cHome, w, h} for a team's game list, or null. */
+    function iqrBoxOf(games, side) {
+      const forQ = iqrOf(games.map(gm => gm.teamScore)), agQ = iqrOf(games.map(gm => gm.opponentScore));
+      if (!forQ || !agQ) return null;
+      const [xa, xb] = side === "home" ? agQ : forQ, [ya, yb] = side === "home" ? forQ : agQ;
+      return { cAway: (xa + xb) / 2, cHome: (ya + yb) / 2,
+               w: Math.abs(xScale(xb) - xScale(xa)), h: Math.abs(yScale(yb) - yScale(ya)) };
+    }
+    /** Average marker point {a, h} for a team's game list, or null. */
+    function avgOf(games, side) {
+      const f = meanOf(games.map(gm => gm.teamScore)), ag = meanOf(games.map(gm => gm.opponentScore));
+      if (f == null || ag == null) return null;
+      return side === "home" ? { a: ag, h: f, forVal: f, againstVal: ag } : { a: f, h: ag, forVal: f, againstVal: ag };
+    }
     function eigen2x2(a, b, d) {
       const tr = a + d, det = a * d - b * b;
       const disc = Math.sqrt(Math.max(0, (tr / 2) ** 2 - det));
@@ -811,14 +840,15 @@
       const n = Math.sqrt(v1x * v1x + v1y * v1y);
       return { l1, l2, v1x: v1x / n, v1y: v1y / n };
     }
-    function drawEllipses(muFor, muAgainst, sdFor, sdAgainst, corr, isHome, color, t) {
-      if (sdFor == null || sdAgainst == null || corr == null) return;
-      const cov = corr * sdFor * sdAgainst;
-      const { l1, l2, v1x, v1y } = eigen2x2(sdFor * sdFor, cov, sdAgainst * sdAgainst);
+    /** Ellipse geometry {cAway, cHome, d95, d50} (paths relative to centre), or null. */
+    function ellipseOf(snap, isHome) {
+      if (!snap || snap.sdFor == null || snap.sdAgainst == null || snap.corr == null ||
+          snap.meanFor == null || snap.meanAgainst == null) return null;
+      const cov = snap.corr * snap.sdFor * snap.sdAgainst;
+      const { l1, l2, v1x, v1y } = eigen2x2(snap.sdFor * snap.sdFor, cov, snap.sdAgainst * snap.sdAgainst);
       const theta = Math.atan2(v1y, v1x);
-      const cAway = isHome ? muAgainst : muFor, cHome = isHome ? muFor : muAgainst;
-      const wrap = popGroup(layers.ellipse, cAway, cHome, t, d3.easeCubicOut);
-      [[95, 2.5, 0.5, 0.05], [50, 1.25, 0.6, 0.0]].forEach(([level, sw, so, fo]) => {
+      const cAway = isHome ? snap.meanAgainst : snap.meanFor, cHome = isHome ? snap.meanFor : snap.meanAgainst;
+      const path = level => {
         const a = Math.sqrt(CHI2[level] * l1), b = Math.sqrt(CHI2[level] * Math.max(0, l2));
         const pts = d3.range(121).map(i => {
           const tt = (i / 120) * 2 * Math.PI;
@@ -828,20 +858,61 @@
           const dAway = isHome ? ry : rx, dHome = isHome ? rx : ry;
           return [xScale(cAway + dAway) - xScale(cAway), yScale(cHome + dHome) - yScale(cHome)];
         });
-        wrap.append("path").attr("d", "M" + pts.map(p => p.join(",")).join("L") + "Z")
-          .attr("fill", color).attr("fill-opacity", fo)
-          .attr("stroke", color).attr("stroke-width", sw).attr("stroke-opacity", so)
-          .attr("stroke-dasharray", level === 50 ? "4,3" : null);
-      });
+        return "M" + pts.map(p => p.join(",")).join("L") + "Z";
+      };
+      return { cAway, cHome, d95: path(95), d50: path(50) };
     }
-    drawEllipses(data.homeMeanFor, data.homeMeanAgainst, data.homeSdFor, data.homeSdAgainst, data.homeCorr, true, homeColor, T(300, 700));
-    drawEllipses(data.awayMeanFor, data.awayMeanAgainst, data.awaySdFor, data.awaySdAgainst, data.awayCorr, false, awayColor, T(350, 700));
+    const preGameSnap = isHome => isHome
+      ? { meanFor: data.homeMeanFor, sdFor: data.homeSdFor, meanAgainst: data.homeMeanAgainst, sdAgainst: data.homeSdAgainst, corr: data.homeCorr }
+      : { meanFor: data.awayMeanFor, sdFor: data.awaySdFor, meanAgainst: data.awayMeanAgainst, sdAgainst: data.awaySdAgainst, corr: data.awayCorr };
+    /** Latest snapshot in a series on or before a day, or null. */
+    function snapAt(series, day) {
+      let best = null;
+      for (const sp of series) { if (isoToDay(sp.date) <= day) best = sp; else break; }
+      return best;
+    }
+
+    // ── 7. IQR boxes ───────────────────────────────────────────────────────
+    const iqrRefs = {};
+    function drawIqrBox(side, color, t) {
+      const games = side === "home" ? homeGames : awayGames;
+      const box = iqrBoxOf(games, side);
+      const wrap = popGroup(layers.iqrBox, box ? box.cAway : MID, box ? box.cHome : MID, t, d3.easeCubicOut);
+      const rect = wrap.append("rect")
+        .attr("x", box ? -box.w / 2 : 0).attr("y", box ? -box.h / 2 : 0)
+        .attr("width", box ? box.w : 0).attr("height", box ? box.h : 0)
+        .attr("fill", "none").attr("stroke", color).attr("stroke-width", 2).attr("stroke-opacity", 0.4);
+      if (!box) wrap.attr("display", "none");
+      iqrRefs[side] = { wrap, rect };
+    }
+    drawIqrBox("home", homeColor, T(250, 600));
+    drawIqrBox("away", awayColor, T(300, 600));
+
+    // ── 8. Season form ellipses (95% + inner 50%) ──────────────────────────
+    const ellipseRefs = {};
+    function drawEllipses(side, color, t) {
+      const isHome = side === "home";
+      const geo = ellipseOf(preGameSnap(isHome), isHome);
+      const wrap = popGroup(layers.ellipse, geo ? geo.cAway : MID, geo ? geo.cHome : MID, t, d3.easeCubicOut);
+      const p95 = wrap.append("path").attr("d", geo ? geo.d95 : null)
+        .attr("fill", color).attr("fill-opacity", 0.05)
+        .attr("stroke", color).attr("stroke-width", 2.5).attr("stroke-opacity", 0.5);
+      const p50 = wrap.append("path").attr("d", geo ? geo.d50 : null)
+        .attr("fill", "none")
+        .attr("stroke", color).attr("stroke-width", 1.25).attr("stroke-opacity", 0.6)
+        .attr("stroke-dasharray", "4,3");
+      if (!geo) wrap.attr("display", "none");
+      ellipseRefs[side] = { wrap, p95, p50 };
+    }
+    drawEllipses("home", homeColor, T(300, 700));
+    drawEllipses("away", awayColor, T(350, 700));
 
     // ── 9. Past meetings (stars, oriented to this game's home/away) ────────
     if (meetings.length) {
       const star = d3.symbol().type(d3.symbolStar).size(compact ? 70 : 110);
       meetings.forEach((m, i) => {
-        const wrap = upright(popGroup(layers.pastMeetings, m.awayTeamScore, m.homeTeamScore, T(650 + i * 40, 500)));
+        const wrap = upright(popGroup(layers.pastMeetings, m.awayTeamScore, m.homeTeamScore, T(650 + i * 40, 500)))
+          .attr("class", "gc-upright gc-meeting").attr("data-day", isoToDay(m.date));
         const yr = m.date.slice(0, 4);
         const where = m.neutral ? "neutral site" : `at ${m.venueAbbr}`;
         const tip = `Past meeting · ${fmtDate(m.date)} (${where})\n${data.homeAbbr} ${m.homeTeamScore}, ${data.awayAbbr} ${m.awayTeamScore}`;
@@ -874,6 +945,7 @@
       layers.seasonMarkers.selectAll(null).data(games).enter().append("circle")
         .attr("class", "gc-game")
         .attr("data-game-id", gm => gm.gameId)
+        .attr("data-day", gm => isoToDay(gm.date))
         .attr("cx", gm => xScale(gamePoint(gm, side)[0]))
         .attr("cy", gm => yScale(gamePoint(gm, side)[1]))
         .attr("r", anim ? 0 : R)
@@ -913,8 +985,10 @@
     }
 
     // ── 11. Average score markers (team logos) ─────────────────────────────
-    function drawAvgMarker(ax, hy, logoUrl, color, abbr, forVal, againstVal, t) {
+    const avgRefs = {};
+    function drawAvgMarker(side, ax, hy, logoUrl, color, abbr, forVal, againstVal, t) {
       const wrap = popGroup(layers.avgMarker, ax, hy, t);
+      avgRefs[side] = { wrap, tip: { forVal, againstVal }, a: ax, h: hy };
       const R = compact ? 10 : 13;
       wrap.append("circle").attr("r", R).attr("fill", SURFACE).attr("stroke", color).attr("stroke-width", 2.5);
       const up = upright(wrap);
@@ -927,13 +1001,14 @@
         up.append("rect").attr("x", -5).attr("y", -5).attr("width", 10).attr("height", 10).attr("fill", color);
       }
       wrap.append("circle").attr("r", R).attr("fill", "transparent").style("cursor", "default")
-        .on("mouseover", e => { showCrosshair(ax, hy); showTip(e, `${abbr} season average\nscores ${forVal.toFixed(1)}, allows ${againstVal.toFixed(1)}`); })
+        .on("mouseover", e => { const r = avgRefs[side]; showCrosshair(r.a, r.h);
+          showTip(e, `${abbr} season average\nscores ${r.tip.forVal.toFixed(1)}, allows ${r.tip.againstVal.toFixed(1)}`); })
         .on("mouseout", () => { hideCrosshair(); hideTip(); });
     }
     if (data.homeAvgFor > 0 && data.homeAvgAgainst > 0)
-      drawAvgMarker(data.homeAvgAgainst, data.homeAvgFor, data.homeLogoUrl, homeColor, data.homeAbbr, data.homeAvgFor, data.homeAvgAgainst, T(800, 500));
+      drawAvgMarker("home", data.homeAvgAgainst, data.homeAvgFor, data.homeLogoUrl, homeColor, data.homeAbbr, data.homeAvgFor, data.homeAvgAgainst, T(800, 500));
     if (data.awayAvgFor > 0 && data.awayAvgAgainst > 0)
-      drawAvgMarker(data.awayAvgFor, data.awayAvgAgainst, data.awayLogoUrl, awayColor, data.awayAbbr, data.awayAvgFor, data.awayAvgAgainst, T(850, 500));
+      drawAvgMarker("away", data.awayAvgFor, data.awayAvgAgainst, data.awayLogoUrl, awayColor, data.awayAbbr, data.awayAvgFor, data.awayAvgAgainst, T(850, 500));
 
     // ── 12. Model prediction markers (triangles with short labels) ─────────
     modelPoints.forEach((p, i) => {
@@ -1020,6 +1095,98 @@
       if (layer) layer.attr("display", s.visible ? null : "none");
     });
 
+    // ── Season scrubber: re-render season form as of a day ─────────────────
+    // day = null restores the pre-game state (all games, server-side stats,
+    // result + misses shown). Otherwise everything derived from season games is
+    // recomputed from the games on/before that day and the snapshot for it.
+    applyScrub = function (day) {
+      scrubDay = day;
+      const atEnd = day == null;
+      const dur = REDUCED_MOTION ? 0 : 160;
+      const tr = sel => sel.transition("scrub").duration(dur).ease(d3.easeLinear);
+      const vis = gm => atEnd || isoToDay(gm.date) <= day;
+      const hVis = homeGames.filter(vis), aVis = awayGames.filter(vis);
+
+      // Game markers + rugs: visibility and recency relative to the day
+      [[homeGames, hVis], [awayGames, aVis]].forEach(([games, visible]) => {
+        const n = visible.length;
+        games.forEach(gm => {
+          const on = visible.includes(gm);
+          const rank = on ? n - 1 - visible.indexOf(gm) : 0;
+          tr(layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gm.gameId}"]`))
+            .attr("opacity", on ? recencyOpacity(rank, n) : 0);
+          layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gm.gameId}"]`).attr("pointer-events", on ? null : "none");
+          tr(g.selectAll(`.gc-rug[data-game-id="${gm.gameId}"]`)).attr("stroke-opacity", on ? 0.45 : 0);
+          g.selectAll(`.gc-rug[data-game-id="${gm.gameId}"]`).attr("pointer-events", on ? null : "none");
+        });
+      });
+      // This-season past meetings only once they have happened
+      layers.pastMeetings.selectAll(".gc-meeting").each(function () {
+        const on = atEnd || +this.getAttribute("data-day") <= day;
+        tr(d3.select(this)).attr("opacity", on ? 1 : 0);
+        d3.select(this).attr("pointer-events", on ? null : "none");
+      });
+
+      // Average markers
+      [["home", hVis], ["away", aVis]].forEach(([side, visible]) => {
+        const ref = avgRefs[side]; if (!ref) return;
+        const full = side === "home"
+          ? { a: data.homeAvgAgainst, h: data.homeAvgFor, forVal: data.homeAvgFor, againstVal: data.homeAvgAgainst }
+          : { a: data.awayAvgFor, h: data.awayAvgAgainst, forVal: data.awayAvgFor, againstVal: data.awayAvgAgainst };
+        const pt = atEnd ? full : avgOf(visible, side);
+        if (pt) {
+          ref.a = pt.a; ref.h = pt.h; ref.tip = { forVal: pt.forVal, againstVal: pt.againstVal };
+          tr(ref.wrap).attr("transform", `translate(${xScale(pt.a)},${yScale(pt.h)}) scale(1)`);
+        } else {
+          tr(ref.wrap).attr("transform", `translate(${xScale(ref.a)},${yScale(ref.h)}) scale(0)`);
+        }
+      });
+
+      // IQR boxes
+      [["home", hVis], ["away", aVis]].forEach(([side, visible]) => {
+        const ref = iqrRefs[side]; if (!ref) return;
+        const box = iqrBoxOf(atEnd ? (side === "home" ? homeGames : awayGames) : visible, side);
+        if (box) {
+          ref.wrap.attr("display", null);
+          tr(ref.wrap).attr("transform", `translate(${xScale(box.cAway)},${yScale(box.cHome)}) scale(1)`);
+          tr(ref.rect).attr("x", -box.w / 2).attr("y", -box.h / 2).attr("width", box.w).attr("height", box.h);
+        } else {
+          tr(ref.wrap).attr("transform", ref.wrap.attr("transform").replace(/scale\([^)]*\)/, "scale(0)"));
+        }
+      });
+
+      // Ellipses from the snapshot series
+      [["home", homeSeries], ["away", awaySeries]].forEach(([side, series]) => {
+        const ref = ellipseRefs[side]; if (!ref) return;
+        const isHome = side === "home";
+        const geo = ellipseOf(atEnd ? preGameSnap(isHome) : snapAt(series, day), isHome);
+        if (geo) {
+          ref.wrap.attr("display", null);
+          tr(ref.wrap).attr("transform", `translate(${xScale(geo.cAway)},${yScale(geo.cHome)}) scale(1)`);
+          tr(ref.p95).attr("d", geo.d95);
+          tr(ref.p50).attr("d", geo.d50);
+        } else {
+          tr(ref.wrap).attr("transform", ref.wrap.attr("transform").replace(/scale\([^)]*\)/, "scale(0)"));
+        }
+      });
+
+      // Quadrant landing counts
+      const inW = (x, y, hps) => hps.every(hp => hp[0] * x + hp[1] * y + hp[2] >= 0);
+      layers.quadrants.selectAll(".gc-quadrant-count").each(function (hps) {
+        const hc = hVis.filter(gm => inW(gm.opponentScore, gm.teamScore, hps)).length;
+        const ac = aVis.filter(gm => inW(gm.teamScore, gm.opponentScore, hps)).length;
+        d3.select(this).text(`${data.homeAbbr} ${hc}/${hVis.length} · ${data.awayAbbr} ${ac}/${aVis.length}`);
+      });
+
+      // The result and misses only exist once we're back at game day
+      const showResult = atEnd;
+      layers.resultMarker.attr("display", showResult && state.resultMarker.visible ? null : "none");
+      layers.residuals.attr("display", showResult && state.residuals.visible ? null : "none");
+
+      if (scrubDate && timeline) scrubDate.textContent = atEnd ? `Game day · ${fmtDate(data.gameDate)}` : fmtDate(dayToIso(day));
+      if (scrubRange && timeline) scrubRange.value = atEnd ? (timeline.end - timeline.start) : (day - timeline.start);
+    };
+
     // ── View rotation ──────────────────────────────────────────────────────
     setView = function (toRotated) {
       if (rotated === toRotated) return;
@@ -1073,7 +1240,8 @@
         s.visible = !s.visible;
         item.classList.toggle("game-detail-chart-legend__item--hidden", !s.visible);
         const layer = layers[key];
-        if (layer) layer.attr("display", s.visible ? null : "none");
+        const suppressed = (key === "resultMarker" || key === "residuals") && scrubDay != null;
+        if (layer) layer.attr("display", s.visible && !suppressed ? null : "none");
         if (key === "density") initChart();   // domain refits around the band
       });
     });
@@ -1128,10 +1296,14 @@
     if (container) { while (container.firstChild) container.removeChild(container.firstChild); }
     if (legendEl)  { while (legendEl.firstChild)  legendEl.removeChild(legendEl.firstChild); }
     if (readoutEl) readoutEl.textContent = "";
+    stopPlayback();
+    scrubDay = null;
     try {
       drawChart(firstDraw);
       firstDraw = false;
       updateViewButton();
+      if (applyScrub && timeline && scrubDate) scrubDate.textContent = `Game day · ${fmtDate(data.gameDate)}`;
+      if (scrubRange && timeline) scrubRange.value = timeline.end - timeline.start;
     } catch (err) {
       console.error("Game chart error:", err);
       if (container) { while (container.firstChild) container.removeChild(container.firstChild); }
@@ -1141,6 +1313,36 @@
   }
 
   if (retryBtn) retryBtn.addEventListener("click", initChart);
+
+  // ── Season scrubber controls ──────────────────────────────────────────────
+  const DAY_MS = 70;   // playback speed: one calendar day per tick
+  function stopPlayback() {
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    if (scrubPlay) { scrubPlay.textContent = "\u25B6 Replay season"; scrubPlay.classList.remove("active"); }
+  }
+  function scrubTo(day) {
+    if (!applyScrub || !timeline) return;
+    if (day >= timeline.end) applyScrub(null); else applyScrub(Math.max(timeline.start, day));
+  }
+  function startPlayback() {
+    if (!timeline || !applyScrub) return;
+    stopPlayback();
+    let day = timeline.start - 1;   // first tick shows the empty plane
+    scrubTo(day);
+    if (scrubPlay) { scrubPlay.textContent = "\u23F8 Pause"; scrubPlay.classList.add("active"); }
+    playTimer = setInterval(() => {
+      day += 1;
+      scrubTo(day);
+      if (day >= timeline.end) stopPlayback();
+    }, REDUCED_MOTION ? 0 : DAY_MS);
+  }
+  if (scrubEl && timeline && scrubRange && scrubPlay) {
+    scrubEl.hidden = false;
+    scrubRange.max = timeline.end - timeline.start;
+    scrubRange.value = scrubRange.max;
+    scrubRange.addEventListener("input", () => { stopPlayback(); scrubTo(timeline.start + +scrubRange.value); });
+    scrubPlay.addEventListener("click", () => { if (playTimer) stopPlayback(); else startPlayback(); });
+  }
 
   // ── Color override toggle ─────────────────────────────────────────────────
   if (colorToggleBtn) {
