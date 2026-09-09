@@ -1,9 +1,15 @@
 /* Game Analysis chart — score-space view of one game.
  *
- *   x = away team score, y = home team score. Every pre-game input (book lines,
- *   model predictions, each team's season form) and the final result live on
- *   the same plane, so "who covers", "over or under" and "how far off was the
- *   model" are all geometry.
+ *   Score view:        x = away team score, y = home team score.
+ *   Margin/Total view: the same plane rotated 45° clockwise, so
+ *                      x = total points, y = home margin. The spread line
+ *                      becomes horizontal, the O/U line vertical, and the four
+ *                      betting quadrants become literal rectangles.
+ *
+ * Every pre-game input (book lines, model predictions, each team's season form)
+ * and the final result live on the same plane, so "who covers", "over or under"
+ * and "how far off was the model" are all geometry. The rotation is a rigid
+ * transform of the plot group; text and glyphs counter-rotate to stay upright.
  *
  * Data arrives inline as window.GAME_CHART_DATA (ChartDataDto). All colors come
  * from the --chart-* / --color-* design tokens via chart-theme.js.
@@ -19,6 +25,7 @@
   const legendEl  = document.getElementById("game-chart-legend");
   const readoutEl = document.getElementById("game-chart-readout");
   const colorToggleBtn = document.getElementById("game-chart-color-toggle");
+  const viewToggleBtn  = document.getElementById("game-chart-view-toggle");
   const densitySelect  = document.getElementById("game-chart-density-select");
 
   if (!data) {
@@ -72,6 +79,11 @@
 
   // χ² (2 dof) quantiles for the density bands and the 95% form ellipse
   const CHI2 = { 25: 0.5754, 50: 1.3863, 75: 2.7726, 95: 5.9915 };
+
+  // View rotation (degrees, clockwise on screen). 45° maps the h = a diagonal
+  // to horizontal, so y becomes home margin and x becomes total.
+  const ROT = 45;
+  let rotated = false;
 
   // ── Derived inputs ───────────────────────────────────────────────────────
   const isFinal   = data.actualHomeScore != null && data.actualAwayScore != null;
@@ -244,6 +256,7 @@
 
   // ── Draw ─────────────────────────────────────────────────────────────────
   let firstDraw = true;
+  let setView = null;   // assigned by drawChart; animates between the two views
 
   function drawChart(animate) {
     const compact = container.clientWidth > 0 && container.clientWidth < 500;
@@ -251,25 +264,44 @@
       ? { top: 34, right: 40, bottom: 62, left: 66 }
       : { top: 52, right: 72, bottom: 84, left: 96 };
     const SIZE = compact ? 520 : 800;
+    // The plot area is exactly square so the h = a diagonal sits at 45° on
+    // screen and a rigid 45° rotation lands it perfectly horizontal.
     const innerW = SIZE - MARGIN.left - MARGIN.right;
-    const innerH = SIZE - MARGIN.top  - MARGIN.bottom;
+    const innerH = innerW;
+    const totalW = SIZE, totalH = innerH + MARGIN.top + MARGIN.bottom;
     const anim = animate && !REDUCED_MOTION;
     const T = (delay, dur) => anim ? { delay, dur } : { delay: 0, dur: 0 };
 
     const [LO, HI] = computeDomain();
+    const SPAN = HI - LO, MID = (LO + HI) / 2;
+    const PX = innerW / SPAN;   // pixels per point
     const xScale = d3.scaleLinear().domain([LO, HI]).range([0, innerW]);
     const yScale = d3.scaleLinear().domain([LO, HI]).range([innerH, 0]);
     const RECT = [[LO, LO], [HI, LO], [HI, HI], [LO, HI]];
+    // Oversized square: tints/lines drawn to it still fill the viewport after
+    // rotation (the plot clip trims the excess in either view).
+    const BIG = [[LO - SPAN, LO - SPAN], [HI + SPAN, LO - SPAN], [HI + SPAN, HI + SPAN], [LO - SPAN, HI + SPAN]];
     const toPath = poly => "M" + poly.map(p => xScale(p[0]) + "," + yScale(p[1])).join("L") + "Z";
+    const cx = innerW / 2, cy = innerH / 2;
+
+    // Margin/Total view scales (what the rotated plot lines up with). A unit
+    // step on screen along the rotated axes is √2 score points.
+    const REACH = SPAN / Math.SQRT2;
+    const totalScale  = d3.scaleLinear().domain([2 * MID - REACH, 2 * MID + REACH]).range([0, innerW]);
+    const marginScale = d3.scaleLinear().domain([-REACH, REACH]).range([innerH, 0]);
+    /** Screen position of score-space point (away, home) in the current view. */
+    function proj(a, h) {
+      return rotated ? [totalScale(a + h), marginScale(h - a)] : [xScale(a), yScale(h)];
+    }
+    const plotTransform = deg => `translate(${cx},${cy}) rotate(${deg}) translate(${-cx},${-cy})`;
 
     const svg = d3.select(container).append("svg")
-      .attr("viewBox", `0 0 ${SIZE} ${SIZE}`)
+      .attr("viewBox", `0 0 ${totalW} ${totalH}`)
       .attr("preserveAspectRatio", "xMidYMid meet")
       .attr("font-family", "inherit");
     const defs = svg.append("defs");
     const g = svg.append("g").attr("transform", `translate(${MARGIN.left},${MARGIN.top})`);
 
-    // Plot-area clip so lines/ellipses never spill into the margins
     defs.append("clipPath").attr("id", "game-chart-plot-clip")
       .append("rect").attr("x", 0).attr("y", 0).attr("width", innerW).attr("height", innerH);
 
@@ -287,53 +319,84 @@
       return `url(#${id})`;
     }
 
-    // ── Grid + axes ────────────────────────────────────────────────────────
-    const majorStep = (HI - LO) <= 100 ? 10 : 20;
+    // ── Frames: stationary chrome for each view (grid, axes, titles, rugs) ─
+    const scoreFrame = g.append("g").attr("class", "gc-frame-score")
+      .attr("opacity", rotated ? 0 : 1).attr("pointer-events", rotated ? "none" : null);
+    const mtFrame = g.append("g").attr("class", "gc-frame-mt")
+      .attr("opacity", rotated ? 1 : 0).attr("pointer-events", rotated ? null : "none");
+    const frameClipS = scoreFrame.append("g").attr("clip-path", "url(#game-chart-plot-clip)");
+    const frameClipM = mtFrame.append("g").attr("clip-path", "url(#game-chart-plot-clip)");
+
+    // Score grid + axes
+    const majorStep = SPAN <= 100 ? 10 : 20;
     const majorTicks = d3.range(Math.ceil(LO / majorStep) * majorStep, HI + 0.01, majorStep);
     const minorTicks = d3.range(LO, HI + 0.01, majorStep / 2).filter(v => !majorTicks.includes(v));
-    const gridG = g.append("g");
-    [[majorTicks, 1, 0.5], [minorTicks, 0.5, 0.3]].forEach(([ticks, w, op]) => {
-      gridG.selectAll(null).data(ticks).enter().append("line")
-        .attr("x1", d => xScale(d)).attr("x2", d => xScale(d)).attr("y1", 0).attr("y2", innerH)
-        .attr("stroke", THEME.grid).attr("stroke-width", w).attr("stroke-opacity", op);
-      gridG.selectAll(null).data(ticks).enter().append("line")
-        .attr("x1", 0).attr("x2", innerW).attr("y1", d => yScale(d)).attr("y2", d => yScale(d))
-        .attr("stroke", THEME.grid).attr("stroke-width", w).attr("stroke-opacity", op);
-    });
-    g.append("g").attr("transform", `translate(0,${innerH})`)
+    function drawGrid(parent, xs, ys, xsMinor, ysMinor, sx, sy) {
+      [[xs, ys, 1, 0.5], [xsMinor, ysMinor, 0.5, 0.3]].forEach(([tx, ty, w, op]) => {
+        parent.selectAll(null).data(tx).enter().append("line")
+          .attr("x1", d => sx(d)).attr("x2", d => sx(d)).attr("y1", 0).attr("y2", innerH)
+          .attr("stroke", THEME.grid).attr("stroke-width", w).attr("stroke-opacity", op);
+        parent.selectAll(null).data(ty).enter().append("line")
+          .attr("x1", 0).attr("x2", innerW).attr("y1", d => sy(d)).attr("y2", d => sy(d))
+          .attr("stroke", THEME.grid).attr("stroke-width", w).attr("stroke-opacity", op);
+      });
+    }
+    drawGrid(frameClipS, majorTicks, majorTicks, minorTicks, minorTicks, xScale, yScale);
+    scoreFrame.append("g").attr("transform", `translate(0,${innerH})`)
       .call(d3.axisBottom(xScale).tickValues(majorTicks));
-    g.append("g").call(d3.axisLeft(yScale).tickValues(majorTicks));
+    scoreFrame.append("g").call(d3.axisLeft(yScale).tickValues(majorTicks));
+
+    // Margin/Total grid + axes
+    const tTicks = totalScale.ticks(8), mTicks = marginScale.ticks(8);
+    drawGrid(frameClipM, tTicks, mTicks, [], [], totalScale, marginScale);
+    mtFrame.append("g").attr("transform", `translate(0,${innerH})`)
+      .call(d3.axisBottom(totalScale).tickValues(tTicks));
+    mtFrame.append("g").call(d3.axisLeft(marginScale).tickValues(mTicks)
+      .tickFormat(v => (v > 0 ? "+" : "") + v));
+
     g.selectAll(".domain, .tick line").attr("stroke", THEME.axis);
     g.selectAll(".tick text").attr("fill", THEME.axis);
+    // Top/right borders shared by both views
     g.append("line").attr("x1", 0).attr("y1", 0).attr("x2", innerW).attr("y2", 0)
       .attr("stroke", THEME.grid).attr("stroke-width", 1);
     g.append("line").attr("x1", innerW).attr("y1", 0).attr("x2", innerW).attr("y2", innerH)
       .attr("stroke", THEME.grid).attr("stroke-width", 1);
 
-    // ── Axis labels: [logo] team name ──────────────────────────────────────
+    // ── Axis labels: score view = [logo] team name; MT view = titles ───────
     const LOGO = compact ? 24 : 32;
     const labelSize = compact ? "12px" : "14px";
-    const xLabelG = g.append("g");
     const xLabelY = innerH + (compact ? 46 : 60);
-    if (data.awayLogoUrl) {
-      xLabelG.append("image").attr("href", data.awayLogoUrl)
-        .attr("width", LOGO).attr("height", LOGO)
-        .attr("x", innerW / 2 - LOGO / 2).attr("y", xLabelY - LOGO - 4);
+    {
+      const xLabelG = scoreFrame.append("g");
+      if (data.awayLogoUrl) {
+        xLabelG.append("image").attr("href", data.awayLogoUrl)
+          .attr("width", LOGO).attr("height", LOGO)
+          .attr("x", innerW / 2 - LOGO / 2).attr("y", xLabelY - LOGO - 4);
+      }
+      xLabelG.append("text").attr("x", innerW / 2).attr("y", xLabelY + (data.awayLogoUrl ? 4 : 0))
+        .attr("text-anchor", "middle").attr("font-size", labelSize).attr("font-weight", "bold")
+        .attr("fill", awayColor)
+        .text(compact ? data.awayAbbr : `${data.awayFullName} (${data.awayAbbr})`);
+      const yLabelG = scoreFrame.append("g")
+        .attr("transform", `rotate(-90) translate(${-innerH / 2}, ${-MARGIN.left + (compact ? 30 : 44)})`);
+      if (data.homeLogoUrl) {
+        yLabelG.append("image").attr("href", data.homeLogoUrl)
+          .attr("width", LOGO).attr("height", LOGO).attr("x", -LOGO / 2).attr("y", -LOGO - 6);
+      }
+      yLabelG.append("text").attr("x", 0).attr("y", 6)
+        .attr("text-anchor", "middle").attr("font-size", labelSize).attr("font-weight", "bold")
+        .attr("fill", homeColor)
+        .text(compact ? data.homeAbbr : `${data.homeFullName} (${data.homeAbbr})`);
+
+      mtFrame.append("text").attr("x", innerW / 2).attr("y", xLabelY - 6)
+        .attr("text-anchor", "middle").attr("font-size", labelSize).attr("font-weight", "bold")
+        .attr("fill", THEME.axis).text("Total points");
+      mtFrame.append("text")
+        .attr("transform", `rotate(-90) translate(${-innerH / 2}, ${-MARGIN.left + (compact ? 22 : 34)})`)
+        .attr("text-anchor", "middle").attr("font-size", labelSize).attr("font-weight", "bold")
+        .attr("fill", homeColor)
+        .text(compact ? `${data.homeAbbr} margin` : `${data.homeAbbr} margin (${data.homeAbbr} − ${data.awayAbbr})`);
     }
-    xLabelG.append("text").attr("x", innerW / 2).attr("y", xLabelY + (data.awayLogoUrl ? 4 : 0))
-      .attr("text-anchor", "middle").attr("font-size", labelSize).attr("font-weight", "bold")
-      .attr("fill", awayColor)
-      .text(compact ? data.awayAbbr : `${data.awayFullName} (${data.awayAbbr})`);
-    const yLabelG = g.append("g")
-      .attr("transform", `rotate(-90) translate(${-innerH / 2}, ${-MARGIN.left + (compact ? 30 : 44)})`);
-    if (data.homeLogoUrl) {
-      yLabelG.append("image").attr("href", data.homeLogoUrl)
-        .attr("width", LOGO).attr("height", LOGO).attr("x", -LOGO / 2).attr("y", -LOGO - 6);
-    }
-    yLabelG.append("text").attr("x", 0).attr("y", 6)
-      .attr("text-anchor", "middle").attr("font-size", labelSize).attr("font-weight", "bold")
-      .attr("fill", homeColor)
-      .text(compact ? data.homeAbbr : `${data.homeFullName} (${data.homeAbbr})`);
 
     // ── Tooltip ────────────────────────────────────────────────────────────
     const tooltip = d3.select("body").append("div").attr("class", "game-chart-tooltip");
@@ -344,8 +407,9 @@
     }
     function hideTip() { tooltip.style("display", "none"); }
 
-    // ── Layers (z-order by insertion) ──────────────────────────────────────
-    const plot = g.append("g").attr("clip-path", "url(#game-chart-plot-clip)");
+    // ── Rotating plot + layers (z-order by insertion) ──────────────────────
+    const plotClip = g.append("g").attr("clip-path", "url(#game-chart-plot-clip)");
+    const plot = plotClip.append("g").attr("transform", plotTransform(rotated ? ROT : 0));
     const layers = {
       regions:       plot.append("g"),
       quadrants:     plot.append("g"),
@@ -353,7 +417,6 @@
       lineMovement:  plot.append("g"),
       spreadLine:    plot.append("g"),
       ouLine:        plot.append("g"),
-      marginals:     g.append("g"),      // rug lives outside the plot clip
       iqrBox:        plot.append("g"),
       ellipse:       plot.append("g"),
       pastMeetings:  plot.append("g"),
@@ -364,11 +427,20 @@
       residuals:     plot.append("g"),
       resultMarker:  plot.append("g"),
     };
+    // Rugs are stationary chrome, one set per view; the legend toggles both.
+    const rugScore = scoreFrame.append("g"), rugMt = mtFrame.append("g");
+    layers.marginals = { attr: (name, v) => { rugScore.attr(name, v); rugMt.attr(name, v); return layers.marginals; } };
+
     const crosshair = g.append("g").attr("pointer-events", "none").style("display", "none");
     const labelHalo = sel => sel.attr("paint-order", "stroke").attr("stroke", SURFACE)
       .attr("stroke-width", 3).attr("stroke-linejoin", "round");
+    /** Child group that counter-rotates so its contents stay upright in either view. */
+    const upright = parent => parent.append("g").attr("class", "gc-upright")
+      .attr("transform", `rotate(${rotated ? -ROT : 0})`);
+    /** Positioned group at a score-space point (rotates with the plot). */
+    const at = (parent, a, h) => parent.append("g").attr("transform", `translate(${xScale(a)},${yScale(h)})`);
 
-    // ── Crosshair (hover guide lines to both axes) ─────────────────────────
+    // ── Crosshair (hover guide lines to both axes, in the current view) ────
     crosshair.append("line").attr("class", "ch-x").attr("stroke", THEME.axis)
       .attr("stroke-width", 1).attr("stroke-dasharray", "3,3").attr("stroke-opacity", 0.8);
     crosshair.append("line").attr("class", "ch-y").attr("stroke", THEME.axis)
@@ -382,19 +454,20 @@
     chLabelY.append("text").attr("font-size", "10px").attr("font-weight", "600")
       .attr("fill", SURFACE).attr("text-anchor", "middle");
 
-    function showCrosshair(awayPts, homePts) {
-      const px = xScale(awayPts), py = yScale(homePts);
+    const fmtNum = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
+    function showCrosshair(a, h) {
+      const [px, py] = proj(a, h);
+      const xv = rotated ? fmtNum(a + h) : fmtNum(a);
+      const yv = rotated ? (h - a > 0 ? "+" : "") + fmtNum(h - a) : fmtNum(h);
       crosshair.style("display", null);
       crosshair.select(".ch-x").attr("x1", px).attr("x2", px).attr("y1", py).attr("y2", innerH);
       crosshair.select(".ch-y").attr("x1", 0).attr("x2", px).attr("y1", py).attr("y2", py);
-      const fx = Number.isInteger(awayPts) ? awayPts : awayPts.toFixed(1);
-      const fy = Number.isInteger(homePts) ? homePts : homePts.toFixed(1);
       chLabelX.attr("transform", `translate(${px},${innerH + 2})`);
       chLabelX.select("rect").attr("x", -16).attr("y", 0).attr("width", 32).attr("height", 14);
-      chLabelX.select("text").attr("x", 0).attr("y", 10.5).text(fx);
+      chLabelX.select("text").attr("x", 0).attr("y", 10.5).text(xv);
       chLabelY.attr("transform", `translate(-2,${py})`);
       chLabelY.select("rect").attr("x", -32).attr("y", -7).attr("width", 32).attr("height", 14);
-      chLabelY.select("text").attr("x", -16).attr("y", 3.5).text(fy);
+      chLabelY.select("text").attr("x", -16).attr("y", 3.5).text(yv);
     }
     function hideCrosshair() { crosshair.style("display", "none"); }
 
@@ -403,19 +476,21 @@
       if (!anim) { sel.attr("opacity", targetOpacity); return; }
       sel.attr("opacity", 0).transition().delay(t.delay).duration(t.dur).attr("opacity", targetOpacity);
     }
-    /** Wrap in a <g> translated to (px,py); scales from 0 → 1 on entrance. Children draw relative to (0,0). */
-    function popGroup(parent, px, py, t, ease) {
+    /** Wrap in a <g> at score point (a,h); scales from 0 → 1 on entrance. Children draw relative to (0,0). */
+    function popGroup(parent, a, h, t, ease) {
+      const px = xScale(a), py = yScale(h);
       const wrap = parent.append("g").attr("transform", `translate(${px},${py}) scale(${anim ? 0 : 1})`);
       if (anim) wrap.transition().delay(t.delay).duration(t.dur).ease(ease || d3.easeBackOut)
         .attr("transform", `translate(${px},${py}) scale(1)`);
       return wrap;
     }
 
-    // ── Clip a data-space segment to the domain (Liang–Barsky) ─────────────
-    function clipLine(x1, y1, x2, y2) {
+    // ── Clip a data-space segment to a square [lo,hi]² (Liang–Barsky) ──────
+    function clipLine(x1, y1, x2, y2, lo, hi) {
+      lo = lo == null ? LO : lo; hi = hi == null ? HI : hi;
       const dx = x2 - x1, dy = y2 - y1;
       const p = [-dx, dx, -dy, dy];
-      const q = [x1 - LO, HI - x1, y1 - LO, HI - y1];
+      const q = [x1 - lo, hi - x1, y1 - lo, hi - y1];
       let t0 = 0, t1 = 1;
       for (let i = 0; i < 4; i++) {
         if (p[i] === 0) { if (q[i] < 0) return null; }
@@ -427,27 +502,31 @@
       }
       return { x1: x1 + t0 * dx, y1: y1 + t0 * dy, x2: x1 + t1 * dx, y2: y1 + t1 * dy };
     }
-    function drawDataLine(layer, seg, color, width, dash, opacity) {
+    /** A line across the whole (oversized) plane; the plot clip trims it in either view. */
+    function drawDataLine(layer, x1, y1, x2, y2, color, width, dash, opacity) {
+      const seg = clipLine(x1, y1, x2, y2, LO - SPAN, HI + SPAN);
+      if (!seg) return null;
       return layer.append("line")
         .attr("x1", xScale(seg.x1)).attr("y1", yScale(seg.y1))
         .attr("x2", xScale(seg.x2)).attr("y2", yScale(seg.y2))
         .attr("stroke", color).attr("stroke-width", width)
         .attr("stroke-dasharray", dash || null).attr("stroke-opacity", opacity == null ? 1 : opacity);
     }
-    // Labels sit 18% along the clipped segment (not the midpoint) so they stay
-    // clear of the implied-score cluster, which usually sits mid-line.
-    function lineLabel(layer, seg, text, color, t) {
-      const tt = t == null ? 0.18 : t;
+    // Labels sit 18% along the visible (score-view) segment, clear of the
+    // implied-score cluster that usually sits mid-line.
+    function lineLabel(layer, x1, y1, x2, y2, text, color) {
+      const seg = clipLine(x1, y1, x2, y2);
+      if (!seg) return;
+      const tt = 0.18;
       const mx = seg.x1 + (seg.x2 - seg.x1) * tt, my = seg.y1 + (seg.y2 - seg.y1) * tt;
       const w = Math.max(44, text.length * 6.5 + 12);
-      const lbl = layer.append("g");
-      lbl.append("rect").attr("x", xScale(mx) - w / 2).attr("y", yScale(my) - 10)
+      const lbl = upright(at(layer, mx, my));
+      lbl.append("rect").attr("x", -w / 2).attr("y", -10)
         .attr("width", w).attr("height", 18).attr("rx", 4)
         .attr("fill", SURFACE).attr("opacity", 0.92);
-      lbl.append("text").attr("x", xScale(mx)).attr("y", yScale(my) + 4)
+      lbl.append("text").attr("x", 0).attr("y", 4)
         .attr("text-anchor", "middle").attr("font-size", "11px").attr("font-weight", "600")
         .attr("fill", color).text(text);
-      return lbl;
     }
     const fmtSigned = v => (v > 0 ? "+" : "") + v.toFixed(1);
     const fmtSpreadHandicap = s => (s > 0 ? "+" : "") + s.toFixed(1);
@@ -462,25 +541,23 @@
 
     // ── 1. Win regions: tint each side of the diagonal ─────────────────────
     {
-      const homeSide = clipHalfPlane(RECT, -1, 1, 0);   // y ≥ x
-      const awaySide = clipHalfPlane(RECT,  1, -1, 0);  // y ≤ x
+      const homeSide = clipHalfPlane(BIG, -1, 1, 0);   // h ≥ a
+      const awaySide = clipHalfPlane(BIG,  1, -1, 0);  // h ≤ a
       const tint = layers.regions.append("g");
       tint.append("path").attr("d", toPath(homeSide)).attr("fill", homeColor).attr("fill-opacity", 0.06);
       tint.append("path").attr("d", toPath(awaySide)).attr("fill", awayColor).attr("fill-opacity", 0.06);
       fadeIn(tint, 1, T(0, 600));
-      const diag = layers.regions.append("line")
-        .attr("x1", xScale(LO)).attr("y1", yScale(LO)).attr("x2", xScale(HI)).attr("y2", yScale(HI))
-        .attr("stroke", THEME.neutral).attr("stroke-width", 1.25).attr("stroke-opacity", 0.7);
-      fadeIn(diag, 1, T(100, 500));
+      const diag = drawDataLine(layers.regions, LO - SPAN, LO - SPAN, HI + SPAN, HI + SPAN, THEME.neutral, 1.25, null, 0.7);
+      if (diag) fadeIn(diag, 1, T(100, 500));
       if (!compact) {
-        const pad = 14;
-        const lblH = layers.regions.append("text")
-          .attr("x", pad).attr("y", pad + 10).attr("font-size", "11px").attr("font-weight", "700")
+        // Corner labels in score-space; they ride the rotation but stay upright.
+        const pad = 14 / PX;
+        const lblH = upright(at(layers.regions, LO + pad, HI - pad - 10 / PX));
+        lblH.append("text").attr("font-size", "11px").attr("font-weight", "700")
           .attr("letter-spacing", "0.08em").attr("fill", homeColor).attr("fill-opacity", 0.75)
           .text(`${data.homeAbbr.toUpperCase()} WINS`);
-        const lblA = layers.regions.append("text")
-          .attr("x", innerW - pad).attr("y", innerH - pad).attr("text-anchor", "end")
-          .attr("font-size", "11px").attr("font-weight", "700")
+        const lblA = upright(at(layers.regions, HI - pad, LO + pad));
+        lblA.append("text").attr("text-anchor", "end").attr("font-size", "11px").attr("font-weight", "700")
           .attr("letter-spacing", "0.08em").attr("fill", awayColor).attr("fill-opacity", 0.75)
           .text(`${data.awayAbbr.toUpperCase()} WINS`);
         fadeIn(lblH, 1, T(300, 500)); fadeIn(lblA, 1, T(300, 500));
@@ -490,9 +567,9 @@
     // ── 2. Betting quadrants: wedges between the spread and total lines ────
     if (hasBook) {
       const sp = data.spread, ou = data.overUnder;
-      const homeCovers = [-1, 1, sp];       // y − x + spread ≥ 0
+      const homeCovers = [-1, 1, sp];       // h − a + spread ≥ 0
       const awayCovers = [1, -1, -sp];
-      const over  = [1, 1, -ou];            // x + y − OU ≥ 0
+      const over  = [1, 1, -ou];            // a + h − OU ≥ 0
       const under = [-1, -1, ou];
       const wedges = [
         { key: "hc-over",  hp: [homeCovers, over],  text: `${data.homeAbbr} covers · Over` },
@@ -502,17 +579,16 @@
       ];
       const inWedge = (x, y, hps) => hps.every(h => h[0] * x + h[1] * y + h[2] >= 0);
       wedges.forEach(w => {
-        let poly = RECT;
-        w.hp.forEach(h => { poly = clipHalfPlane(poly, h[0], h[1], h[2]); });
-        if (poly.length < 3) return;
+        let poly = RECT, hover = BIG;
+        w.hp.forEach(h => { poly = clipHalfPlane(poly, h[0], h[1], h[2]); hover = clipHalfPlane(hover, h[0], h[1], h[2]); });
+        if (hover.length < 3) return;
         const hCount = homeGames.filter(gm => inWedge(gm.opponentScore, gm.teamScore, w.hp)).length;
         const aCount = awayGames.filter(gm => inWedge(gm.teamScore, gm.opponentScore, w.hp)).length;
-        const cen = d3.polygonCentroid(poly);
         const grp = layers.quadrants.append("g").style("cursor", "default");
-        grp.append("path").attr("d", toPath(poly)).attr("fill", "transparent").attr("pointer-events", "all");
-        if (!compact) {
-          const lbl = grp.append("g").attr("class", "gc-quadrant-label")
-            .attr("transform", `translate(${xScale(cen[0])},${yScale(cen[1])})`).attr("opacity", 0.6);
+        grp.append("path").attr("d", toPath(hover)).attr("fill", "transparent").attr("pointer-events", "all");
+        if (!compact && poly.length >= 3) {
+          const cen = d3.polygonCentroid(poly);
+          const lbl = upright(at(grp, cen[0], cen[1])).attr("class", "gc-upright gc-quadrant-label").attr("opacity", 0.6);
           lbl.append("text").attr("text-anchor", "middle").attr("font-size", "11px").attr("font-weight", "700")
             .attr("fill", THEME.axis).text(w.text).call(labelHalo);
           if (homeGames.length || awayGames.length) {
@@ -532,25 +608,25 @@
     }
 
     // ── 3. Outcome density: bivariate normal in (margin, total) space ──────
-    function drawDensity() {
-      layers.density.selectAll("*").remove();
+    {
       const src = densitySources.find(s => s.key === densityKey);
-      if (!src) { renderReadout(null); return; }
-      const cHome = (src.total + src.margin) / 2, cAway = (src.total - src.margin) / 2;
-      const wrap = popGroup(layers.density, xScale(cAway), yScale(cHome), T(200, 700), d3.easeCubicOut);
-      [95, 75, 50, 25].forEach(level => {
-        const k = Math.sqrt(CHI2[level]);
-        const pts = d3.range(97).map(i => {
-          const th = (i / 96) * 2 * Math.PI;
-          const m = sigmaM * k * Math.cos(th), t = sigmaT * k * Math.sin(th);
-          const h = (t + m) / 2, a = (t - m) / 2;
-          return [xScale(cAway + a) - xScale(cAway), yScale(cHome + h) - yScale(cHome)];
+      if (src) {
+        const cHome = (src.total + src.margin) / 2, cAway = (src.total - src.margin) / 2;
+        const wrap = popGroup(layers.density, cAway, cHome, T(200, 700), d3.easeCubicOut);
+        [95, 75, 50, 25].forEach(level => {
+          const k = Math.sqrt(CHI2[level]);
+          const pts = d3.range(97).map(i => {
+            const th = (i / 96) * 2 * Math.PI;
+            const m = sigmaM * k * Math.cos(th), t = sigmaT * k * Math.sin(th);
+            const h = (t + m) / 2, a = (t - m) / 2;
+            return [xScale(cAway + a) - xScale(cAway), yScale(cHome + h) - yScale(cHome)];
+          });
+          wrap.append("path").attr("d", "M" + pts.map(p => p.join(",")).join("L") + "Z")
+            .attr("fill", src.color).attr("fill-opacity", 0.09)
+            .attr("stroke", src.color).attr("stroke-opacity", 0.25).attr("stroke-width", 0.75);
         });
-        wrap.append("path").attr("d", "M" + pts.map(p => p.join(",")).join("L") + "Z")
-          .attr("fill", src.color).attr("fill-opacity", 0.09)
-          .attr("stroke", src.color).attr("stroke-opacity", 0.25).attr("stroke-width", 0.75);
-      });
-      renderReadout(src);
+      }
+      renderReadout(src || null);
     }
     function renderReadout(src) {
       if (!readoutEl) return;
@@ -582,95 +658,83 @@
       note.textContent = `Bands: 25 / 50 / 75 / 95%, σ margin ${sigmaM.toFixed(1)}, σ total ${sigmaT.toFixed(1)}`;
       readoutEl.appendChild(note);
     }
-    drawDensity();
 
     // ── 4. Line movement: opening lines as ghosts + arrow to current implied ─
     if (hasOpening) {
       const os = data.openingSpread, oo = data.openingOverUnder;
-      const segS = clipLine(LO, LO - os, HI, HI - os);
-      const segO = clipLine(LO, oo - LO, HI, oo - HI);
       const ghost = layers.lineMovement.append("g");
-      if (segS) drawDataLine(ghost, segS, BOOK_COLOR, 1.25, "5,5", 0.35);
-      if (segO) drawDataLine(ghost, segO, BOOK_COLOR, 1.25, "5,5,2,5", 0.35);
+      drawDataLine(ghost, LO - SPAN, LO - SPAN - os, HI + SPAN, HI + SPAN - os, BOOK_COLOR, 1.25, "5,5", 0.35);
+      drawDataLine(ghost, LO - SPAN, oo - (LO - SPAN), HI + SPAN, oo - (HI + SPAN), BOOK_COLOR, 1.25, "5,5,2,5", 0.35);
       if (lineMoved && implied) {
         const x1 = xScale(openingImplied.away), y1 = yScale(openingImplied.home);
         const x2 = xScale(implied.away), y2 = yScale(implied.home);
         const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
         const trim = Math.min(9, len / 2);
-        const arrow = ghost.append("line")
+        const tipText = `Line movement\nOpened ${data.homeAbbr} ${fmtSpreadHandicap(os)} / O/U ${oo.toFixed(1)}` +
+          `\nNow ${data.homeAbbr} ${fmtSpreadHandicap(data.spread)} / O/U ${data.overUnder.toFixed(1)}`;
+        ghost.append("line")
           .attr("x1", x1).attr("y1", y1)
           .attr("x2", x2 - dx / len * trim).attr("y2", y2 - dy / len * trim)
           .attr("stroke", BOOK_COLOR).attr("stroke-width", 2).attr("stroke-opacity", 0.85)
-          .attr("marker-end", arrowFor(BOOK_COLOR)).style("cursor", "default");
+          .attr("marker-end", arrowFor(BOOK_COLOR)).style("cursor", "default")
+          .on("mouseover", e => showTip(e, tipText)).on("mouseout", hideTip);
         ghost.append("circle").attr("cx", x1).attr("cy", y1).attr("r", 4)
-          .attr("fill", SURFACE).attr("stroke", BOOK_COLOR).attr("stroke-width", 1.5).attr("stroke-opacity", 0.7);
-        const tipText = `Line movement\nOpened ${data.homeAbbr} ${fmtSpreadHandicap(os)} / O/U ${oo.toFixed(1)}` +
-          `\nNow ${data.homeAbbr} ${fmtSpreadHandicap(data.spread)} / O/U ${data.overUnder.toFixed(1)}`;
-        arrow.on("mouseover", e => showTip(e, tipText)).on("mouseout", hideTip);
-        ghost.select("circle").on("mouseover", e => showTip(e, tipText)).on("mouseout", hideTip);
+          .attr("fill", SURFACE).attr("stroke", BOOK_COLOR).attr("stroke-width", 1.5).attr("stroke-opacity", 0.7)
+          .on("mouseover", e => showTip(e, tipText)).on("mouseout", hideTip);
       }
       fadeIn(ghost, 1, T(400, 500));
     }
 
     // ── 5. Spread + O/U lines ──────────────────────────────────────────────
     if (data.spread != null) {
-      const seg = clipLine(LO, LO - data.spread, HI, HI - data.spread);
-      if (seg) {
-        const grp = layers.spreadLine.append("g");
-        drawDataLine(grp, seg, BOOK_COLOR, 2, "6,5", 0.85);
-        lineLabel(grp, seg, `${data.homeAbbr} ${fmtSpreadHandicap(data.spread)}`, BOOK_COLOR);
-        fadeIn(grp, 1, T(150, 500));
-      }
+      const grp = layers.spreadLine.append("g");
+      drawDataLine(grp, LO - SPAN, LO - SPAN - data.spread, HI + SPAN, HI + SPAN - data.spread, BOOK_COLOR, 2, "6,5", 0.85);
+      lineLabel(grp, LO, LO - data.spread, HI, HI - data.spread, `${data.homeAbbr} ${fmtSpreadHandicap(data.spread)}`, BOOK_COLOR);
+      fadeIn(grp, 1, T(150, 500));
     }
     if (data.overUnder != null) {
-      const seg = clipLine(LO, data.overUnder - LO, HI, data.overUnder - HI);
-      if (seg) {
-        const grp = layers.ouLine.append("g");
-        drawDataLine(grp, seg, BOOK_COLOR, 2, "6,5,2,5", 0.85);
-        lineLabel(grp, seg, `O/U ${data.overUnder.toFixed(1)}`, BOOK_COLOR);
-        fadeIn(grp, 1, T(200, 500));
-      }
+      const grp = layers.ouLine.append("g");
+      drawDataLine(grp, LO - SPAN, data.overUnder - (LO - SPAN), HI + SPAN, data.overUnder - (HI + SPAN), BOOK_COLOR, 2, "6,5,2,5", 0.85);
+      lineLabel(grp, LO, data.overUnder - LO, HI, data.overUnder - HI, `O/U ${data.overUnder.toFixed(1)}`, BOOK_COLOR);
+      fadeIn(grp, 1, T(200, 500));
     }
 
-    // ── 6. Score rug (per-game marginal ticks, linked to markers) ──────────
+    // ── 6. Rugs (per-game marginal ticks, linked to markers) ───────────────
+    // Score view: home scored (left) / allowed (bottom); away scored (top) /
+    // allowed (right). Margin/Total view: margins on left/right, totals on
+    // bottom/top, in this chart's home-margin orientation.
     const RUG_LEN = compact ? 8 : 11, RUG_GAP = 2;
-    function drawRug(games, side, orient, color) {
-      const ticks = games.filter(gm => {
-        const s = side === "home"
-          ? (orient === "left" ? gm.teamScore : gm.opponentScore)
-          : (orient === "top" ? gm.teamScore : gm.opponentScore);
-        return s >= LO && s <= HI;
-      });
-      layers.marginals.selectAll(null).data(ticks).enter().append("line")
+    function gamePoint(gm, side) {   // score-space (away, home) of a season game
+      return side === "home" ? [gm.opponentScore, gm.teamScore] : [gm.teamScore, gm.opponentScore];
+    }
+    function drawRug(parent, games, side, orient, value, scale, color) {
+      const [d0, d1] = scale.domain();
+      const ticks = games.filter(gm => { const v = value(gm); return v >= Math.min(d0, d1) && v <= Math.max(d0, d1); });
+      parent.selectAll(null).data(ticks).enter().append("line")
         .attr("class", "gc-rug")
         .attr("data-game-id", gm => gm.gameId)
         .each(function (gm) {
-          const s = side === "home"
-            ? (orient === "left" ? gm.teamScore : gm.opponentScore)
-            : (orient === "top" ? gm.teamScore : gm.opponentScore);
+          const s = value(gm);
           let x1, y1, x2, y2;
-          if (orient === "left")        { y1 = y2 = yScale(s); x1 = -RUG_GAP;         x2 = -RUG_GAP - RUG_LEN; }
-          else if (orient === "right")  { y1 = y2 = yScale(s); x1 = innerW + RUG_GAP; x2 = innerW + RUG_GAP + RUG_LEN; }
-          else if (orient === "top")    { x1 = x2 = xScale(s); y1 = -RUG_GAP;         y2 = -RUG_GAP - RUG_LEN; }
-          else                          { x1 = x2 = xScale(s); y1 = innerH + RUG_GAP; y2 = innerH + RUG_GAP + RUG_LEN; }
+          if (orient === "left")        { y1 = y2 = scale(s); x1 = -RUG_GAP;         x2 = -RUG_GAP - RUG_LEN; }
+          else if (orient === "right")  { y1 = y2 = scale(s); x1 = innerW + RUG_GAP; x2 = innerW + RUG_GAP + RUG_LEN; }
+          else if (orient === "top")    { x1 = x2 = scale(s); y1 = -RUG_GAP;         y2 = -RUG_GAP - RUG_LEN; }
+          else                          { x1 = x2 = scale(s); y1 = innerH + RUG_GAP; y2 = innerH + RUG_GAP + RUG_LEN; }
           d3.select(this).attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2);
         })
         .attr("stroke", color).attr("stroke-width", 2.25)
         .attr("stroke-opacity", 0.45).attr("stroke-linecap", "round")
         .style("cursor", "pointer")
         .on("mouseover", (e, gm) => {
-          const ax = side === "home" ? gm.opponentScore : gm.teamScore;
-          const hy = side === "home" ? gm.teamScore : gm.opponentScore;
-          highlightGame(gm.gameId, true);
-          showCrosshair(ax, hy);
-          showTip(e, gameTipText(gm, side));
+          const [a, h] = gamePoint(gm, side);
+          highlightGame(gm.gameId, true); showCrosshair(a, h); showTip(e, gameTipText(gm, side));
         })
         .on("mouseout", (e, gm) => { highlightGame(gm.gameId, false); hideCrosshair(); hideTip(); })
         .on("click", (e, gm) => { window.location.href = "/games/" + gm.gameId; });
     }
     const RUG_LBL_PAD = 5, RUG_LBL_NUDGE = 26;
-    function drawRugLabel(text, orient, color) {
-      const lbl = layers.marginals.append("text")
+    function drawRugLabel(parent, text, orient, color) {
+      const lbl = parent.append("text")
         .attr("font-size", "10px").attr("font-weight", "600")
         .attr("fill", color).attr("fill-opacity", 0.85).text(text);
       if (orient === "left")
@@ -683,22 +747,35 @@
         lbl.attr("text-anchor", "end").attr("x", innerW - RUG_LBL_PAD - RUG_LBL_NUDGE).attr("y", RUG_LBL_PAD + 10);
     }
     if (homeGames.length) {
-      drawRug(homeGames, "home", "left", homeColor);
-      drawRug(homeGames, "home", "bottom", homeColor);
-      if (!compact) { drawRugLabel(`${data.homeAbbr} scored`, "left", homeColor); drawRugLabel(`${data.homeAbbr} allowed`, "bottom", homeColor); }
+      drawRug(rugScore, homeGames, "home", "left",   gm => gm.teamScore,     yScale, homeColor);
+      drawRug(rugScore, homeGames, "home", "bottom", gm => gm.opponentScore, xScale, homeColor);
+      drawRug(rugMt, homeGames, "home", "left",   gm => gm.teamScore - gm.opponentScore, marginScale, homeColor);
+      drawRug(rugMt, homeGames, "home", "bottom", gm => gm.teamScore + gm.opponentScore, totalScale,  homeColor);
+      if (!compact) {
+        drawRugLabel(rugScore, `${data.homeAbbr} scored`,  "left",   homeColor);
+        drawRugLabel(rugScore, `${data.homeAbbr} allowed`, "bottom", homeColor);
+        drawRugLabel(rugMt, `${data.homeAbbr} margin`, "left",   homeColor);
+        drawRugLabel(rugMt, `${data.homeAbbr} totals`, "bottom", homeColor);
+      }
     }
     if (awayGames.length) {
-      drawRug(awayGames, "away", "top", awayColor);
-      drawRug(awayGames, "away", "right", awayColor);
-      if (!compact) { drawRugLabel(`${data.awayAbbr} scored`, "top", awayColor); drawRugLabel(`${data.awayAbbr} allowed`, "right", awayColor); }
+      drawRug(rugScore, awayGames, "away", "top",   gm => gm.teamScore,     xScale, awayColor);
+      drawRug(rugScore, awayGames, "away", "right", gm => gm.opponentScore, yScale, awayColor);
+      drawRug(rugMt, awayGames, "away", "top",   gm => gm.teamScore + gm.opponentScore, totalScale,  awayColor);
+      drawRug(rugMt, awayGames, "away", "right", gm => gm.opponentScore - gm.teamScore, marginScale, awayColor);
+      if (!compact) {
+        drawRugLabel(rugScore, `${data.awayAbbr} scored`,  "top",   awayColor);
+        drawRugLabel(rugScore, `${data.awayAbbr} allowed`, "right", awayColor);
+        drawRugLabel(rugMt, `${data.awayAbbr} totals`,  "top",   awayColor);
+        drawRugLabel(rugMt, `vs ${data.awayAbbr} margin`, "right", awayColor);
+      }
     }
-    fadeIn(layers.marginals, 1, T(350, 600));
+    fadeIn(rugScore, 1, T(350, 600));
 
     // ── 7. IQR boxes ───────────────────────────────────────────────────────
     function drawIqrBox(xa, xb, ya, yb, color, t) {
-      const cx = (xScale(xa) + xScale(xb)) / 2, cy = (yScale(ya) + yScale(yb)) / 2;
       const w = Math.abs(xScale(xb) - xScale(xa)), h = Math.abs(yScale(yb) - yScale(ya));
-      popGroup(layers.iqrBox, cx, cy, t, d3.easeCubicOut).append("rect")
+      popGroup(layers.iqrBox, (xa + xb) / 2, (ya + yb) / 2, t, d3.easeCubicOut).append("rect")
         .attr("x", -w / 2).attr("y", -h / 2).attr("width", w).attr("height", h)
         .attr("fill", "none").attr("stroke", color).attr("stroke-width", 2).attr("stroke-opacity", 0.4);
     }
@@ -723,7 +800,7 @@
       const { l1, l2, v1x, v1y } = eigen2x2(sdFor * sdFor, cov, sdAgainst * sdAgainst);
       const theta = Math.atan2(v1y, v1x);
       const cAway = isHome ? muAgainst : muFor, cHome = isHome ? muFor : muAgainst;
-      const wrap = popGroup(layers.ellipse, xScale(cAway), yScale(cHome), t, d3.easeCubicOut);
+      const wrap = popGroup(layers.ellipse, cAway, cHome, t, d3.easeCubicOut);
       [[95, 2.5, 0.5, 0.05], [50, 1.25, 0.6, 0.0]].forEach(([level, sw, so, fo]) => {
         const a = Math.sqrt(CHI2[level] * l1), b = Math.sqrt(CHI2[level] * Math.max(0, l2));
         const pts = d3.range(121).map(i => {
@@ -747,8 +824,7 @@
     if (meetings.length) {
       const star = d3.symbol().type(d3.symbolStar).size(compact ? 70 : 110);
       meetings.forEach((m, i) => {
-        const px = xScale(m.awayTeamScore), py = yScale(m.homeTeamScore);
-        const wrap = popGroup(layers.pastMeetings, px, py, T(650 + i * 40, 500));
+        const wrap = upright(popGroup(layers.pastMeetings, m.awayTeamScore, m.homeTeamScore, T(650 + i * 40, 500)));
         const yr = m.date.slice(0, 4);
         const where = m.neutral ? "neutral site" : `at ${m.venueAbbr}`;
         const tip = `Past meeting · ${fmtDate(m.date)} (${where})\n${data.homeAbbr} ${m.homeTeamScore}, ${data.awayAbbr} ${m.awayTeamScore}`;
@@ -781,8 +857,8 @@
       layers.seasonMarkers.selectAll(null).data(games).enter().append("circle")
         .attr("class", "gc-game")
         .attr("data-game-id", gm => gm.gameId)
-        .attr("cx", gm => xScale(side === "home" ? gm.opponentScore : gm.teamScore))
-        .attr("cy", gm => yScale(side === "home" ? gm.teamScore : gm.opponentScore))
+        .attr("cx", gm => xScale(gamePoint(gm, side)[0]))
+        .attr("cy", gm => yScale(gamePoint(gm, side)[1]))
         .attr("r", anim ? 0 : R)
         .attr("data-r", R)
         .attr("fill", gm => gm.win ? color : SURFACE).attr("fill-opacity", gm => gm.win ? 0.75 : 0.9)
@@ -790,9 +866,8 @@
         .attr("opacity", (gm, i) => recencyOpacity(n - 1 - i, n))
         .style("cursor", "pointer")
         .on("mouseover", (e, gm) => {
-          const ax = side === "home" ? gm.opponentScore : gm.teamScore;
-          const hy = side === "home" ? gm.teamScore : gm.opponentScore;
-          highlightGame(gm.gameId, true); showCrosshair(ax, hy); showTip(e, gameTipText(gm, side));
+          const [a, h] = gamePoint(gm, side);
+          highlightGame(gm.gameId, true); showCrosshair(a, h); showTip(e, gameTipText(gm, side));
         })
         .on("mouseout", (e, gm) => { highlightGame(gm.gameId, false); hideCrosshair(); hideTip(); })
         .on("click", (e, gm) => { window.location.href = "/games/" + gm.gameId; });
@@ -809,30 +884,30 @@
         .attr("opacity", function () { return on ? 1 : null; })
         .each(function () { if (on) this.parentNode.appendChild(this); });
       if (!on) { // restore recency opacity
-        [[homeGames, "home"], [awayGames, "away"]].forEach(([games]) => {
+        [homeGames, awayGames].forEach(games => {
           games.forEach((gm, i) => {
             if (gm.gameId === gameId) layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gameId}"]`)
               .attr("opacity", recencyOpacity(games.length - 1 - i, games.length));
           });
         });
       }
-      layers.marginals.selectAll(`.gc-rug[data-game-id="${gameId}"]`)
+      g.selectAll(`.gc-rug[data-game-id="${gameId}"]`)
         .attr("stroke-opacity", on ? 1 : 0.45).attr("stroke-width", on ? 3.5 : 2.25);
     }
 
     // ── 11. Average score markers (team logos) ─────────────────────────────
     function drawAvgMarker(ax, hy, logoUrl, color, abbr, forVal, againstVal, t) {
-      const px = xScale(ax), py = yScale(hy);
-      const wrap = popGroup(layers.avgMarker, px, py, t);
+      const wrap = popGroup(layers.avgMarker, ax, hy, t);
       const R = compact ? 10 : 13;
       wrap.append("circle").attr("r", R).attr("fill", SURFACE).attr("stroke", color).attr("stroke-width", 2.5);
+      const up = upright(wrap);
       if (logoUrl) {
         const cid = "gc-logo-clip-" + abbr.replace(/[^a-z0-9]/gi, "");
         defs.append("clipPath").attr("id", cid).append("circle").attr("r", R - 2);
-        wrap.append("image").attr("href", logoUrl).attr("x", -(R - 2)).attr("y", -(R - 2))
+        up.append("image").attr("href", logoUrl).attr("x", -(R - 2)).attr("y", -(R - 2))
           .attr("width", 2 * (R - 2)).attr("height", 2 * (R - 2)).attr("clip-path", `url(#${cid})`);
       } else {
-        wrap.append("rect").attr("x", -5).attr("y", -5).attr("width", 10).attr("height", 10).attr("fill", color);
+        up.append("rect").attr("x", -5).attr("y", -5).attr("width", 10).attr("height", 10).attr("fill", color);
       }
       wrap.append("circle").attr("r", R).attr("fill", "transparent").style("cursor", "default")
         .on("mouseover", e => { showCrosshair(ax, hy); showTip(e, `${abbr} season average\nscores ${forVal.toFixed(1)}, allows ${againstVal.toFixed(1)}`); })
@@ -845,8 +920,7 @@
 
     // ── 12. Model prediction markers (triangles with short labels) ─────────
     modelPoints.forEach((p, i) => {
-      const px = xScale(p.away), py = yScale(p.home);
-      const wrap = popGroup(layers.modelMarkers, px, py, T(900 + i * 60, 500));
+      const wrap = upright(popGroup(layers.modelMarkers, p.away, p.home, T(900 + i * 60, 500)));
       const tri = d3.symbol().type(d3.symbolTriangle).size(compact ? 80 : 120);
       const tip = `${p.label}\n${data.homeAbbr} ${p.home.toFixed(1)}, ${data.awayAbbr} ${p.away.toFixed(1)}` +
         `\n${data.homeAbbr} ${p.margin >= 0 ? "-" : "+"}${Math.abs(p.margin).toFixed(1)} · total ${p.total.toFixed(1)}` +
@@ -864,7 +938,7 @@
 
     // ── 13. Book implied score ─────────────────────────────────────────────
     if (implied) {
-      const wrap = popGroup(layers.impliedMarker, xScale(implied.away), yScale(implied.home), T(850, 500));
+      const wrap = upright(popGroup(layers.impliedMarker, implied.away, implied.home, T(850, 500)));
       wrap.append("circle").attr("r", compact ? 5 : 6.5)
         .attr("fill", BOOK_COLOR).attr("fill-opacity", 0.9).attr("stroke", SURFACE).attr("stroke-width", 1.5)
         .style("cursor", "default")
@@ -910,10 +984,11 @@
 
     // ── 15. Result marker ──────────────────────────────────────────────────
     if (isFinal) {
-      const px = xScale(data.actualAwayScore), py = yScale(data.actualHomeScore), r = compact ? 8 : 10;
-      const wrap = popGroup(layers.resultMarker, px, py, T(1150, 650), d3.easeElasticOut.amplitude(1).period(0.45));
+      const r = compact ? 8 : 10;
+      const wrap = popGroup(layers.resultMarker, data.actualAwayScore, data.actualHomeScore, T(1150, 650),
+        d3.easeElasticOut.amplitude(1).period(0.45));
       wrap.append("circle").attr("r", r + 4).attr("fill", SURFACE).attr("fill-opacity", 0.9);
-      wrap.append("path").attr("d", `M0,${-r} L${r},0 L0,${r} L${-r},0 Z`)
+      upright(wrap).append("path").attr("d", `M0,${-r} L${r},0 L0,${r} L${-r},0 Z`)
         .attr("fill", TEXT).attr("fill-opacity", 0.95).attr("stroke", SURFACE).attr("stroke-width", 2)
         .style("cursor", "default")
         .on("mouseover", e => { showCrosshair(data.actualAwayScore, data.actualHomeScore);
@@ -927,6 +1002,22 @@
       const layer = layers[key];
       if (layer) layer.attr("display", s.visible ? null : "none");
     });
+
+    // ── View rotation ──────────────────────────────────────────────────────
+    setView = function (toRotated) {
+      if (rotated === toRotated) return;
+      rotated = toRotated;
+      hideCrosshair(); hideTip();
+      const dur = REDUCED_MOTION ? 0 : 900;
+      const ease = d3.easeCubicInOut;
+      plot.transition("view").duration(dur).ease(ease).attr("transform", plotTransform(rotated ? ROT : 0));
+      plot.selectAll(".gc-upright").transition("view").duration(dur).ease(ease)
+        .attr("transform", `rotate(${rotated ? -ROT : 0})`);
+      const outF = rotated ? scoreFrame : mtFrame, inF = rotated ? mtFrame : scoreFrame;
+      outF.attr("pointer-events", "none").transition("view").duration(dur * 0.4).attr("opacity", 0);
+      inF.attr("pointer-events", null).transition("view").delay(dur * 0.5).duration(dur * 0.5).attr("opacity", 1);
+      updateViewButton();
+    };
 
     // ── Legend (grouped) ───────────────────────────────────────────────────
     const legendColors = {
@@ -988,6 +1079,15 @@
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
 
+  function updateViewButton() {
+    if (!viewToggleBtn) return;
+    viewToggleBtn.classList.toggle("active", rotated);
+    viewToggleBtn.textContent = rotated ? "Score View" : "Margin / Total View";
+    viewToggleBtn.title = rotated
+      ? "Rotate back to home score vs away score"
+      : "Rotate the plane 45° so the axes become total points and home margin";
+  }
+
   // ── Density select population (once) ─────────────────────────────────────
   if (densitySelect) {
     densitySelect.textContent = "";
@@ -1014,6 +1114,7 @@
     try {
       drawChart(firstDraw);
       firstDraw = false;
+      updateViewButton();
     } catch (err) {
       console.error("Game chart error:", err);
       if (container) { while (container.firstChild) container.removeChild(container.firstChild); }
@@ -1034,6 +1135,11 @@
       colorToggleBtn.textContent = useTeamColors ? "Swap Colors" : "Use Team Colors";
       initChart();
     });
+  }
+
+  // ── View toggle (score ↔ margin/total) ────────────────────────────────────
+  if (viewToggleBtn) {
+    viewToggleBtn.addEventListener("click", () => { if (setView) setView(!rotated); });
   }
 
   // Re-layout when the container crosses the compact-width threshold
