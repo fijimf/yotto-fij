@@ -180,7 +180,8 @@
     </div>
 
     <script th:inline="javascript" th:if="${!page.calibration().isEmpty()}">
-        document.addEventListener('DOMContentLoaded', () => {
+        // hx-boost swaps the body after DOMContentLoaded has already fired — run now in that case
+        (fn => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', fn) : fn())(() => {
             const points = /*[[${page.calibration()}]]*/ [];
             const byModel = new Map();
             for (const p of points) {

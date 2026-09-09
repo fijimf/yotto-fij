@@ -237,7 +237,8 @@
         </div>
 
         <script th:inline="javascript" th:if="${!#lists.isEmpty(monthly)}">
-            document.addEventListener('DOMContentLoaded', () => {
+            // hx-boost swaps the body after DOMContentLoaded has already fired — run now in that case
+            (fn => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', fn) : fn())(() => {
                 const points = /*[[${monthly}]]*/ [];
                 const MONTHS = [...new Set(points.map(p => p.month))].sort();
                 const monthLabel = m => {
@@ -367,7 +368,8 @@
         </div>
 
         <script th:inline="javascript" th:if="${!#lists.isEmpty(calibration)}">
-            document.addEventListener('DOMContentLoaded', () => {
+            // hx-boost swaps the body after DOMContentLoaded has already fired — run now in that case
+            (fn => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', fn) : fn())(() => {
                 const points = /*[[${calibration}]]*/ [];
 
                 const byModel = new Map();
