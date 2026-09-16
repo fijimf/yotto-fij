@@ -462,6 +462,9 @@
       residuals:     plot.append("g"),
       resultMarker:  plot.append("g"),
     };
+    // Topmost, pointer-transparent: the hovered game dot is drawn here as a copy
+    // so it reads on top without moving the real node (see highlightGame).
+    const hoverLayer = plot.append("g").attr("pointer-events", "none");
     // Rugs are stationary chrome, one set per view; the legend toggles both.
     const rugScore = scoreFrame.append("g"), rugMt = mtFrame.append("g");
     layers.marginals = { attr: (name, v) => { rugScore.attr(name, v); rugMt.attr(name, v); return layers.marginals; } };
@@ -988,12 +991,26 @@
     function highlightGame(gameId, on) {
       // Visibility/recency live in style.opacity (the scrubber drives them), so
       // the hover highlight goes through style too and restores the scrub value.
+      // The real node must NOT be re-appended to raise it: removing the hovered
+      // element resets the browser's hover target to its parent, so the dot's
+      // mouseout never fires and it stays enlarged. A copy in hoverLayer is
+      // drawn on top instead.
+      hoverLayer.selectAll("*").remove();
       layers.seasonMarkers.selectAll(`.gc-game[data-game-id="${gameId}"]`)
         .attr("r", function () { const r = +this.getAttribute("data-r"); return on ? r * 1.8 : r; })
         .attr("stroke-width", on ? 2.5 : 1.5)
         .each(function () {
-          if (on) { this.dataset.prevOpacity = this.style.opacity; this.style.opacity = 1; this.parentNode.appendChild(this); }
-          else { this.style.opacity = this.dataset.prevOpacity || ""; }
+          if (on) {
+            if (this.dataset.hl !== "1") { this.dataset.hl = "1"; this.dataset.prevOpacity = this.style.opacity; }
+            this.style.opacity = 1;
+            const copy = this.cloneNode(false);
+            copy.removeAttribute("data-game-id"); copy.setAttribute("class", "gc-game-hl");
+            copy.style.transition = ""; copy.style.opacity = 1;
+            hoverLayer.node().appendChild(copy);
+          } else if (this.dataset.hl === "1") {
+            delete this.dataset.hl;
+            this.style.opacity = this.dataset.prevOpacity || "";
+          }
         });
       g.selectAll(`.gc-rug[data-game-id="${gameId}"]`)
         .attr("stroke-opacity", on ? 1 : 0.45).attr("stroke-width", on ? 3.5 : 2.25);
