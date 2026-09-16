@@ -64,7 +64,14 @@ public class HomePageService {
     private static final int RANKINGS_PANEL_SIZE = 10;
     private static final int OPENING_NIGHT_HEADLINERS = 3;
     /** The archive chooser cycles through this many days starting Nov 1 (through early April). */
-    private static final int ARCHIVE_SEASON_SPAN_DAYS = 158;
+    /** Hits and Misses pool sizes: the panel picks one game a day from the top N of each list. */
+    private static final int HISTORY_POOL_SIZE = 50;
+    /** A "hit" is a model spread within this many points of the final margin... */
+    private static final double HISTORY_HIT_TOLERANCE = 1.5;
+    /** ...while the book missed by at least this much (floor; the top-50 pool sits well above it). */
+    private static final double HISTORY_HIT_BOOK_MIN_ERROR = 6.0;
+    /** A "miss" needs the model AND the book off by at least this much (floor; top-50 pool ≈ 35+). */
+    private static final double HISTORY_MISS_MIN_ERROR = 15.0;
 
     private final SeasonPhaseService seasonPhaseService;
     private final GameRepository gameRepository;
@@ -654,70 +661,84 @@ public class HomePageService {
         return Optional.of(new HomePanel("news", model("cards", cards, "compact", false)));
     }
 
-    /** The archive view backing the "this day in season history" panel. */
+    /** The view backing the off-season "Hits and Misses" panel. */
     public record HistoryView(int seasonYear, LocalDate gameDate, Long gameId,
                               String homeName, String awayName, String homeLogo, String awayLogo,
                               Integer homeScore, Integer awayScore, boolean neutralSite,
-                              String framing) {}
+                              String kind, String framing) {}
 
     /**
-     * Off-season days have no basketball history of their own, so the chooser walks the archive:
-     * today's epoch day picks a stable in-season month/day (Nov 1 → early April span).
+     * Hits and Misses: most days feature a hit — a game the default model called almost exactly
+     * while the book was well off; Sundays feature a miss — a game the model and the book both
+     * got badly wrong. Each day picks one game from the top-{@value #HISTORY_POOL_SIZE} pool,
+     * seeded by the date so the choice is stable across the page cache and the digest email.
      */
-    public static java.time.MonthDay archiveMonthDay(LocalDate today) {
-        LocalDate reference = LocalDate.of(2025, 11, 1)
-                .plusDays(Math.floorMod(today.toEpochDay(), ARCHIVE_SEASON_SPAN_DAYS));
-        return java.time.MonthDay.of(reference.getMonth(), reference.getDayOfMonth());
-    }
-
-    /** Sundays feature the model's biggest miss on the chosen date; other days, the closest game. */
     private Optional<HomePanel> historyPanel(SeasonPhase phase) {
-        java.time.MonthDay md = archiveMonthDay(phase.today());
+        String modelType = historyModelType();
         boolean missDay = phase.today().getDayOfWeek() == DayOfWeek.SUNDAY;
 
-        Optional<HistoryView> view = Optional.empty();
-        if (missDay) {
-            view = predictionEvaluationRepository
-                    .findBiggestMissOnMonthDay("MASSEY", md.getMonthValue(), md.getDayOfMonth())
-                    .flatMap(miss -> gameRepository.findByIdWithDetails(miss.getGameId())
-                            .map(g -> toHistoryView(g, "The model missed this one by "
-                                    + String.format(java.util.Locale.US, "%.1f", Math.abs(miss.getSpreadError()))
-                                    + " points.")));
+        List<PredictionEvaluationRepository.HitMissRow> pool = missDay ? misses(modelType) : hits(modelType);
+        boolean hit = !missDay;
+        if (pool.isEmpty()) {   // fall back to the other list rather than show nothing
+            pool = missDay ? hits(modelType) : misses(modelType);
+            hit = missDay;
         }
-        if (view.isEmpty()) {
-            view = gameRepository.findClosestGameIdOnMonthDay(md.getMonthValue(), md.getDayOfMonth())
-                    .flatMap(gameRepository::findByIdWithDetails)
-                    .map(g -> toHistoryView(g, closestFraming(g)));
-        }
-        return view.map(v -> new HomePanel("history", model(
-                "title", HISTORY_TITLE, "view", v)));
+        if (pool.isEmpty()) return Optional.empty();
+
+        PredictionEvaluationRepository.HitMissRow row =
+                pool.get(new java.util.Random(phase.today().toEpochDay()).nextInt(pool.size()));
+        boolean isHit = hit;
+        return gameRepository.findByIdWithDetails(row.getGameId())
+                .map(g -> toHistoryView(g, isHit ? "Hit" : "Miss", hitMissFraming(g, row, isHit)))
+                .map(v -> new HomePanel("history", model("title", HISTORY_TITLE, "view", v)));
     }
 
-    private HistoryView toHistoryView(Game g, String framing) {
+    private List<PredictionEvaluationRepository.HitMissRow> hits(String modelType) {
+        return predictionEvaluationRepository.findModelHitsBookMisses(
+                modelType, HISTORY_HIT_TOLERANCE, HISTORY_HIT_BOOK_MIN_ERROR, HISTORY_POOL_SIZE);
+    }
+
+    private List<PredictionEvaluationRepository.HitMissRow> misses(String modelType) {
+        return predictionEvaluationRepository.findSharedMisses(modelType, HISTORY_MISS_MIN_ERROR, HISTORY_POOL_SIZE);
+    }
+
+    /** The evaluation model type for the site's default model: {@code ML:<slug>}, else MASSEY. */
+    private String historyModelType() {
+        String key = predictionsPageService.defaultModelKey();
+        return key.startsWith(PredictionCardView.ML_PREFIX)
+                ? PredictionEvaluationService.ML_TYPE_PREFIX + key.substring(PredictionCardView.ML_PREFIX.length())
+                : "MASSEY";
+    }
+
+    private static String hitMissFraming(Game g, PredictionEvaluationRepository.HitMissRow row, boolean hit) {
+        String home = g.getHomeTeam().getName();
+        String away = g.getAwayTeam().getName();
+        int margin = row.getActualMargin();
+        String result = margin == 0 ? "It ended level."
+                : (margin > 0 ? home : away) + " won by " + Math.abs(margin) + ".";
+        String model = side(home, away, row.getModelSpread());
+        String book  = side(home, away, row.getBookSpread());
+        return hit
+                ? "Spot on: the model had " + model + "; the book had " + book + ". " + result
+                : "Nobody saw it coming: the model had " + model + ", the book had " + book + ". " + result;
+    }
+
+    /** "Alabama by 7.5", or "it a pick 'em" for a flat line. */
+    private static String side(String home, String away, double spread) {
+        if (Math.abs(spread) < 0.05) return "it a pick 'em";
+        return (spread > 0 ? home : away) + " by " + String.format(java.util.Locale.US, "%.1f", Math.abs(spread));
+    }
+
+    private HistoryView toHistoryView(Game g, String kind, String framing) {
         return new HistoryView(
                 g.getSeason() != null ? g.getSeason().getYear() : 0,
                 EasternDates.toEasternDate(g.getGameDate()), g.getId(),
                 g.getHomeTeam().getName(), g.getAwayTeam().getName(),
                 g.getHomeTeam().getLogoUrl(), g.getAwayTeam().getLogoUrl(),
                 g.getHomeScore(), g.getAwayScore(),
-                Boolean.TRUE.equals(g.getNeutralSite()), framing);
+                Boolean.TRUE.equals(g.getNeutralSite()), kind, framing);
     }
 
-    private String closestFraming(Game g) {
-        int margin = Math.abs(g.getHomeScore() - g.getAwayScore());
-        String base = margin == 0 ? "Decided at the wire."
-                : "Decided by " + margin + (margin == 1 ? " point." : " points.");
-        return predictionEvaluationRepository.findByGameId(g.getId()).stream()
-                .filter(pe -> "MASSEY".equals(pe.getModelType()) && pe.getPredictedSpread() != null)
-                .findFirst()
-                .map(pe -> {
-                    String fav = pe.getPredictedSpread() >= 0
-                            ? g.getHomeTeam().getName() : g.getAwayTeam().getName();
-                    return base + " The model had " + fav + " by "
-                            + String.format(java.util.Locale.US, "%.1f", Math.abs(pe.getPredictedSpread())) + ".";
-                })
-                .orElse(base);
-    }
 
     // ── Your Teams (registered users) ─────────────────────────────────────────
 

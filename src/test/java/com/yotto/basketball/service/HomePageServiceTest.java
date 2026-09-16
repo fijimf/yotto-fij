@@ -12,6 +12,7 @@ import com.yotto.basketball.repository.ConferenceMembershipRepository;
 import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.PredictionEvaluationRepository;
+import com.yotto.basketball.util.EasternDates;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamRepository;
@@ -398,19 +399,6 @@ class HomePageServiceTest extends BaseIntegrationTest {
     // ── Phase 2: quiet-phase compositions ──
 
     @Test
-    void archiveMonthDay_alwaysLandsInTheSeasonSpan_andIsStablePerDay() {
-        for (int i = 0; i < 400; i++) {
-            LocalDate day = LocalDate.of(2026, 5, 1).plusDays(i);
-            java.time.MonthDay md = HomePageService.archiveMonthDay(day);
-            LocalDate probe = md.atYear(md.getMonthValue() >= 11 ? 2025 : 2026);
-            boolean inSpan = !probe.isBefore(LocalDate.of(2025, 11, 1))
-                    && !probe.isAfter(LocalDate.of(2026, 4, 7));
-            assertThat(inSpan).as("archive pick %s for %s", md, day).isTrue();
-            assertThat(HomePageService.archiveMonthDay(day)).isEqualTo(md); // deterministic
-        }
-    }
-
-    @Test
     void preseason_showsSplitPanel_rankingsAndLiveCountdown_andOpeningNight() {
         // prior season (2026) ratings exist; upcoming season 2027 has a scraped opener
         mkRating(a, 1, 25.0, LocalDate.of(2026, 4, 6));
@@ -472,12 +460,14 @@ class HomePageServiceTest extends BaseIntegrationTest {
     }
 
     @Test
-    void offseason_history_picksClosestGameOnArchiveDate() {
+    void offseason_history_weekdayFeaturesAModelHitTheBookMissed() {
         LocalDate wednesday = LocalDate.of(2026, 7, 15);
-        java.time.MonthDay md = HomePageService.archiveMonthDay(wednesday);
-        LocalDate gameDay = md.atYear(md.getMonthValue() >= 11 ? 2025 : 2026);
-        mkFinal(a, b, 71, 70, gameDay);   // the classic
-        mkFinal(c, d, 100, 60, gameDay);  // the blowout
+        Game hit  = mkFinal(a, b, 78, 70, LocalDate.of(2026, 1, 10));   // Alabama by 8
+        Game dull = mkFinal(c, d, 70, 60, LocalDate.of(2026, 1, 11));   // model off by 4, book close: not a hit
+        mkEval(hit,  "MASSEY", 7.5);    // model within 0.5
+        mkEval(hit,  "BOOK",  -3.0);    // book had Auburn by 3: off by 11
+        mkEval(dull, "MASSEY", 6.0);
+        mkEval(dull, "BOOK",   9.5);
 
         seasonPhaseService.setOverride(null, wednesday);
         HomePageService.HomePage page = service.build();
@@ -486,36 +476,45 @@ class HomePageServiceTest extends BaseIntegrationTest {
         var history = page.panels().stream()
                 .filter(p -> p.fragment().equals("history")).findFirst().orElseThrow();
         HomePageService.HistoryView view = (HomePageService.HistoryView) history.model().get("view");
-        assertThat(view.homeName()).isEqualTo("Alabama");
-        assertThat(view.framing()).contains("Decided by 1 point");
+        assertThat(view.gameId()).isEqualTo(hit.getId());
+        assertThat(view.kind()).isEqualTo("Hit");
+        assertThat(view.framing())
+                .isEqualTo("Spot on: the model had Alabama by 7.5; the book had Auburn by 3.0. Alabama won by 8.");
     }
 
     @Test
-    void offseason_history_sundayFeaturesBiggestModelMiss() {
+    void offseason_history_sundayFeaturesAMissSharedWithTheBook() {
         LocalDate sunday = LocalDate.of(2026, 7, 19);
-        java.time.MonthDay md = HomePageService.archiveMonthDay(sunday);
-        LocalDate gameDay = md.atYear(md.getMonthValue() >= 11 ? 2025 : 2026);
-        Game blowout = mkFinal(c, d, 100, 60, gameDay);  // margin 40 vs a predicted −5: miss of 45
-        mkFinal(a, b, 71, 70, gameDay);                  // closer game the miss must outrank
-        PredictionEvaluation pe = new PredictionEvaluation();
-        pe.setGame(blowout);
-        pe.setSeason(season);
-        pe.setModelType("MASSEY");
-        pe.setGameDate(gameDay);
-        pe.setPredictedSpread(-5.0);
-        pe.setSpreadError(45.0);
-        pe.setActualMargin(40);
-        pe.setActualTotal(160);
-        pe.setHomeWon(true);
-        pe.setEvaluatedAt(java.time.LocalDateTime.of(2026, 4, 30, 12, 0));
-        evaluationRepo.save(pe);
+        Game shock = mkFinal(c, d, 60, 100, LocalDate.of(2026, 1, 10));  // Duke by 40 on the road
+        Game hit   = mkFinal(a, b, 78, 70, LocalDate.of(2026, 1, 11));
+        mkEval(shock, "MASSEY", 12.0);  // model had Colgate by 12: off by 52
+        mkEval(shock, "BOOK",   10.0);  // book had Colgate by 10: off by 50
+        mkEval(hit,   "MASSEY",  7.5);  // model within 0.5: not a shared miss, however wrong the book
+        mkEval(hit,   "BOOK",   -3.0);
 
         seasonPhaseService.setOverride(null, sunday);
         var history = service.build().panels().stream()
                 .filter(p -> p.fragment().equals("history")).findFirst().orElseThrow();
         HomePageService.HistoryView view = (HomePageService.HistoryView) history.model().get("view");
-        assertThat(view.homeName()).isEqualTo("Colgate");
-        assertThat(view.framing()).contains("missed this one by 45.0 points");
+        assertThat(view.gameId()).isEqualTo(shock.getId());
+        assertThat(view.kind()).isEqualTo("Miss");
+        assertThat(view.framing())
+                .isEqualTo("Nobody saw it coming: the model had Colgate by 12.0, the book had Colgate by 10.0. Duke won by 40.");
+    }
+
+    @Test
+    void offseason_history_isStableWithinADay_andNeedsBookLines() {
+        Game noBook = mkFinal(a, b, 78, 70, LocalDate.of(2026, 1, 10));
+        mkEval(noBook, "MASSEY", 8.0);   // perfect call, but nothing to compare against
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 7, 15));
+        assertThat(service.build().panels()).noneMatch(p -> p.fragment().equals("history"));
+
+        mkEval(noBook, "BOOK", -2.0);   // book off by 10
+        HomePageService.HistoryView first = (HomePageService.HistoryView) service.build().panels().stream()
+                .filter(p -> p.fragment().equals("history")).findFirst().orElseThrow().model().get("view");
+        HomePageService.HistoryView again = (HomePageService.HistoryView) service.build().panels().stream()
+                .filter(p -> p.fragment().equals("history")).findFirst().orElseThrow().model().get("view");
+        assertThat(again.gameId()).isEqualTo(first.gameId());
     }
 
     @Test
@@ -595,6 +594,23 @@ class HomePageServiceTest extends BaseIntegrationTest {
         g.setSeason(season);
         g.setGameDate(easternAfternoonUtc(easternDate));
         return gameRepo.save(g);
+    }
+
+    /** An evaluation row for a FINAL game: spread_error = actual margin − predicted spread. */
+    private PredictionEvaluation mkEval(Game g, String modelType, double predictedSpread) {
+        int margin = g.getHomeScore() - g.getAwayScore();
+        PredictionEvaluation pe = new PredictionEvaluation();
+        pe.setGame(g);
+        pe.setSeason(season);
+        pe.setModelType(modelType);
+        pe.setGameDate(EasternDates.toEasternDate(g.getGameDate()));
+        pe.setPredictedSpread(predictedSpread);
+        pe.setSpreadError(margin - predictedSpread);
+        pe.setActualMargin(margin);
+        pe.setActualTotal(g.getHomeScore() + g.getAwayScore());
+        pe.setHomeWon(margin > 0);
+        pe.setEvaluatedAt(java.time.LocalDateTime.of(2026, 4, 30, 12, 0));
+        return evaluationRepo.save(pe);
     }
 
     private Game mkScheduled(Team home, Team away, LocalDate easternDate) {

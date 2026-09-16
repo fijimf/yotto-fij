@@ -381,23 +381,62 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
     java.util.Optional<ArchiveMissRow> findWorstSpreadMiss(@Param("seasonId") Long seasonId,
                                                            @Param("modelType") String modelType);
 
-    /** A model's single worst spread miss ever recorded on a calendar month/day (archive panel). */
     interface ArchiveMissRow {
         Long getGameId();
         Double getPredictedSpread();
         Double getSpreadError();
     }
 
+    /** One game where a model and the book can be compared: both spreads plus the actual margin. */
+    interface HitMissRow {
+        Long getGameId();
+        Double getModelSpread();
+        Double getBookSpread();
+        Integer getActualMargin();
+        Double getModelError();
+        Double getBookError();
+    }
+
+    /**
+     * "Hits" for the front-page panel: games the model called within {@code tolerance} points of
+     * the final margin while the book was off by at least {@code bookMinError}, ranked by how
+     * badly the book missed. Any season.
+     */
     @Query(nativeQuery = true, value = """
-            SELECT pe.game_id AS gameid, pe.predicted_spread AS predictedspread, pe.spread_error AS spreaderror
-            FROM prediction_evaluations pe
-            WHERE pe.model_type = :modelType AND pe.spread_error IS NOT NULL
-              AND EXTRACT(MONTH FROM pe.game_date) = :month AND EXTRACT(DAY FROM pe.game_date) = :day
-            ORDER BY abs(pe.spread_error) DESC LIMIT 1
+            SELECT m.game_id AS gameid, m.predicted_spread AS modelspread, b.predicted_spread AS bookspread,
+                   m.actual_margin AS actualmargin, m.spread_error AS modelerror, b.spread_error AS bookerror
+            FROM prediction_evaluations m
+            JOIN prediction_evaluations b ON b.game_id = m.game_id AND b.model_type = 'BOOK'
+            WHERE m.model_type = :modelType
+              AND m.spread_error IS NOT NULL AND b.spread_error IS NOT NULL
+              AND abs(m.spread_error) <= :tolerance
+              AND abs(b.spread_error) >= :bookMinError
+            ORDER BY abs(b.spread_error) DESC, m.game_id
+            LIMIT :limit
             """)
-    java.util.Optional<ArchiveMissRow> findBiggestMissOnMonthDay(@Param("modelType") String modelType,
-                                                                 @Param("month") int month,
-                                                                 @Param("day") int day);
+    List<HitMissRow> findModelHitsBookMisses(@Param("modelType") String modelType,
+                                             @Param("tolerance") double tolerance,
+                                             @Param("bookMinError") double bookMinError,
+                                             @Param("limit") int limit);
+
+    /**
+     * "Misses" for the front-page panel: games where the model AND the book were both off by at
+     * least {@code minError}, ranked by the smaller of the two errors (so both must be large).
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT m.game_id AS gameid, m.predicted_spread AS modelspread, b.predicted_spread AS bookspread,
+                   m.actual_margin AS actualmargin, m.spread_error AS modelerror, b.spread_error AS bookerror
+            FROM prediction_evaluations m
+            JOIN prediction_evaluations b ON b.game_id = m.game_id AND b.model_type = 'BOOK'
+            WHERE m.model_type = :modelType
+              AND m.spread_error IS NOT NULL AND b.spread_error IS NOT NULL
+              AND least(abs(m.spread_error), abs(b.spread_error)) >= :minError
+            ORDER BY least(abs(m.spread_error), abs(b.spread_error)) DESC, m.game_id
+            LIMIT :limit
+            """)
+    List<HitMissRow> findSharedMisses(@Param("modelType") String modelType,
+                                      @Param("minError") double minError,
+                                      @Param("limit") int limit);
 
     /** Calibration: predicted-probability deciles vs. actual home-win rate, per model. */
     interface CalibrationBucket {

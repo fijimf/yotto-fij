@@ -36,6 +36,7 @@ class HomeControllerTest extends BaseIntegrationTest {
     @Autowired SeasonRepository seasonRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired GameRepository gameRepo;
+    @Autowired com.yotto.basketball.repository.PredictionEvaluationRepository evaluationRepo;
 
     @AfterEach
     void clearOverride() {
@@ -76,16 +77,16 @@ class HomeControllerTest extends BaseIntegrationTest {
         Season season = mkSeason();
         Team a = mkTeam("Alabama", "ALA");
         Team b = mkTeam("Auburn", "AUB");
-        LocalDate wednesday = LocalDate.of(2026, 7, 15);
-        java.time.MonthDay md = com.yotto.basketball.service.HomePageService.archiveMonthDay(wednesday);
-        LocalDate gameDay = md.atYear(md.getMonthValue() >= 11 ? 2025 : 2026);
-        mkGame(season, a, b, 71, 70, Game.GameStatus.FINAL, gameDay);
-        seasonPhaseService.setOverride(null, wednesday);
+        Game g = mkGame(season, a, b, 78, 70, Game.GameStatus.FINAL, LocalDate.of(2026, 1, 10));
+        mkEval(g, season, "MASSEY", 7.5);
+        mkEval(g, season, "BOOK", -3.0);
+        seasonPhaseService.setOverride(null, LocalDate.of(2026, 7, 15));
 
         MvcResult res = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn();
         assertThat(res.getResponse().getContentAsString())
                 .contains("Hits and Misses")
-                .contains("Decided by 1 point");
+                .contains("home-history__kind is-hit")
+                .contains("Spot on: the model had Alabama by 7.5; the book had Auburn by 3.0. Alabama won by 8.");
     }
 
     @Test
@@ -168,7 +169,7 @@ class HomeControllerTest extends BaseIntegrationTest {
         gameRepo.save(g);
     }
 
-    private void mkGame(Season s, Team home, Team away, Integer hs, Integer as,
+    private Game mkGame(Season s, Team home, Team away, Integer hs, Integer as,
                         Game.GameStatus status, LocalDate easternDate) {
         Game g = new Game();
         g.setHomeTeam(home);
@@ -179,6 +180,22 @@ class HomeControllerTest extends BaseIntegrationTest {
         g.setSeason(s);
         g.setGameDate(easternDate.atTime(14, 0).atZone(ZoneId.of("America/New_York"))
                 .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
-        gameRepo.save(g);
+        return gameRepo.save(g);
+    }
+
+    private void mkEval(Game g, Season season, String modelType, double predictedSpread) {
+        int margin = g.getHomeScore() - g.getAwayScore();
+        var pe = new com.yotto.basketball.entity.PredictionEvaluation();
+        pe.setGame(g);
+        pe.setSeason(season);
+        pe.setModelType(modelType);
+        pe.setGameDate(g.getGameDate().toLocalDate());
+        pe.setPredictedSpread(predictedSpread);
+        pe.setSpreadError(margin - predictedSpread);
+        pe.setActualMargin(margin);
+        pe.setActualTotal(g.getHomeScore() + g.getAwayScore());
+        pe.setHomeWon(margin > 0);
+        pe.setEvaluatedAt(java.time.LocalDateTime.of(2026, 4, 30, 12, 0));
+        evaluationRepo.save(pe);
     }
 }

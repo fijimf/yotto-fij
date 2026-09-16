@@ -28,7 +28,11 @@
                 <strong th:text="${m.view.homeScore}">85</strong>
             </span>
         </span>
-        <span class="home-history__framing" th:text="${m.view.framing}">Decided by 1 point.</span>
+        <span class="home-history__framing">
+            <span class="home-history__kind" th:classappend="${m.view.kind == 'Hit'} ? 'is-hit' : 'is-miss'"
+                  th:text="${m.view.kind}">Hit</span>
+            <span th:text="${m.view.framing}">Spot on: the model had Alabama by 7.5; the book had Auburn by 3. Alabama won by 8.</span>
+        </span>
     </a>
 </section>
 

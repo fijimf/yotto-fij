@@ -708,6 +708,22 @@ main {
     font-style: italic;
 }
 
+.home-history__kind {
+    display: inline-block;
+    margin-right: 0.4rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+}
+
+.home-history__kind.is-hit  { background: var(--color-success); }
+.home-history__kind.is-miss { background: var(--color-danger); }
+
 /* postseason panels */
 .home-row__round {
     flex: 0 0 7.5rem;
