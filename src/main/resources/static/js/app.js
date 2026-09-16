@@ -1,8 +1,22 @@
+// This script lives inside <body>, and hx-boost re-executes it on every boosted
+// navigation while `document` and `window` persist. Everything registered at
+// document level below is therefore guarded so it binds exactly once; otherwise
+// each navigation stacks another click handler and the nav dropdowns toggle
+// open-then-closed (a page refresh "fixed" it by resetting to one listener).
+// Per-element bindings in initApp are marked on the element for the same reason.
+if (window.__deepfijAppLoaded) {
+    // no-op: listeners from the first load still apply to the swapped-in body
+} else {
+    window.__deepfijAppLoaded = true;
+    installApp();
+}
+
 function initApp() {
     // Mobile nav toggle
     var toggle = document.querySelector(".nav__toggle");
     var links = document.querySelector(".nav__links");
-    if (toggle && links) {
+    if (toggle && links && !toggle.dataset.bound) {
+        toggle.dataset.bound = "1";
         toggle.addEventListener("click", function () {
             links.classList.toggle("nav__links--open");
         });
@@ -10,7 +24,8 @@ function initApp() {
 
     // Teams search
     var searchInput = document.getElementById("team-search");
-    if (searchInput) {
+    if (searchInput && !searchInput.dataset.bound) {
+        searchInput.dataset.bound = "1";
         var searchCount = document.getElementById("search-count");
         var noResults = document.getElementById("no-results");
         var groups = document.querySelectorAll(".conference-group");
@@ -51,7 +66,7 @@ function initApp() {
 
 // Nav dropdowns (section menus + user menu). Click-to-open; opening one closes
 // its siblings; outside click or Esc closes everything. Delegated on document
-// so it keeps working after HTMX body swaps without stacking listeners. The
+// so it keeps working after HTMX body swaps (bound once via installApp). The
 // same code drives the mobile accordion (menus render static there), which is
 // how "one section open at a time" falls out for free.
 function closeNavDropdowns(except) {
@@ -63,6 +78,7 @@ function closeNavDropdowns(except) {
     });
 }
 
+function installApp() {
 document.addEventListener("click", function (e) {
     var toggle = e.target.closest(".nav__dropdown-toggle");
     if (toggle) {
@@ -100,5 +116,6 @@ document.addEventListener('htmx:beforeRequest', function(evt) {
 // Run on initial page load
 document.addEventListener("DOMContentLoaded", initApp);
 
-// Re-run after HTMX swaps new content into the page
+// Re-run after HTMX swaps new content into the page (boosted navigations included)
 document.addEventListener("htmx:afterSettle", initApp);
+}
