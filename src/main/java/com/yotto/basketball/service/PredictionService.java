@@ -401,10 +401,21 @@ public class PredictionService {
 
         PredictionContext context = buildContext(homeId, awayId, gameDatetime, season,
                 neutralSite, conferenceGame, r, plan, cache);
+        // Neutral floors have no true home side, but the training data's "home" listing
+        // is the higher seed often enough that the bundles learned a ~4-point bump for
+        // whichever team is listed first. Score the mirrored listing too and average so
+        // the prediction is invariant to listing order.
+        PredictionContext mirrored = neutralSite
+                ? buildContext(awayId, homeId, gameDatetime, season,
+                        true, conferenceGame, r.mirrored(), plan, cache)
+                : null;
 
         Map<String, PredictionResult.MlPrediction> all = new LinkedHashMap<>();
         for (String slug : plan.evaluableVersions().keySet()) {
             PredictionResult.MlPrediction prediction = mlPredictionService.predict(slug, context);
+            if (prediction != null && mirrored != null) {
+                prediction = symmetrize(prediction, mlPredictionService.predict(slug, mirrored));
+            }
             if (prediction != null) {
                 all.put(slug, prediction);
             }
@@ -419,6 +430,26 @@ public class PredictionService {
         PredictionResult.MlPrediction defaultPrediction =
                 plan.defaultSlug() != null ? active.get(plan.defaultSlug()) : null;
         return new MlPredictions(defaultPrediction, Map.copyOf(active), Map.copyOf(all));
+    }
+
+    /**
+     * Averages a prediction with its mirrored-listing counterpart (the same game with
+     * the sides swapped): spread and win probability flip sign/complement, totals do
+     * not. Null when either side could not be scored, since a one-sided value would
+     * silently reintroduce the listing-order bias.
+     */
+    private static PredictionResult.MlPrediction symmetrize(PredictionResult.MlPrediction p,
+                                                            PredictionResult.MlPrediction mirror) {
+        if (mirror == null) return null;
+        double spread = (p.spread() - mirror.spread()) / 2.0;
+        double total  = (p.total() + mirror.total()) / 2.0;
+        double pHome  = (p.homeWinProbability() + mirror.awayWinProbability()) / 2.0;
+        double pAway  = 1.0 - pHome;
+        return new PredictionResult.MlPrediction(
+                spread, total, pHome, pAway,
+                impliedMoneyline(pHome), impliedMoneyline(pAway),
+                p.modelVersion(), p.modelSlug(), p.displayName(),
+                p.featuresComplete() && mirror.featuresComplete());
     }
 
     private PredictionContext buildContext(Long homeId, Long awayId,
@@ -657,6 +688,17 @@ public class PredictionService {
         // The ML models are trained only on games where all four rating models have
         // snapshots — the feature vector must never be built with imputed ratings.
         boolean hasAll()         { return hasMassey() && hasMasseyTotal() && hasBt() && hasBtWeighted(); }
+
+        /** The same ratings with home and away swapped (params unchanged — HCA terms are zero on neutral floors). */
+        GameRatings mirrored() {
+            return new GameRatings(
+                    masseyAway, masseyHome, masseyHca,
+                    masseyTotalAway, masseyTotalHome, masseyTotalIntercept, masseyTotalDelta,
+                    btAway, btHome, btAlpha,
+                    btWeightedAway, btWeightedHome, btWeightedAlpha,
+                    adjOffAway, adjOffHome, adjDefAway, adjDefHome,
+                    adjTempoAway, adjTempoHome, effIntercept, effHca, tempoIntercept);
+        }
     }
 
     /** Rolling aggregate stats for a team over their last N games. Nullable when window is empty. */

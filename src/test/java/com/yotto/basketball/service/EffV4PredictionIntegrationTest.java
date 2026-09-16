@@ -71,40 +71,7 @@ class EffV4PredictionIntegrationTest extends BaseIntegrationTest {
         Team a = mkTeam("Away U", "A1");
         Team o = mkTeam("Opponent U", "O1");
 
-        // Recent games + Massey series (same shape as the prior-v3 contract scenario)
-        mkFinal(season, h, o, LocalDate.of(2025, 1, 5), 80, 70);
-        mkFinal(season, o, h, LocalDate.of(2025, 1, 12), 75, 72);
-        mkFinal(season, a, o, LocalDate.of(2025, 1, 10), 60, 58);
-        snap(h, season, "MASSEY", 5.0, LocalDate.of(2025, 1, 4));
-        snap(o, season, "MASSEY", 2.0, LocalDate.of(2025, 1, 4));
-        snap(a, season, "MASSEY", 4.0, LocalDate.of(2025, 1, 4));
-        snap(h, season, "MASSEY", 5.5, LocalDate.of(2025, 1, 11));
-        snap(o, season, "MASSEY", 2.5, LocalDate.of(2025, 1, 11));
-        param(season, "MASSEY", "hca", 3.0, LocalDate.of(2025, 1, 2));
-
-        for (Team t : List.of(h, a)) {
-            snap(t, season, "MASSEY_TOTALS", 70.0, STATS_DATE);
-            snap(t, season, "BRADLEY_TERRY", 0.5, STATS_DATE);
-            snap(t, season, "BRADLEY_TERRY_W", 0.6, STATS_DATE);
-            for (String stat : List.of(
-                    "pace", "off_efficiency", "def_efficiency", "efg_pct", "opp_efg_pct", "tov_rate",
-                    "orb_pct", "drb_pct", "ft_rate", "opp_ft_rate", "opp_tov_rate", "fg3_rate")) {
-                boxStat(t, season, stat, 0.5);
-            }
-            seasonSnapshot(t, season);
-        }
-
-        // Preseason priors (imputable, but present here for completeness)
-        snap(h, prior, "MASSEY", 7.25, LocalDate.of(2024, 3, 30));
-        snap(h, prior, "BRADLEY_TERRY", 0.85, LocalDate.of(2024, 3, 30));
-        snap(a, prior, "MASSEY", 3.5, LocalDate.of(2024, 3, 30));
-        snap(a, prior, "BRADLEY_TERRY", 0.4, LocalDate.of(2024, 3, 30));
-
-        // Adjusted efficiency — the contract values
-        snap(h, season, "ADJ_OFF", 112.0, STATS_DATE);
-        snap(h, season, "ADJ_DEF", 5.0, STATS_DATE);
-        snap(a, season, "ADJ_OFF", 104.0, STATS_DATE);
-        snap(a, season, "ADJ_DEF", 2.0, STATS_DATE);
+        seedContractScenario(prior, season, h, a, o);
 
         Game game = new Game();
         game.setHomeTeam(h);
@@ -167,7 +134,89 @@ class EffV4PredictionIntegrationTest extends BaseIntegrationTest {
         assertThat(result.ml()).isNull();
     }
 
+    /**
+     * Neutral floors have no home side, yet the bundles learned a listing-order bump
+     * (the training data's "home" at neutral sites is usually the better seed). The
+     * service scores both listings and averages, so the prediction must be exactly
+     * invariant to which team is listed first.
+     */
+    @Test
+    void neutralSite_mlPredictionIsInvariantToListingOrder() {
+        Season prior  = mkSeason(2024);
+        Season season = mkSeason(2025);
+        Team h = mkTeam("Home U", "H1");
+        Team a = mkTeam("Away U", "A1");
+        Team o = mkTeam("Opponent U", "O1");
+        seedContractScenario(prior, season, h, a, o);
+
+        Game listedHA = mkScheduledNeutral(season, h, a);
+        Game listedAH = mkScheduledNeutral(season, a, h);
+
+        mlModelRegistryService.reloadAndReconcile();
+        PredictionResult ha = predictionService.predict(listedHA.getId());
+        PredictionResult ah = predictionService.predict(listedAH.getId());
+
+        assertThat(ha.ml()).isNotNull();
+        assertThat(ah.ml()).isNotNull();
+        // Fixture spread model returns home_adj_off: averaged over both listings → (112 − 104) / 2
+        assertThat(ha.ml().spread()).isCloseTo(4.0, within(1e-3));
+        assertThat(ah.ml().spread()).isCloseTo(-4.0, within(1e-3));
+        assertThat(ha.ml().total()).isCloseTo(ah.ml().total(), within(1e-9));
+        assertThat(ha.ml().homeWinProbability()).isCloseTo(ah.ml().awayWinProbability(), within(1e-9));
+        assertThat(ha.ml().homeWinProbability() + ha.ml().awayWinProbability()).isCloseTo(1.0, within(1e-9));
+        assertThat(ha.ml().homeImpliedMoneyline()).isEqualTo(ah.ml().awayImpliedMoneyline());
+    }
+
     // ── Fixtures ──────────────────────────────────────────────────────────────
+
+    /** Full eff-v4 contract scenario: form games, all four rating models, box stats, priors, ADJ ratings. */
+    private void seedContractScenario(Season prior, Season season, Team h, Team a, Team o) {
+        // Recent games + Massey series (same shape as the prior-v3 contract scenario)
+        mkFinal(season, h, o, LocalDate.of(2025, 1, 5), 80, 70);
+        mkFinal(season, o, h, LocalDate.of(2025, 1, 12), 75, 72);
+        mkFinal(season, a, o, LocalDate.of(2025, 1, 10), 60, 58);
+        snap(h, season, "MASSEY", 5.0, LocalDate.of(2025, 1, 4));
+        snap(o, season, "MASSEY", 2.0, LocalDate.of(2025, 1, 4));
+        snap(a, season, "MASSEY", 4.0, LocalDate.of(2025, 1, 4));
+        snap(h, season, "MASSEY", 5.5, LocalDate.of(2025, 1, 11));
+        snap(o, season, "MASSEY", 2.5, LocalDate.of(2025, 1, 11));
+        param(season, "MASSEY", "hca", 3.0, LocalDate.of(2025, 1, 2));
+
+        for (Team t : List.of(h, a)) {
+            snap(t, season, "MASSEY_TOTALS", 70.0, STATS_DATE);
+            snap(t, season, "BRADLEY_TERRY", 0.5, STATS_DATE);
+            snap(t, season, "BRADLEY_TERRY_W", 0.6, STATS_DATE);
+            for (String stat : List.of(
+                    "pace", "off_efficiency", "def_efficiency", "efg_pct", "opp_efg_pct", "tov_rate",
+                    "orb_pct", "drb_pct", "ft_rate", "opp_ft_rate", "opp_tov_rate", "fg3_rate")) {
+                boxStat(t, season, stat, 0.5);
+            }
+            seasonSnapshot(t, season);
+        }
+
+        // Preseason priors (imputable, but present here for completeness)
+        snap(h, prior, "MASSEY", 7.25, LocalDate.of(2024, 3, 30));
+        snap(h, prior, "BRADLEY_TERRY", 0.85, LocalDate.of(2024, 3, 30));
+        snap(a, prior, "MASSEY", 3.5, LocalDate.of(2024, 3, 30));
+        snap(a, prior, "BRADLEY_TERRY", 0.4, LocalDate.of(2024, 3, 30));
+
+        // Adjusted efficiency — the contract values
+        snap(h, season, "ADJ_OFF", 112.0, STATS_DATE);
+        snap(h, season, "ADJ_DEF", 5.0, STATS_DATE);
+        snap(a, season, "ADJ_OFF", 104.0, STATS_DATE);
+        snap(a, season, "ADJ_DEF", 2.0, STATS_DATE);
+    }
+
+    private Game mkScheduledNeutral(Season season, Team home, Team away) {
+        Game g = new Game();
+        g.setHomeTeam(home);
+        g.setAwayTeam(away);
+        g.setStatus(Game.GameStatus.SCHEDULED);
+        g.setNeutralSite(true);
+        g.setSeason(season);
+        g.setGameDate(LocalDate.of(2025, 1, 20).atTime(20, 0));
+        return gameRepo.save(g);
+    }
 
     private Season mkSeason(int year) {
         Season s = new Season();
