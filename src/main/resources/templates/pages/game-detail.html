@@ -14,7 +14,7 @@
     <div class="game-detail-matchup">
 
         <!-- Home team -->
-        <a th:href="@{'/teams/' + ${homeTeamSlug}}" class="game-detail-team">
+        <a th:href="@{'/teams/' + ${homeTeamId}}" class="game-detail-team">
             <div class="game-detail-team__logo-wrap"
                  th:if="${homeTeamLogoUrl}"
                  th:style="'background-color: #' + (${homeTeamColor} ?: '1a1a2e')">
@@ -59,7 +59,7 @@
         </div>
 
         <!-- Away team -->
-        <a th:href="@{'/teams/' + ${awayTeamSlug}}" class="game-detail-team game-detail-team--away">
+        <a th:href="@{'/teams/' + ${awayTeamId}}" class="game-detail-team game-detail-team--away">
             <div class="game-detail-team__info">
                 <span class="game-detail-team__name">
                     <span th:if="${awaySeed != null}" class="game-detail-team__seed"

@@ -89,14 +89,12 @@ public class GameDetailController {
         model.addAttribute("homeTeamMascot", home.getMascot());
         model.addAttribute("homeTeamLogoUrl", home.getLogoUrl());
         model.addAttribute("homeTeamColor", home.getColor());
-        model.addAttribute("homeTeamSlug", home.getSlug());
         model.addAttribute("awayTeamId", away.getId());
         model.addAttribute("awayTeamName", away.getName());
         model.addAttribute("awayTeamAbbr", away.getAbbreviation());
         model.addAttribute("awayTeamMascot", away.getMascot());
         model.addAttribute("awayTeamLogoUrl", away.getLogoUrl());
         model.addAttribute("awayTeamColor", away.getColor());
-        model.addAttribute("awayTeamSlug", away.getSlug());
         model.addAttribute("gameDate", game.getGameDate());
         model.addAttribute("venue", game.getVenue());
         model.addAttribute("neutralSite", Boolean.TRUE.equals(game.getNeutralSite()));
