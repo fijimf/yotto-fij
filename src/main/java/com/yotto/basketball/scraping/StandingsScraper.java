@@ -1,6 +1,8 @@
 package com.yotto.basketball.scraping;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
 import org.slf4j.Logger;
@@ -9,11 +11,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class StandingsScraper {
 
     private static final Logger log = LoggerFactory.getLogger(StandingsScraper.class);
+    private static final Pattern TEAM_REF = Pattern.compile("/teams/(\\d+)");
 
     private final EspnApiClient espnApiClient;
     private final TeamScraper teamScraper;
@@ -55,6 +60,14 @@ public class StandingsScraper {
             JsonNode root = espnApiClient.fetchStandings(seasonYear);
             JsonNode children = root.path("children");
 
+            // Before a season tips off ESPN lists the conferences but leaves every standings
+            // table empty, which would leave the new season with no memberships at all. The
+            // core API already has the (realigned) rosters, so take membership from there.
+            boolean preseason = hasNoStandingsEntries(children);
+            if (preseason) {
+                log.info("Standings feed has no entries for season {}; using conference rosters", seasonYear);
+            }
+
             for (JsonNode confChild : children) {
                 String confEspnId = confChild.path("id").asText();
 
@@ -64,7 +77,9 @@ public class StandingsScraper {
                     continue;
                 }
 
-                JsonNode entries = confChild.path("standings").path("entries");
+                JsonNode entries = preseason
+                        ? rosterEntries(seasonYear, confEspnId)
+                        : confChild.path("standings").path("entries");
 
                 Conference conference = conferenceRepository.findByEspnId(confEspnId).orElse(null);
                 if (conference == null) {
@@ -91,6 +106,32 @@ public class StandingsScraper {
         }
 
         return scrapeBatchRepository.save(batch);
+    }
+
+    private boolean hasNoStandingsEntries(JsonNode children) {
+        for (JsonNode confChild : children) {
+            if (!EspnGroups.isNonConference(confChild.path("id").asText())
+                    && !confChild.path("standings").path("entries").isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * A conference's roster from the core API, shaped like standings entries without stats
+     * ({@code {"team": {"id": ...}}}). The core API returns only {@code $ref} links, so the
+     * team id is read off the end of each link rather than dereferencing it.
+     */
+    private JsonNode rosterEntries(int seasonYear, String confEspnId) {
+        ArrayNode entries = JsonNodeFactory.instance.arrayNode();
+        for (JsonNode item : espnApiClient.fetchConferenceTeams(seasonYear, confEspnId).path("items")) {
+            Matcher m = TEAM_REF.matcher(item.path("$ref").asText());
+            if (m.find()) {
+                entries.addObject().putObject("team").put("id", m.group(1));
+            }
+        }
+        return entries;
     }
 
     /**

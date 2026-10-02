@@ -13,6 +13,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -196,6 +200,65 @@ class StandingsScraperTest extends BaseIntegrationTest {
         Long seasonId  = seasonRepo.findByYear(2022).orElseThrow().getId();
         ConferenceMembership m = membershipRepo.findByTeamIdAndSeasonId(alabamaId, seasonId).orElseThrow();
         assertThat(m.getConference().getId()).isEqualTo(pac12.getId());
+    }
+
+    // Preseason shape: every conference listed, no standings table yet.
+    private static final String PRESEASON_STANDINGS_JSON = """
+            {
+              "children": [
+                { "id": "2", "name": "Atlantic Coast Conference", "shortName": "ACC" },
+                { "id": "21", "name": "Pac-12 Conference", "abbreviation": "pac12", "shortName": "Pac-12" },
+                { "id": "104", "name": "College Basketball Crown" }
+              ]
+            }
+            """;
+
+    private static String rosterJson(String... teamEspnIds) {
+        String items = java.util.Arrays.stream(teamEspnIds)
+                .map(id -> "{ \"$ref\": \"http://sports.core.api.espn.com/v2/sports/basketball/leagues/"
+                        + "mens-college-basketball/seasons/2027/teams/" + id + "?lang=en&region=us\" }")
+                .collect(java.util.stream.Collectors.joining(","));
+        return "{ \"count\": " + teamEspnIds.length + ", \"items\": [" + items + "] }";
+    }
+
+    @Test
+    void scrape_preseasonEmptyStandings_takesMembershipsFromConferenceRosters() throws Exception {
+        when(espnApiClient.fetchStandings(2027)).thenReturn(mapper.readTree(PRESEASON_STANDINGS_JSON));
+        when(espnApiClient.fetchConferenceTeams(2027, "2")).thenReturn(mapper.readTree(rosterJson("333")));
+        when(espnApiClient.fetchConferenceTeams(2027, "21")).thenReturn(mapper.readTree(rosterJson("2")));
+
+        ScrapeBatch batch = scraper.scrape(2027);
+
+        assertThat(batch.getStatus()).isEqualTo(ScrapeBatch.ScrapeStatus.COMPLETED);
+        Long seasonId  = seasonRepo.findByYear(2027).orElseThrow().getId();
+        Long alabamaId = teamRepo.findByEspnId("333").orElseThrow().getId();
+        Long auburnId  = teamRepo.findByEspnId("2").orElseThrow().getId();
+        Long accId     = conferenceRepo.findByEspnId("2").orElseThrow().getId();
+        // Unknown conference with a roster is created, same as the standings path.
+        Conference pac12 = conferenceRepo.findByEspnId("21").orElseThrow();
+        assertThat(pac12.getAbbreviation()).isEqualTo("Pac-12");
+
+        assertThat(membershipRepo.findByTeamIdAndSeasonId(alabamaId, seasonId).orElseThrow()
+                .getConference().getId()).isEqualTo(accId);
+        assertThat(membershipRepo.findByTeamIdAndSeasonId(auburnId, seasonId).orElseThrow()
+                .getConference().getId()).isEqualTo(pac12.getId());
+
+        // Stats rows carry the conference (the teams page groups by it) but no scraped record yet.
+        SeasonStatistics stats = statsRepo.findByTeamIdAndSeasonId(alabamaId, seasonId).orElseThrow();
+        assertThat(stats.getConference().getId()).isEqualTo(accId);
+        assertThat(stats.getWins()).isNull();
+
+        // The Crown is never treated as a conference, in either path.
+        verify(espnApiClient, never()).fetchConferenceTeams(2027, "104");
+    }
+
+    @Test
+    void scrape_standingsWithEntries_doesNotFetchConferenceRosters() throws Exception {
+        when(espnApiClient.fetchStandings(2025)).thenReturn(mapper.readTree(STANDINGS_JSON));
+
+        scraper.scrape(2025);
+
+        verify(espnApiClient, never()).fetchConferenceTeams(anyInt(), anyString());
     }
 
     @Test

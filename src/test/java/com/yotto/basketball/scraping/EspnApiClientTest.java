@@ -90,6 +90,19 @@ class EspnApiClientTest {
     }
 
     @Test
+    void fetchConferenceTeams_substitutesYearAndGroupId() {
+        mockServer.expect(requestTo(
+                "https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball" +
+                "/seasons/2027/types/2/groups/21/teams?limit=100"))
+                .andRespond(withSuccess("{\"items\":[]}", MediaType.APPLICATION_JSON));
+
+        JsonNode result = client.fetchConferenceTeams(2027, "21");
+
+        assertThat(result.has("items")).isTrue();
+        mockServer.verify();
+    }
+
+    @Test
     void fetchScoreboard_formatsDateAsYYYYMMDD() {
         mockServer.expect(requestTo(
                 "https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=basketball" +

@@ -16,6 +16,7 @@ All data comes from ESPN's public JSON APIs for men's college basketball (Divisi
 | **Single Team** | `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/{espnTeamId}` | Lookup a team not in the current season (e.g., a team that left D-I) |
 | **Conferences** | `https://site.web.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard/conferences` | All D-I conferences |
 | **Standings** | `https://site.api.espn.com/apis/v2/sports/basketball/mens-college-basketball/standings?season={year}` | Conference memberships and season statistics for a given season |
+| **Conference Teams** | `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/{year}/types/2/groups/{espnGroupId}/teams?limit=100` | A conference's roster for a season; preseason fallback for memberships while the standings feed is still empty |
 | **Scoreboard** | `https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=basketball&league=mens-college-basketball&limit=200&groups=50&dates={yyyyMMdd}` | All games on a given date (includes odds for pre-game events) |
 | **Game Odds** | `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/events/{espnGameId}/competitions/{espnGameId}/odds` | Betting odds for a specific game (persists after game completion; used to backfill completed games) |
 | **Game Summary** | `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event={espnGameId}` | Per-game box score (team-level stats only — player stats are ignored) |
@@ -125,6 +126,12 @@ Stats are identified by `name` and `type` fields. The key stats to extract per t
 Rankings breakdowns (vs. AP Top 25, vs. USA ranked) are **not stored**.
 
 The `season_statistics` table is used for QA of scraped game data (e.g., verifying that a team's win count matches the number of FINAL games in which they won). The QA process itself is outside the scope of this implementation.
+
+### Preseason Fallback (Empty Standings)
+
+Before a season tips off, the standings response lists every conference in `children[]` but none has a `standings.entries[]` table (observed for 2027 in early October 2026). When no conference has entries, memberships come from the Conference Teams endpoint instead — one call per conference. It returns only `items[].$ref` links, so the team ESPN ID is parsed from the end of each link (`.../seasons/{year}/teams/{espnTeamId}`). The rosters already reflect realignment for the new season and match the standings feed exactly for completed seasons.
+
+In this mode each team gets a `conference_memberships` row and a `season_statistics` row carrying only the conference (scraped stat columns stay null). Once ESPN publishes standings, the normal path takes over and upserts the same rows.
 
 ### Handling Unknown Teams
 

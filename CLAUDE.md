@@ -82,7 +82,7 @@ Data is sourced from ESPN's public JSON APIs. See [SCRAPING.md](SCRAPING.md) for
 - **EspnApiClient** - RestClient wrapper with rate limiting (configurable delay + jitter)
 - **ConferenceScraper** - fetches/upserts conferences, skips NCAA D-I parent (groupId "50")
 - **TeamScraper** - bulk team scrape + `fetchAndSaveUnknownTeam` for historical/inactive teams
-- **StandingsScraper** - standings entries -> ConferenceMembership + SeasonStatistics
+- **StandingsScraper** - standings entries -> ConferenceMembership + SeasonStatistics; preseason, when the feed has no entries yet, memberships come from ESPN core-API conference rosters instead
 - **GameScraper** - `scrapeFullSeason` (Nov 1 - Apr 30, per-date) + `scrapeCurrentSeason` (re-scrape non-final dates). Extracts pre-game odds from scoreboard.
 - **OddsBackfillScraper** - backfills odds for final games missing them using ESPN core API
 - **GameStatsScraper** - per-game team-level box score backfill via ESPN summary endpoint; one API call per FINAL game; idempotent upsert keyed on (game_id, team_id)

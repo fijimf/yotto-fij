@@ -21,6 +21,7 @@ public class EspnApiClient {
     private static final String SINGLE_TEAM_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/{espnTeamId}";
     private static final String CONFERENCES_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard/conferences";
     private static final String STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/basketball/mens-college-basketball/standings?season={year}";
+    private static final String CONFERENCE_TEAMS_URL = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/{year}/types/2/groups/{groupId}/teams?limit=100";
     private static final String SCOREBOARD_URL = "https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=basketball&league=mens-college-basketball&limit=200&groups=50&dates={date}";
     private static final String ODDS_URL = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/events/{gameId}/competitions/{gameId}/odds";
     private static final String SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event={gameId}";
@@ -51,6 +52,13 @@ public class EspnApiClient {
 
     public JsonNode fetchStandings(int seasonYear) {
         String url = STANDINGS_URL.replace("{year}", String.valueOf(seasonYear));
+        return fetchWithRateLimit(url);
+    }
+
+    public JsonNode fetchConferenceTeams(int seasonYear, String espnGroupId) {
+        String url = CONFERENCE_TEAMS_URL
+                .replace("{year}", String.valueOf(seasonYear))
+                .replace("{groupId}", espnGroupId);
         return fetchWithRateLimit(url);
     }
 
