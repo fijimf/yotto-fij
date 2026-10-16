@@ -179,8 +179,28 @@ class TeamWebControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    void teamsList_teamsWithoutStats_groupAsIndependent() throws Exception {
-        // Neither team has a SeasonStatistics row → both go to "Independent"
+    void teamsList_teamWithoutRowForSeason_isDropped() throws Exception {
+        // Only A plays this season; B has left D-I and must not appear (not even as "Independent").
+        mkStats(teamA, sec, 20, 5, 14, 4);
+
+        MvcResult res = mockMvc.perform(get("/teams"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("teamCount", 1))
+                .andReturn();
+
+        @SuppressWarnings("unchecked")
+        Map<TeamWebController.ConferenceInfo, List<TeamWebController.TeamSummary>> groups =
+                (Map<TeamWebController.ConferenceInfo, List<TeamWebController.TeamSummary>>)
+                        res.getModelAndView().getModel().get("conferenceGroups");
+        assertThat(groups).hasSize(1);
+        assertThat(groups.keySet().iterator().next().name()).isEqualTo("SEC");
+        assertThat(groups.values().iterator().next()).extracting(TeamWebController.TeamSummary::id)
+                .containsExactly(teamA.getId());
+    }
+
+    @Test
+    void teamsList_seasonNotScrapedYet_listsEveryoneAsIndependent() throws Exception {
+        // No SeasonStatistics rows at all for the season → fall back to the full team list.
         MvcResult res = mockMvc.perform(get("/teams"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("teamCount", 2))

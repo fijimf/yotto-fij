@@ -72,7 +72,12 @@ public class TeamWebController {
             Map<Long, SeasonStatistics> statsByTeamId = statsForSeason.stream()
                     .collect(Collectors.toMap(ss -> ss.getTeam().getId(), ss -> ss));
 
-            List<Team> allTeams = teamRepository.findAll();
+            // The listing is season-scoped: a team with no row for this season has left
+            // D-I (Saint Francis in 2027) and is dropped rather than shown as "Independent".
+            // Until the season has been scraped at all, fall back to listing everyone.
+            List<Team> allTeams = statsForSeason.isEmpty()
+                    ? teamRepository.findAll()
+                    : statsForSeason.stream().map(SeasonStatistics::getTeam).toList();
             ConferenceNames names = namingService.load();
             int year = season.getYear();
 
