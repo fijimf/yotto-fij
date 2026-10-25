@@ -54,8 +54,14 @@ Central at the time (4.2.0 was at RC1).
   `JsonNode.asText(..)` → `asString(..)`; `new ObjectMapper()` → `new JsonMapper()`
   in tests. `asString()` matches `asText()` for text/number/boolean/missing
   nodes; it returns `""` for JSON null (2.x returned `"null"`) and throws for
-  object/array nodes instead of returning `""`, so a scraper field that is
-  sometimes a container needs `asString(null)`.
+  object/array nodes instead of returning `""`. The same applies to the
+  no-argument `asInt()`, `asDouble()`, `asBoolean()`, `doubleValue()` and
+  `textValue()`. **Scraper rule:** every `JsonNode` read of ESPN data uses the
+  defaulted form (`asString("")`, `asString(null)`, `asInt(0)`, `asDouble(0.0)`)
+  or is guarded by `isNumber()`/`isInt()`, so a field that unexpectedly arrives
+  as an object or array costs one event, not the whole date. Follow-up commit
+  after the upgrade converted the 18 remaining bare `asString()` calls in the
+  scrapers and added `GameScraperTest.scrapeGame_malformedEventIsSkipped_restOfDateStillSaved`.
 - `JacksonConfig` registers `Hibernate7Module` (lazy-proxy aware serialization
   for the REST API, same role as before).
 - `SecurityConfig`: `SecurityProperties` → `SecurityFilterProperties`

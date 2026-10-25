@@ -160,13 +160,13 @@ public class GameScraper {
             try {
                 upsertGame(event, date, seasonYear, batch);
             } catch (Exception e) {
-                log.warn("Failed to process event {} on {}", event.path("id").asString(), date, e);
+                log.warn("Failed to process event {} on {}", event.path("id").asString(""), date, e);
             }
         }
     }
 
     private void upsertGame(JsonNode event, LocalDate scrapeDate, int seasonYear, ScrapeBatch batch) {
-        String espnId = event.path("id").asString();
+        String espnId = event.path("id").asString("");
 
         // Find home and away teams
         JsonNode competitors = event.path("competitors");
@@ -180,13 +180,13 @@ public class GameScraper {
         Integer awaySeed = null;
 
         for (JsonNode comp : competitors) {
-            String homeAway = comp.path("homeAway").asString();
+            String homeAway = comp.path("homeAway").asString("");
             if ("home".equals(homeAway)) {
-                homeTeamEspnId = comp.path("id").asString();
+                homeTeamEspnId = comp.path("id").asString("");
                 homeScore = comp.path("score").asString("");
                 homeSeed = parseSeed(comp.path("tournamentMatchup").path("seed"));
             } else if ("away".equals(homeAway)) {
-                awayTeamEspnId = comp.path("id").asString();
+                awayTeamEspnId = comp.path("id").asString("");
                 awayScore = comp.path("score").asString("");
                 awaySeed = parseSeed(comp.path("tournamentMatchup").path("seed"));
             }
@@ -208,7 +208,7 @@ public class GameScraper {
         if (season == null) return;
 
         // Parse game date
-        LocalDateTime gameDate = parseGameDate(event.path("date").asString());
+        LocalDateTime gameDate = parseGameDate(event.path("date").asString(""));
         if (gameDate == null) return;
 
         // Parse status
@@ -322,7 +322,7 @@ public class GameScraper {
         }
         obs.setSeasonYear(seasonYear);
         obs.setScrapeDate(scrapeDate);
-        obs.setGameDateUtc(parseGameDate(event.path("date").asString()));
+        obs.setGameDateUtc(parseGameDate(event.path("date").asString("")));
         obs.setHomeEspnId(homeEspnId);
         obs.setAwayEspnId(awayEspnId);
         obs.setUnknownTeamEspnIds(unknown.toString());

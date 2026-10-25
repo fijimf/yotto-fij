@@ -124,6 +124,57 @@ class GameScraperTest extends BaseIntegrationTest {
     }
 
     @Test
+    void scrapeGame_malformedEventIsSkipped_restOfDateStillSaved() throws Exception {
+        // Jackson 3's JsonNode.asString() throws on object/array nodes (Jackson 2's
+        // asText() returned ""). A feed field that unexpectedly arrives as a container
+        // must only lose that one event — and the per-event catch block's own
+        // event.path("id") read must not throw either — never the whole date.
+        String mixedJson = """
+                {
+                  "sports": [{
+                    "leagues": [{
+                      "events": [
+                        {
+                          "id": { "unexpected": "object" },
+                          "date": ["2025-02-15T19:00:00Z"],
+                          "season": 2025,
+                          "competitors": [
+                            { "id": { "nested": true }, "homeAway": ["home"], "score": "70" },
+                            { "id": "2", "homeAway": "away", "score": "60" }
+                          ],
+                          "fullStatus": { "type": { "name": "STATUS_FINAL", "state": "post" } }
+                        },
+                        {
+                          "id": "401708395",
+                          "date": "2025-02-15T21:00:00Z",
+                          "location": "Coleman Coliseum",
+                          "neutralSite": false,
+                          "season": 2025,
+                          "competitors": [
+                            { "id": "333", "homeAway": "home", "score": "85" },
+                            { "id": "2", "homeAway": "away", "score": "78" }
+                          ],
+                          "fullStatus": { "type": { "name": "STATUS_FINAL", "state": "post" } }
+                        }
+                      ]
+                    }]
+                  }]
+                }
+                """;
+
+        when(espnApiClient.fetchScoreboard(any(LocalDate.class)))
+                .thenReturn(mapper.readTree("{ \"sports\": [{ \"leagues\": [{ \"events\": [] }] }] }"));
+        when(espnApiClient.fetchScoreboard(LocalDate.of(2025, 2, 15)))
+                .thenReturn(mapper.readTree(mixedJson));
+
+        ScrapeBatch batch = gameScraper.scrapeFullSeason(2025);
+
+        assertThat(batch.getStatus()).isEqualTo(ScrapeBatch.ScrapeStatus.COMPLETED);
+        assertThat(gameRepository.findByEspnId("401708395")).isPresent();
+        assertThat(gameRepository.count()).isEqualTo(1);
+    }
+
+    @Test
     void scrapeGame_upsertsOnRescrape() throws Exception {
         String scheduledJson = """
                 {

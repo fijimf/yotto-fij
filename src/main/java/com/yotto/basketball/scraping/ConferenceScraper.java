@@ -43,7 +43,7 @@ public class ConferenceScraper {
             JsonNode conferences = root.path("conferences");
 
             for (JsonNode conf : conferences) {
-                String groupId = conf.path("groupId").asString();
+                String groupId = conf.path("groupId").asString("");
 
                 // Skip the parent "NCAA Division I" group and any non-conference event
                 // groups (e.g. the College Basketball Crown) ESPN lists here.
@@ -51,8 +51,8 @@ public class ConferenceScraper {
                     continue;
                 }
 
-                String name = conf.path("name").asString();
-                String shortName = conf.path("shortName").asString();
+                String name = conf.path("name").asString("");
+                String shortName = conf.path("shortName").asString("");
                 String logo = conf.path("logo").asString(null);
 
                 Conference existing = conferenceRepository.findByEspnId(groupId).orElse(null);

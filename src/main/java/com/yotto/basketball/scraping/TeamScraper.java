@@ -80,7 +80,7 @@ public class TeamScraper {
     }
 
     private void upsertTeam(JsonNode teamNode, boolean isActive, ScrapeBatch batch) {
-        String espnId = teamNode.path("id").asString();
+        String espnId = teamNode.path("id").asString("");
 
         Team existing = teamRepository.findByEspnId(espnId).orElse(null);
         if (existing != null) {
@@ -98,7 +98,7 @@ public class TeamScraper {
     }
 
     private void applyTeamFields(Team team, JsonNode node) {
-        team.setEspnId(node.path("id").asString());
+        team.setEspnId(node.path("id").asString(""));
         team.setName(node.path("location").asString(node.path("displayName").asString("Unknown")));
         team.setMascot(node.path("name").asString(null));
         team.setNickname(node.path("nickname").asString(null));
@@ -117,7 +117,7 @@ public class TeamScraper {
                 boolean isDark = false;
                 if (rel.isArray()) {
                     for (JsonNode r : rel) {
-                        if ("dark".equals(r.asString())) { isDark = true; break; }
+                        if ("dark".equals(r.asString(""))) { isDark = true; break; }
                     }
                 }
                 if (isDark) { if (darkUrl == null) darkUrl = href; }
