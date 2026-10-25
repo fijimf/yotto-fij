@@ -18,7 +18,7 @@
     <description>College Basketball Statistics Database</description>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>25</java.version>
     </properties>
 
     <dependencies>
@@ -251,8 +251,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <!-- Mockito loaded as an agent up front: JDKs newer than 21 refuse the
-                         dynamic self-attach it otherwise falls back to -->
-                    <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar} -Dnet.bytebuddy.experimental=true</argLine>
+                         dynamic self-attach it otherwise falls back to. The ONNX runtime
+                         is JNI; without the native-access grant JDK 24+ warns on load. -->
+                    <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar} --enable-native-access=ALL-UNNAMED</argLine>
                 </configuration>
             </plugin>
             <plugin>

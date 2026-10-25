@@ -80,8 +80,9 @@ Central at the time (4.2.0 was at RC1).
   ISO strings (unchanged for us — Boot 3 already did that). The
   `spring-boot-properties-migrator` was run once against the test context and
   reported no deprecated or renamed properties.
-- Java 17 remains the baseline for Boot 4.1 (only jOOQ needs 21). The
-  Dockerfile stays on Temurin 17.
+- Java 17 remains the baseline for Boot 4.1 (only jOOQ needs 21). The first
+  deploy went out on Temurin 17; the same day the project moved to Java 25
+  (next section).
 
 ## Version bumps
 
@@ -119,3 +120,29 @@ Before: 8 affected artifacts. After: 0.
 Re-run the scan any time with the dependency list piped through the OSV batch
 API (`api.osv.dev/v1/querybatch`, ecosystem `Maven`, package `group:artifact`);
 it is free, needs no key, and takes a few seconds for the ~140 artifacts.
+
+## Follow-up the same day: Java 17 → 25
+
+Both the JVM and the build target moved to Java 25 (current LTS, Temurin
+support to ~2033 versus October 2027 for 17):
+
+- `java.version` 17 → 25; Dockerfile build/runtime images
+  `eclipse-temurin:25-jdk-noble` / `25-jre-noble` (also leaves Ubuntu jammy,
+  which ends support in 2027).
+- `--enable-native-access=ALL-UNNAMED` on the container entrypoint and the
+  surefire argLine: the ONNX runtime is JNI and JDK 24+ (JEP 472) warns on
+  restricted native access without the grant.
+- Dropped `-Dnet.bytebuddy.experimental=true` (ByteBuddy 1.18.15 knows class
+  file version 69).
+- Local builds need a JDK 25 on `JAVA_HOME`; Temurin 25 lives in
+  `~/.jdks/temurin-25` on the dev Mac (installed from the Adoptium API, no sudo).
+
+Not enabled yet, each worth its own measured change:
+- **Compact Object Headers** (`-XX:+UseCompactObjectHeaders`): 10–22% less heap
+  on object-heavy workloads but slowed a lock-heavy web benchmark; needs an A/B
+  on the 2-core box.
+- **AOT cache** (Leyden): Spring Boot 4 supports a training run that can cut the
+  ~30s startup gap during deploys by half or more.
+- **Virtual threads** (`spring.threads.virtual.enabled=true`): JDBC pinning was
+  fixed in 24, so crawler bursts would queue on the Hikari pool instead of
+  exhausting Tomcat's request threads.

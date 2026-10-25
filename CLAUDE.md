@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Spring Boot 4.1.2 (Spring Framework 7, Spring Security 7, Hibernate 7, Jackson 3 under `tools.jackson`) supporting both a REST API as well as a rich web UI powered by Thymeleaf and HTMX for college basketball statistics. Java 17, PostgreSQL 16, Flyway migrations. Data is populated by scraping ESPN's public JSON APIs.
+Spring Boot 4.1.2 (Spring Framework 7, Spring Security 7, Hibernate 7, Jackson 3 under `tools.jackson`) supporting both a REST API as well as a rich web UI powered by Thymeleaf and HTMX for college basketball statistics. Java 25 (Temurin, `eclipse-temurin:25-*-noble` images), PostgreSQL 16, Flyway migrations. Data is populated by scraping ESPN's public JSON APIs.
 Deployed on a server running Ubuntu 24.04.4 LTS.
 
 **Artifact:** `deepfij` (0.0.1-SNAPSHOT)
@@ -13,7 +13,7 @@ Operator runbook for the ML model system (training, evaluation, promotion, what 
 ## Build & Run
 
 ```bash
-# Build
+# Build (needs JDK 25 on JAVA_HOME; dev Mac: export JAVA_HOME=~/.jdks/temurin-25/Contents/Home)
 ./mvnw clean package
 
 # Run locally (start Postgres first)
@@ -137,7 +137,7 @@ Deploy/monitoring runbook lives in the `server-ops` skill (`.claude/skills/serve
 - Scraper tests use `@MockitoBean` (Spring Framework's replacement for the removed `@MockBean`) for `EspnApiClient` to avoid real API calls
 - `@DirtiesContext(AFTER_EACH_TEST_METHOD)` on scraper tests for context isolation
 - `@BeforeEach` cleanup for database isolation between tests
-- Surefire configured with `-Dnet.bytebuddy.experimental=true` for Java 23 compatibility
+- Surefire loads Mockito as a `-javaagent` (JDK 21+ refuse dynamic self-attach) and grants `--enable-native-access=ALL-UNNAMED` for the ONNX JNI runtime; the Dockerfile entrypoint carries the same native-access flag
 
 ## Public information architecture (2026-08 menu reorganization)
 
