@@ -1,6 +1,7 @@
 package com.yotto.basketball.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.yotto.basketball.entity.MlTrainingRun;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.MlTrainingRunRepository;
@@ -58,7 +59,7 @@ class MlTrainingServiceTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         service = new MlTrainingService(runRepository, seasonRepository, mlPredictionService,
-                mlModelRegistryService, asyncScrapeService, new ObjectMapper(), builder, BASE);
+                mlModelRegistryService, asyncScrapeService, new JsonMapper(), builder, BASE);
     }
 
     private static MlTrainingRun runningRun(String runId, LocalDateTime startedAt) {

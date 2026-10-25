@@ -1,8 +1,8 @@
 package com.yotto.basketball.service;
 
 import ai.onnxruntime.*;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -209,8 +209,8 @@ public class MlPredictionService {
             File winprobFile  = new File(dir, "winprob_model.onnx");
 
             JsonNode manifest = objectMapper.readTree(featuresFile);
-            boolean residualSpread = "residual_massey".equals(manifest.path("spread_target").asText("margin"));
-            boolean derivedWinprob = "derived".equals(manifest.path("winprob_mode").asText("classifier"));
+            boolean residualSpread = "residual_massey".equals(manifest.path("spread_target").asString("margin"));
+            boolean derivedWinprob = "derived".equals(manifest.path("winprob_mode").asString("classifier"));
             double marginSigma = manifest.path("margin_sigma").asDouble(0.0);
 
             // The classifier ONNX is only required when winprob is classifier-based
@@ -226,7 +226,7 @@ public class MlPredictionService {
             }
             List<String> featureNames = new ArrayList<>();
             for (JsonNode f : manifest.path("features")) {
-                featureNames.add(f.asText());
+                featureNames.add(f.asString());
             }
             if (featureNames.isEmpty()) {
                 log.warn("ML bundle {} has an empty feature list — skipped", dirSlug);
@@ -240,7 +240,7 @@ public class MlPredictionService {
                 return;
             }
 
-            String slug = manifest.path("slug").asText(dirSlug);
+            String slug = manifest.path("slug").asString(dirSlug);
             Bundle bundle = new Bundle();
             bundle.featureNames          = List.copyOf(featureNames);
             bundle.residualSpread        = residualSpread;
@@ -256,9 +256,9 @@ public class MlPredictionService {
             }
             bundle.status = new MlBundleStatus(
                     slug,
-                    manifest.path("display_name").asText(slug),
-                    manifest.path("feature_set").asText(null),
-                    manifest.path("version").asText(null),
+                    manifest.path("display_name").asString(slug),
+                    manifest.path("feature_set").asString(null),
+                    manifest.path("version").asString(null),
                     Instant.ofEpochMilli(featuresFile.lastModified()),
                     featureNames.size(),
                     parseIntList(manifest.path("train_seasons")),
@@ -337,7 +337,7 @@ public class MlPredictionService {
             Object raw = result.get(outputName)
                     .orElseThrow(() -> new OrtException("Output '" + outputName + "' not found in regressor result"))
                     .getValue();
-            if (raw instanceof float[][]) return ((float[][]) raw)[0][0];
+            if (raw instanceof float[][] floats) return floats[0][0];
             return ((float[]) raw)[0];
         }
     }

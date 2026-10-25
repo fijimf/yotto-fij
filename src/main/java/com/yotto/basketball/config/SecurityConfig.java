@@ -3,9 +3,9 @@ package com.yotto.basketball.config;
 import com.yotto.basketball.security.AppUserDetailsService;
 import com.yotto.basketball.security.AuthFailureHandler;
 import com.yotto.basketball.security.LoginRateLimitFilter;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.boot.web.servlet.server.CookieSameSiteSupplier;
+import org.springframework.boot.web.server.servlet.CookieSameSiteSupplier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -132,7 +132,7 @@ public class SecurityConfig {
     public FilterRegistrationBean<MultipartFilter> multipartFilterRegistration() {
         FilterRegistrationBean<MultipartFilter> registration =
                 new FilterRegistrationBean<>(new MultipartFilter());
-        registration.setOrder(SecurityProperties.DEFAULT_FILTER_ORDER - 1);
+        registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1);
         return registration;
     }
 

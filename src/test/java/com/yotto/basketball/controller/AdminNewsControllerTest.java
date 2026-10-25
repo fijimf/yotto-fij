@@ -15,9 +15,9 @@ import com.yotto.basketball.repository.TeamRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -40,10 +40,10 @@ class AdminNewsControllerTest extends BaseIntegrationTest {
     @Autowired NewsAliasRepository aliasRepository;
     @Autowired TeamRepository teamRepository;
 
-    @MockBean NewsHttpClient httpClient;
+    @MockitoBean NewsHttpClient httpClient;
     // Mocked so the retag endpoint doesn't spawn real background work that
     // races the between-test TRUNCATE
-    @MockBean com.yotto.basketball.news.AsyncNewsService asyncNewsService;
+    @MockitoBean com.yotto.basketball.news.AsyncNewsService asyncNewsService;
 
     private Team kansas;
 

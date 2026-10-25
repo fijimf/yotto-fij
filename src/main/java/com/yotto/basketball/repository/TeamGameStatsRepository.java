@@ -2,6 +2,7 @@ package com.yotto.basketball.repository;
 
 import com.yotto.basketball.entity.TeamGameStats;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -24,10 +25,9 @@ public interface TeamGameStatsRepository extends JpaRepository<TeamGameStats, Lo
     List<TeamGameStats> findBySeasonId(@Param("seasonId") Long seasonId);
 
     /** Earliest game date among games whose box-score rows were scraped at or after the given instant. */
-    @Query(value = "SELECT MIN(CAST(g.game_date AS date)) FROM team_game_stats t " +
+    @NativeQuery("SELECT MIN(CAST(g.game_date AS date)) FROM team_game_stats t " +
                    "JOIN games g ON t.game_id = g.id " +
-                   "WHERE g.season_id = :seasonId AND t.scrape_date >= :since",
-           nativeQuery = true)
+                   "WHERE g.season_id = :seasonId AND t.scrape_date >= :since")
     LocalDate findMinGameDateWithStatsScrapedSince(@Param("seasonId") Long seasonId,
                                                    @Param("since") LocalDateTime since);
 }

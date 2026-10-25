@@ -3,6 +3,7 @@ package com.yotto.basketball.repository;
 import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -69,21 +70,19 @@ public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPow
             @Param("fromDate") LocalDate fromDate);
 
     /** The final snapshot of a season for a team/model (no cutoff) — preseason-prior lookups. */
-    @Query(value = "SELECT * FROM team_power_rating_snapshots " +
+    @NativeQuery("SELECT * FROM team_power_rating_snapshots " +
                    "WHERE team_id = :teamId AND season_id = :seasonId AND model_type = :modelType " +
-                   "ORDER BY snapshot_date DESC LIMIT 1",
-           nativeQuery = true)
+                   "ORDER BY snapshot_date DESC LIMIT 1")
     Optional<TeamPowerRatingSnapshot> findLatest(
             @Param("teamId") Long teamId,
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType);
 
     /** Most recent snapshot for a team/season/model strictly before the given date. */
-    @Query(value = "SELECT * FROM team_power_rating_snapshots " +
+    @NativeQuery("SELECT * FROM team_power_rating_snapshots " +
                    "WHERE team_id = :teamId AND season_id = :seasonId " +
                    "  AND model_type = :modelType AND snapshot_date < :beforeDate " +
-                   "ORDER BY snapshot_date DESC LIMIT 1",
-           nativeQuery = true)
+                   "ORDER BY snapshot_date DESC LIMIT 1")
     Optional<TeamPowerRatingSnapshot> findLatestBefore(
             @Param("teamId") Long teamId,
             @Param("seasonId") Long seasonId,

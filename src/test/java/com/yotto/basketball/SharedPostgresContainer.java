@@ -1,6 +1,6 @@
 package com.yotto.basketball;
 
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Singleton PostgreSQL container shared across every integration-test base
@@ -10,13 +10,13 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 final class SharedPostgresContainer {
 
-    static final PostgreSQLContainer<?> INSTANCE;
+    static final PostgreSQLContainer INSTANCE;
 
     static {
         // Spring's test-context cache keeps up to 32 contexts alive, each holding a
         // ~10-connection Hikari pool; postgres's default max_connections=100 overflows
         // once the suite accumulates enough distinct contexts ("sorry, too many clients").
-        INSTANCE = new PostgreSQLContainer<>("postgres:16-alpine")
+        INSTANCE = new PostgreSQLContainer("postgres:16-alpine")
                 .withCommand("postgres", "-c", "max_connections=500");
         INSTANCE.start();
     }

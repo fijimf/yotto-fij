@@ -3,6 +3,7 @@ package com.yotto.basketball.repository;
 import com.yotto.basketball.entity.TeamStatSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -57,11 +58,10 @@ public interface TeamStatSnapshotRepository extends JpaRepository<TeamStatSnapsh
             @Param("maxDate") LocalDate maxDate);
 
     /** All stats for one team at the most recent snapshot date strictly before the given date. */
-    @Query(value = "SELECT * FROM team_stat_snapshots " +
+    @NativeQuery("SELECT * FROM team_stat_snapshots " +
                    "WHERE team_id = :teamId AND season_id = :seasonId " +
                    "  AND snapshot_date = (SELECT MAX(snapshot_date) FROM team_stat_snapshots " +
-                   "    WHERE team_id = :teamId AND season_id = :seasonId AND snapshot_date < :beforeDate)",
-           nativeQuery = true)
+                   "    WHERE team_id = :teamId AND season_id = :seasonId AND snapshot_date < :beforeDate)")
     List<TeamStatSnapshot> findLatestBefore(
             @Param("teamId") Long teamId,
             @Param("seasonId") Long seasonId,

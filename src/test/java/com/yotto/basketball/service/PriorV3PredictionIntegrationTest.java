@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,7 +66,7 @@ class PriorV3PredictionIntegrationTest extends BaseIntegrationTest {
         registry.add("prediction.ml.enabled", () -> "true");
         registry.add("prediction.ml.model-dir", () -> {
             try {
-                return Paths.get(PriorV3PredictionIntegrationTest.class.getClassLoader()
+                return Path.of(PriorV3PredictionIntegrationTest.class.getClassLoader()
                         .getResource("ml-models-prior-v3/features.json").toURI()).getParent().toString();
             } catch (Exception e) {
                 throw new IllegalStateException("ml-models-prior-v3 fixtures missing", e);

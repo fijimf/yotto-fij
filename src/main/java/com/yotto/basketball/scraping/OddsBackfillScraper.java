@@ -1,6 +1,6 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.yotto.basketball.entity.BettingOdds;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.ScrapeBatch;
@@ -131,7 +131,7 @@ public class OddsBackfillScraper {
         bo.setOpeningOverUnder(openingOU);
 
         // Provider
-        String provider = firstProvider.path("provider").path("name").asText(null);
+        String provider = firstProvider.path("provider").path("name").asString(null);
         bo.setSource(provider);
         bo.setLastUpdated(LocalDateTime.now());
 
@@ -143,7 +143,7 @@ public class OddsBackfillScraper {
         if (node == null || node.isMissingNode() || node.isNull()) return null;
         try {
             if (node.isNumber()) return BigDecimal.valueOf(node.asDouble());
-            String text = node.asText("");
+            String text = node.asString("");
             if (text.isEmpty()) return null;
             return new BigDecimal(text);
         } catch (NumberFormatException e) {
@@ -153,7 +153,7 @@ public class OddsBackfillScraper {
 
     private BigDecimal parseOpeningLine(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) return null;
-        String text = node.asText("");
+        String text = node.asString("");
         if (text.isEmpty()) return null;
         try {
             return new BigDecimal(text);
@@ -164,7 +164,7 @@ public class OddsBackfillScraper {
 
     private BigDecimal parseOpeningOverUnder(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) return null;
-        String text = node.asText("");
+        String text = node.asString("");
         if (text.isEmpty()) return null;
         // Strip "o" or "u" prefix (e.g., "o134.5")
         if (text.startsWith("o") || text.startsWith("u") || text.startsWith("O") || text.startsWith("U")) {
@@ -179,7 +179,7 @@ public class OddsBackfillScraper {
 
     private Integer parseMoneyline(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) return null;
-        String text = node.asText("");
+        String text = node.asString("");
         if (text.isEmpty() || "OFF".equalsIgnoreCase(text)) return null;
         try {
             return Integer.parseInt(text);

@@ -18,10 +18,10 @@ import com.yotto.basketball.scraping.AsyncScrapeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -61,7 +61,7 @@ class AdminControllerTest extends BaseIntegrationTest {
     @Autowired TeamRepository teamRepo;
     @Autowired ConferenceRepository conferenceRepo;
 
-    @MockBean AsyncScrapeService asyncScrapeService;
+    @MockitoBean AsyncScrapeService asyncScrapeService;
 
     @BeforeEach
     void setUp() {
@@ -366,7 +366,7 @@ class AdminControllerTest extends BaseIntegrationTest {
     void unauthenticatedDashboard_redirectsToLogin() throws Exception {
         mockMvc.perform(get("/admin").accept(org.springframework.http.MediaType.TEXT_HTML))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("http://localhost/login"));
+                .andExpect(redirectedUrl("/login"));
     }
 
     private Season mkSeason(int year) {

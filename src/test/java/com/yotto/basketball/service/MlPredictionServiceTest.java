@@ -1,6 +1,7 @@
 package com.yotto.basketball.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -9,7 +10,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -40,7 +40,7 @@ class MlPredictionServiceTest {
     }
 
     private MlPredictionService newService(String modelDir, boolean enabled) {
-        MlPredictionService s = new MlPredictionService(new ObjectMapper());
+        MlPredictionService s = new MlPredictionService(new JsonMapper());
         ReflectionTestUtils.setField(s, "modelDir", modelDir);
         ReflectionTestUtils.setField(s, "configEnabled", enabled);
         s.init();
@@ -49,7 +49,7 @@ class MlPredictionServiceTest {
 
     private static String fixtureDir() {
         try {
-            return Paths.get(MlPredictionServiceTest.class.getClassLoader()
+            return Path.of(MlPredictionServiceTest.class.getClassLoader()
                     .getResource("ml-models/features.json").toURI()).getParent().toString();
         } catch (Exception e) {
             throw new IllegalStateException("ml-models fixtures missing from test classpath", e);

@@ -3,6 +3,7 @@ package com.yotto.basketball.repository;
 import com.yotto.basketball.entity.TeamSeasonStatSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -24,9 +25,9 @@ public interface TeamSeasonStatSnapshotRepository extends JpaRepository<TeamSeas
     LocalDate findMaxSnapshotDateOnOrBefore(@Param("seasonId") Long seasonId, @Param("date") LocalDate date);
 
     /** Team ids of the RPI top-N as of one snapshot date (front-page marquee filter). */
-    @Query(value = "SELECT team_id FROM team_season_stat_snapshots " +
+    @NativeQuery("SELECT team_id FROM team_season_stat_snapshots " +
                    "WHERE season_id = :seasonId AND snapshot_date = :date AND rpi IS NOT NULL " +
-                   "ORDER BY rpi DESC LIMIT :limit", nativeQuery = true)
+                   "ORDER BY rpi DESC LIMIT :limit")
     List<Long> findTopRpiTeamIds(@Param("seasonId") Long seasonId,
                                  @Param("date") LocalDate date,
                                  @Param("limit") int limit);
@@ -43,11 +44,10 @@ public interface TeamSeasonStatSnapshotRepository extends JpaRepository<TeamSeas
     void deleteBySeasonIdFromDate(@Param("seasonId") Long seasonId, @Param("fromDate") LocalDate fromDate);
 
     /** Most recent snapshot for a team/season strictly before the given date. */
-    @Query(value = "SELECT * FROM team_season_stat_snapshots " +
+    @NativeQuery("SELECT * FROM team_season_stat_snapshots " +
                    "WHERE team_id = :teamId AND season_id = :seasonId " +
                    "  AND snapshot_date < :beforeDate " +
-                   "ORDER BY snapshot_date DESC LIMIT 1",
-           nativeQuery = true)
+                   "ORDER BY snapshot_date DESC LIMIT 1")
     Optional<TeamSeasonStatSnapshot> findLatestBefore(
             @Param("teamId") Long teamId,
             @Param("seasonId") Long seasonId,

@@ -1,6 +1,6 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.yotto.basketball.entity.Conference;
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.repository.ConferenceRepository;
@@ -43,7 +43,7 @@ public class ConferenceScraper {
             JsonNode conferences = root.path("conferences");
 
             for (JsonNode conf : conferences) {
-                String groupId = conf.path("groupId").asText();
+                String groupId = conf.path("groupId").asString();
 
                 // Skip the parent "NCAA Division I" group and any non-conference event
                 // groups (e.g. the College Basketball Crown) ESPN lists here.
@@ -51,9 +51,9 @@ public class ConferenceScraper {
                     continue;
                 }
 
-                String name = conf.path("name").asText();
-                String shortName = conf.path("shortName").asText();
-                String logo = conf.path("logo").asText(null);
+                String name = conf.path("name").asString();
+                String shortName = conf.path("shortName").asString();
+                String logo = conf.path("logo").asString(null);
 
                 Conference existing = conferenceRepository.findByEspnId(groupId).orElse(null);
                 if (existing != null) {

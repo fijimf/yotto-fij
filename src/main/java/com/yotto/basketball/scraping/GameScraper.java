@@ -1,6 +1,6 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.yotto.basketball.config.ScrapingProperties;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
@@ -160,13 +160,13 @@ public class GameScraper {
             try {
                 upsertGame(event, date, seasonYear, batch);
             } catch (Exception e) {
-                log.warn("Failed to process event {} on {}", event.path("id").asText(), date, e);
+                log.warn("Failed to process event {} on {}", event.path("id").asString(), date, e);
             }
         }
     }
 
     private void upsertGame(JsonNode event, LocalDate scrapeDate, int seasonYear, ScrapeBatch batch) {
-        String espnId = event.path("id").asText();
+        String espnId = event.path("id").asString();
 
         // Find home and away teams
         JsonNode competitors = event.path("competitors");
@@ -180,14 +180,14 @@ public class GameScraper {
         Integer awaySeed = null;
 
         for (JsonNode comp : competitors) {
-            String homeAway = comp.path("homeAway").asText();
+            String homeAway = comp.path("homeAway").asString();
             if ("home".equals(homeAway)) {
-                homeTeamEspnId = comp.path("id").asText();
-                homeScore = comp.path("score").asText("");
+                homeTeamEspnId = comp.path("id").asString();
+                homeScore = comp.path("score").asString("");
                 homeSeed = parseSeed(comp.path("tournamentMatchup").path("seed"));
             } else if ("away".equals(homeAway)) {
-                awayTeamEspnId = comp.path("id").asText();
-                awayScore = comp.path("score").asText("");
+                awayTeamEspnId = comp.path("id").asString();
+                awayScore = comp.path("score").asString("");
                 awaySeed = parseSeed(comp.path("tournamentMatchup").path("seed"));
             }
         }
@@ -208,7 +208,7 @@ public class GameScraper {
         if (season == null) return;
 
         // Parse game date
-        LocalDateTime gameDate = parseGameDate(event.path("date").asText());
+        LocalDateTime gameDate = parseGameDate(event.path("date").asString());
         if (gameDate == null) return;
 
         // Parse status
@@ -225,14 +225,14 @@ public class GameScraper {
         game.setHomeTeam(homeTeam);
         game.setAwayTeam(awayTeam);
         game.setGameDate(gameDate);
-        game.setVenue(event.path("location").asText(null));
+        game.setVenue(event.path("location").asString(null));
         game.setNeutralSite(event.path("neutralSite").asBoolean(false));
         game.setSeason(season);
         game.setStatus(status);
         game.setScrapeDate(scrapeDate);
 
-        String espnNote = event.path("note").asText(null);
-        String seasonTypeStr = event.path("seasonType").asText(null);
+        String espnNote = event.path("note").asString(null);
+        String seasonTypeStr = event.path("seasonType").asString(null);
         game.setEspnNoteRaw(espnNote);
         game.setEspnSeasonType(parseSeasonType(seasonTypeStr));
         TournamentClassifier.Result tc = tournamentClassifier.classify(
@@ -322,7 +322,7 @@ public class GameScraper {
         }
         obs.setSeasonYear(seasonYear);
         obs.setScrapeDate(scrapeDate);
-        obs.setGameDateUtc(parseGameDate(event.path("date").asText()));
+        obs.setGameDateUtc(parseGameDate(event.path("date").asString()));
         obs.setHomeEspnId(homeEspnId);
         obs.setAwayEspnId(awayEspnId);
         obs.setUnknownTeamEspnIds(unknown.toString());
@@ -367,7 +367,7 @@ public class GameScraper {
         bo.setHomeMoneyline(homeML);
         bo.setAwayMoneyline(awayML);
 
-        String provider = odds.path("provider").path("name").asText(null);
+        String provider = odds.path("provider").path("name").asString(null);
         bo.setSource(provider);
         bo.setLastUpdated(LocalDateTime.now());
 
@@ -375,7 +375,7 @@ public class GameScraper {
     }
 
     private Game.GameStatus mapStatus(JsonNode statusType) {
-        String name = statusType.path("name").asText("");
+        String name = statusType.path("name").asString("");
         return switch (name) {
             case "STATUS_SCHEDULED" -> Game.GameStatus.SCHEDULED;
             case "STATUS_IN_PROGRESS", "STATUS_HALFTIME", "STATUS_END_PERIOD" -> Game.GameStatus.IN_PROGRESS;
@@ -383,7 +383,7 @@ public class GameScraper {
             case "STATUS_POSTPONED" -> Game.GameStatus.POSTPONED;
             case "STATUS_CANCELED", "STATUS_CANCELLED" -> Game.GameStatus.CANCELLED;
             default -> {
-                String state = statusType.path("state").asText("");
+                String state = statusType.path("state").asString("");
                 yield switch (state) {
                     case "pre" -> Game.GameStatus.SCHEDULED;
                     case "in" -> Game.GameStatus.IN_PROGRESS;
@@ -413,7 +413,7 @@ public class GameScraper {
         if (node == null || node.isMissingNode() || node.isNull()) return null;
         try {
             if (node.isNumber()) return BigDecimal.valueOf(node.asDouble());
-            String text = node.asText("");
+            String text = node.asString("");
             if (text.isEmpty()) return null;
             return new BigDecimal(text);
         } catch (NumberFormatException e) {
@@ -423,7 +423,7 @@ public class GameScraper {
 
     private Integer parseSeed(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) return null;
-        String text = node.asText("");
+        String text = node.asString("");
         if (text.isEmpty()) return null;
         try {
             return Integer.parseInt(text.trim());
@@ -443,7 +443,7 @@ public class GameScraper {
 
     private Integer parseMoneyline(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) return null;
-        String text = node.asText("");
+        String text = node.asString("");
         if (text.isEmpty() || "OFF".equalsIgnoreCase(text)) return null;
         try {
             return Integer.parseInt(text);

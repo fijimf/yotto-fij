@@ -3,13 +3,13 @@ package com.yotto.basketball.controller;
 import com.yotto.basketball.BaseIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.nio.file.Paths;
+import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -34,7 +34,7 @@ class MlStatusCardRenderingTest extends BaseIntegrationTest {
         registry.add("prediction.ml.enabled", () -> "true");
         registry.add("prediction.ml.model-dir", () -> {
             try {
-                return Paths.get(MlStatusCardRenderingTest.class.getClassLoader()
+                return Path.of(MlStatusCardRenderingTest.class.getClassLoader()
                         .getResource("ml-models/features.json").toURI()).getParent().toString();
             } catch (Exception e) {
                 throw new IllegalStateException("ml-models fixtures missing from test classpath", e);

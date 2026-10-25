@@ -4,11 +4,11 @@ import com.yotto.basketball.repository.UserRepository;
 import com.yotto.basketball.service.QuoteService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -41,11 +41,11 @@ class GlobalExceptionHandlerTest {
     // @ControllerAdvice beans need their services, and the slice's Filter scan pulls
     // in LoginRateLimitFilter, which needs RateLimitService. We don't exercise any
     // of them — stub them out.
-    @MockBean UserRepository userRepository;
-    @MockBean QuoteService quoteService;
-    @MockBean com.yotto.basketball.service.SeasonPhaseService seasonPhaseService;
-    @MockBean com.yotto.basketball.security.RateLimitService rateLimitService;
-    @MockBean com.yotto.basketball.service.PublicModelService publicModelService; // NavModelsAdvice
+    @MockitoBean UserRepository userRepository;
+    @MockitoBean QuoteService quoteService;
+    @MockitoBean com.yotto.basketball.service.SeasonPhaseService seasonPhaseService;
+    @MockitoBean com.yotto.basketball.security.RateLimitService rateLimitService;
+    @MockitoBean com.yotto.basketball.service.PublicModelService publicModelService; // NavModelsAdvice
 
     @Test
     void entityNotFoundException_returns404WithFullErrorBody() throws Exception {

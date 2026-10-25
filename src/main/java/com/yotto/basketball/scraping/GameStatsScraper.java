@@ -1,6 +1,6 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.entity.Season;
@@ -113,8 +113,8 @@ public class GameStatsScraper {
 
         int written = 0;
         for (JsonNode teamNode : teams) {
-            String espnTeamId = teamNode.path("team").path("id").asText("");
-            String homeAway = teamNode.path("homeAway").asText("");
+            String espnTeamId = teamNode.path("team").path("id").asString("");
+            String homeAway = teamNode.path("homeAway").asString("");
             if (espnTeamId.isEmpty() || homeAway.isEmpty()) continue;
 
             Team team = teamRepository.findByEspnId(espnTeamId).orElse(null);
@@ -144,8 +144,8 @@ public class GameStatsScraper {
         if (!statistics.isArray()) return;
 
         for (JsonNode stat : statistics) {
-            String name = stat.path("name").asText("");
-            String displayValue = stat.path("displayValue").asText("");
+            String name = stat.path("name").asString("");
+            String displayValue = stat.path("displayValue").asString("");
             if (name.isEmpty() || displayValue.isEmpty()) continue;
 
             switch (name) {

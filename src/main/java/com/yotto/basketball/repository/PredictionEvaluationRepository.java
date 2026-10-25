@@ -3,6 +3,7 @@ package com.yotto.basketball.repository;
 import com.yotto.basketball.entity.PredictionEvaluation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -32,8 +33,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
             @Param("type") com.yotto.basketball.entity.Game.TournamentType type);
 
     /** Game ids that have at least one evaluation row in the season. */
-    @Query(nativeQuery = true, value =
-            "SELECT DISTINCT pe.game_id FROM prediction_evaluations pe WHERE pe.season_id = :seasonId")
+    @NativeQuery("SELECT DISTINCT pe.game_id FROM prediction_evaluations pe WHERE pe.season_id = :seasonId")
     List<Long> findEvaluatedGameIds(@Param("seasonId") Long seasonId);
 
     /** Per-game ML rows ('ML:&lt;slug&gt;') with their model versions, for staleness checks. */
@@ -43,7 +43,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         String getModelVersion();
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.game_id AS gameid, pe.model_type AS modeltype, pe.model_version AS modelversion
             FROM prediction_evaluations pe
             WHERE pe.season_id = :seasonId AND pe.model_type LIKE 'ML:%'
@@ -51,11 +51,11 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
     List<EvaluatedMlRow> findEvaluatedMlRows(@Param("seasonId") Long seasonId);
 
     @Modifying
-    @Query(nativeQuery = true, value = "DELETE FROM prediction_evaluations WHERE season_id = :seasonId")
+    @NativeQuery("DELETE FROM prediction_evaluations WHERE season_id = :seasonId")
     int deleteBySeasonId(@Param("seasonId") Long seasonId);
 
     /** Season years that have at least one evaluation row, newest first. */
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT DISTINCT s.year FROM prediction_evaluations pe
             JOIN seasons s ON s.id = pe.season_id
             ORDER BY s.year DESC
@@ -76,7 +76,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getSideAccuracy();   // fraction of games where the predicted winner won
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.model_type AS modeltype,
                    count(*) AS n,
                    avg(abs(pe.spread_error)) AS mae,
@@ -102,7 +102,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getBias();   // mean(actual − predicted): positive = model under-predicts totals
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.model_type AS modeltype,
                    count(*) AS n,
                    avg(abs(pe.total_error)) AS mae,
@@ -130,7 +130,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
 
     // Log-loss expression note: the outer CASE guard matters — GREATEST/LEAST skip NULLs
     // in Postgres, so a NULL prob would otherwise clamp to 1−1e-6 instead of dropping out.
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.model_type AS modeltype,
                    count(*) AS n,
                    avg(CASE WHEN pe.predicted_home_win_prob IS NULL THEN NULL
@@ -162,7 +162,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getLogLoss();
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.model_type AS modeltype,
                    to_char(pe.game_date, 'YYYY-MM') AS month,
                    count(pe.spread_error) AS spreadn,
@@ -199,7 +199,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getSideAccuracy();   // model's predicted-winner hit rate
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT confs.conference_id AS conferenceid,
                    count(*) AS n,
                    avg(abs(m.spread_error)) AS modelmae,
@@ -255,7 +255,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getClvRate();
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT m.model_type AS modeltype,
                    count(CASE WHEN m.spread_error IS NOT NULL AND b.spread_error IS NOT NULL THEN 1 END) AS spreadn,
                    avg(CASE WHEN m.spread_error IS NOT NULL AND b.spread_error IS NOT NULL
@@ -313,7 +313,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         long getAtsWins();
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT count(CASE WHEN m.predicted_home_win_prob IS NOT NULL OR m.predicted_spread IS NOT NULL THEN 1 END) AS sun,
                    count(CASE WHEN (m.predicted_home_win_prob IS NOT NULL AND (m.predicted_home_win_prob >= 0.5) = m.home_won)
                                OR (m.predicted_home_win_prob IS NULL AND m.predicted_spread IS NOT NULL
@@ -340,7 +340,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getWinnerProb();
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.game_id AS gameid,
                    CASE WHEN pe.home_won THEN pe.predicted_home_win_prob
                         ELSE 1 - pe.predicted_home_win_prob END AS winnerprob
@@ -358,7 +358,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getBookSpread();
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT m.game_id AS gameid, b.predicted_spread AS bookspread
             FROM prediction_evaluations m
             JOIN prediction_evaluations b ON b.game_id = m.game_id AND b.model_type = 'BOOK'
@@ -372,7 +372,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
                                                       @Param("modelType") String modelType);
 
     /** The model's worst spread miss of the season. */
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.game_id AS gameid, pe.predicted_spread AS predictedspread, pe.spread_error AS spreaderror
             FROM prediction_evaluations pe
             WHERE pe.season_id = :seasonId AND pe.model_type = :modelType AND pe.spread_error IS NOT NULL
@@ -402,7 +402,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
      * the final margin while the book was off by at least {@code bookMinError}, ranked by how
      * badly the book missed. Any season.
      */
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT m.game_id AS gameid, m.predicted_spread AS modelspread, b.predicted_spread AS bookspread,
                    m.actual_margin AS actualmargin, m.spread_error AS modelerror, b.spread_error AS bookerror
             FROM prediction_evaluations m
@@ -423,7 +423,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
      * "Misses" for the front-page panel: games where the model AND the book were both off by at
      * least {@code minError}, ranked by the smaller of the two errors (so both must be large).
      */
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT m.game_id AS gameid, m.predicted_spread AS modelspread, b.predicted_spread AS bookspread,
                    m.actual_margin AS actualmargin, m.spread_error AS modelerror, b.spread_error AS bookerror
             FROM prediction_evaluations m
@@ -447,7 +447,7 @@ public interface PredictionEvaluationRepository extends JpaRepository<Prediction
         Double getActualRate();
     }
 
-    @Query(nativeQuery = true, value = """
+    @NativeQuery("""
             SELECT pe.model_type AS modeltype,
                    least(floor(pe.predicted_home_win_prob * 10), 9)::int AS bucket,
                    count(*) AS n,

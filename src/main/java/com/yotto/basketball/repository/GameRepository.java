@@ -3,6 +3,7 @@ package com.yotto.basketball.repository;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.Season;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -76,9 +77,8 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     List<Game> findFinalGamesWithoutStats(@Param("seasonId") Long seasonId);
 
     /** Earliest game date among games whose row changed at or after the given instant. */
-    @Query(value = "SELECT MIN(CAST(game_date AS date)) FROM games " +
-                   "WHERE season_id = :seasonId AND updated_at >= :since",
-           nativeQuery = true)
+    @NativeQuery("SELECT MIN(CAST(game_date AS date)) FROM games " +
+                   "WHERE season_id = :seasonId AND updated_at >= :since")
     java.time.LocalDate findMinGameDateUpdatedSince(@Param("seasonId") Long seasonId,
                                                     @Param("since") LocalDateTime since);
 

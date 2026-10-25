@@ -2,7 +2,7 @@ package com.yotto.basketball.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.yotto.basketball.entity.MlTrainingRun;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.MlTrainingRunRepository;

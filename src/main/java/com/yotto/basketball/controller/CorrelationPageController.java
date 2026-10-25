@@ -1,7 +1,6 @@
 package com.yotto.basketball.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.security.AppUserDetails;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import tools.jackson.core.JacksonException;
 
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -74,7 +74,7 @@ public class CorrelationPageController {
         try {
             model.addAttribute("matrixJson", objectMapper.writeValueAsString(
                     new MatrixPayload(page.selected(), page.rows())));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             model.addAttribute("matrixJson", "null");
         }
         model.addAttribute("currentPage", "correlation");

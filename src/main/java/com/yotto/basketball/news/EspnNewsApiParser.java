@@ -1,7 +1,8 @@
 package com.yotto.basketball.news;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -29,7 +30,7 @@ public class EspnNewsApiParser {
 
     private static final Logger log = LoggerFactory.getLogger(EspnNewsApiParser.class);
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new JsonMapper();
 
     /**
      * @throws FeedPoller.FeedParseException when the bytes aren't the expected JSON shape
@@ -51,17 +52,17 @@ public class EspnNewsApiParser {
         List<FeedItem> items = new ArrayList<>();
         Set<String> seenLinks = new HashSet<>();
         for (JsonNode article : articles) {
-            String link = article.path("links").path("web").path("href").asText(null);
-            String headline = article.path("headline").asText(null);
+            String link = article.path("links").path("web").path("href").asString(null);
+            String headline = article.path("headline").asString(null);
             if (link == null || link.isBlank() || headline == null || headline.isBlank()
                     || !seenLinks.add(link)) {
                 continue;
             }
-            String description = article.path("description").asText(null);
+            String description = article.path("description").asString(null);
             String image = firstImageUrl(article.path("images"));
             items.add(new FeedItem(link, headline.strip(), description,
-                    parseInstant(article.path("published").asText(null)),
-                    parseInstant(article.path("lastModified").asText(null)),
+                    parseInstant(article.path("published").asString(null)),
+                    parseInstant(article.path("lastModified").asString(null)),
                     image));
         }
         return items;
@@ -72,7 +73,7 @@ public class EspnNewsApiParser {
             return null;
         }
         for (JsonNode image : images) {
-            String url = image.path("url").asText(null);
+            String url = image.path("url").asString(null);
             if (url != null && !url.isBlank()) {
                 return url;
             }

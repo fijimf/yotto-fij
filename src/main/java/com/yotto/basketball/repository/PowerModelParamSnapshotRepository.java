@@ -3,6 +3,7 @@ package com.yotto.basketball.repository;
 import com.yotto.basketball.entity.PowerModelParamSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -36,11 +37,10 @@ public interface PowerModelParamSnapshotRepository extends JpaRepository<PowerMo
             @Param("fromDate") LocalDate fromDate);
 
     /** Most recent param value for a season/model/paramName strictly before the given date. */
-    @Query(value = "SELECT * FROM power_model_param_snapshots " +
+    @NativeQuery("SELECT * FROM power_model_param_snapshots " +
                    "WHERE season_id = :seasonId AND model_type = :modelType " +
                    "  AND param_name = :paramName AND snapshot_date < :beforeDate " +
-                   "ORDER BY snapshot_date DESC LIMIT 1",
-           nativeQuery = true)
+                   "ORDER BY snapshot_date DESC LIMIT 1")
     Optional<PowerModelParamSnapshot> findLatestParamBefore(
             @Param("seasonId") Long seasonId,
             @Param("modelType") String modelType,

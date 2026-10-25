@@ -1,6 +1,7 @@
 package com.yotto.basketball.scraping;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.Game;
 import com.yotto.basketball.entity.NonD1GameObservation;
@@ -14,7 +15,6 @@ import com.yotto.basketball.repository.TeamRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.annotation.DirtiesContext;
 
 import java.time.LocalDate;
@@ -42,10 +42,10 @@ class GameScraperTest extends BaseIntegrationTest {
     @Autowired
     private NonD1GameObservationRepository nonD1Repository;
 
-    @MockBean
+    @MockitoBean
     private EspnApiClient espnApiClient;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new JsonMapper();
 
     @BeforeEach
     void setUp() {

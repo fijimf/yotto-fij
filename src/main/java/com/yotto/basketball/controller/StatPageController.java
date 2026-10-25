@@ -1,7 +1,6 @@
 package com.yotto.basketball.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.yotto.basketball.controller.dto.StatPageDto;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.repository.SeasonRepository;
@@ -16,6 +15,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import tools.jackson.core.JacksonException;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -136,7 +136,7 @@ public class StatPageController {
         model.addAttribute("fmt", new StatFormat());
         try {
             model.addAttribute("statPageJson", objectMapper.writeValueAsString(dto));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             model.addAttribute("statPageJson", "null");
         }
     }

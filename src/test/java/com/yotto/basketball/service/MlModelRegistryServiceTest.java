@@ -1,6 +1,7 @@
 package com.yotto.basketball.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.yotto.basketball.entity.MlModel;
 import com.yotto.basketball.repository.MlModelRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +34,7 @@ class MlModelRegistryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MlModelRegistryService(modelRepository, mlPredictionService, new ObjectMapper());
+        service = new MlModelRegistryService(modelRepository, mlPredictionService, new JsonMapper());
     }
 
     private static MlBundleStatus status(String slug, List<Integer> trainSeasons, Integer testSeason) {

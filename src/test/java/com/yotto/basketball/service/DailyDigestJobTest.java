@@ -15,8 +15,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,7 +42,7 @@ class DailyDigestJobTest extends BaseIntegrationTest {
     @Autowired SeasonRepository seasonRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired GameRepository gameRepo;
-    @MockBean MailService mailService;
+    @MockitoBean MailService mailService;
 
     Team alabama, auburn;
 

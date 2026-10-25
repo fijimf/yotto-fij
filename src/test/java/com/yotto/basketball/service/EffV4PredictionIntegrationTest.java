@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -55,7 +55,7 @@ class EffV4PredictionIntegrationTest extends BaseIntegrationTest {
         registry.add("prediction.ml.enabled", () -> "true");
         registry.add("prediction.ml.model-dir", () -> {
             try {
-                return Paths.get(EffV4PredictionIntegrationTest.class.getClassLoader()
+                return Path.of(EffV4PredictionIntegrationTest.class.getClassLoader()
                         .getResource("ml-models-eff-v4/features.json").toURI()).getParent().toString();
             } catch (Exception e) {
                 throw new IllegalStateException("ml-models-eff-v4 fixtures missing", e);

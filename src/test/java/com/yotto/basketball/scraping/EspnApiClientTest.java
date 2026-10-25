@@ -1,6 +1,6 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.yotto.basketball.config.ScrapingProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +61,7 @@ class EspnApiClientTest {
 
         JsonNode result = client.fetchSingleTeam("333");
 
-        assertThat(result.path("team").path("id").asText()).isEqualTo("333");
+        assertThat(result.path("team").path("id").asString()).isEqualTo("333");
         mockServer.verify();
     }
 

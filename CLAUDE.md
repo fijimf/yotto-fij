@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Spring Boot 3.2.2 supporting both a REST API as well as a rich web UI powered by Thymeleaf and HTMX for college basketball statistics. Java 17, PostgreSQL 16, Flyway migrations. Data is populated by scraping ESPN's public JSON APIs.
+Spring Boot 4.1.2 (Spring Framework 7, Spring Security 7, Hibernate 7, Jackson 3 under `tools.jackson`) supporting both a REST API as well as a rich web UI powered by Thymeleaf and HTMX for college basketball statistics. Java 17, PostgreSQL 16, Flyway migrations. Data is populated by scraping ESPN's public JSON APIs.
 Deployed on a server running Ubuntu 24.04.4 LTS.
 
 **Artifact:** `deepfij` (0.0.1-SNAPSHOT)
@@ -134,7 +134,7 @@ Deploy/monitoring runbook lives in the `server-ops` skill (`.claude/skills/serve
 - Integration tests extend `BaseIntegrationTest` which provides a shared Testcontainers PostgreSQL instance
 - Flyway runs automatically in tests
 - Requires Docker to be running
-- Scraper tests use `@MockBean` for `EspnApiClient` to avoid real API calls
+- Scraper tests use `@MockitoBean` (Spring Framework's replacement for the removed `@MockBean`) for `EspnApiClient` to avoid real API calls
 - `@DirtiesContext(AFTER_EACH_TEST_METHOD)` on scraper tests for context isolation
 - `@BeforeEach` cleanup for database isolation between tests
 - Surefire configured with `-Dnet.bytebuddy.experimental=true` for Java 23 compatibility

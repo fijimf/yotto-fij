@@ -1,7 +1,8 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.Conference;
 import com.yotto.basketball.entity.ScrapeBatch;
@@ -10,8 +11,8 @@ import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.ScrapeBatchRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -36,10 +37,10 @@ class ConferenceScraperTest extends BaseIntegrationTest {
     @Autowired
     private ConferenceNameHistoryRepository nameHistoryRepository;
 
-    @MockBean
+    @MockitoBean
     private EspnApiClient espnApiClient;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new JsonMapper();
 
     @Test
     void scrapeConferences_createsNewConferences() throws Exception {

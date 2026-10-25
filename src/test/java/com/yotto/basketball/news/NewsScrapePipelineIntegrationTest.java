@@ -19,7 +19,7 @@ import com.yotto.basketball.repository.TeamRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -64,7 +64,7 @@ class NewsScrapePipelineIntegrationTest extends BaseIntegrationTest {
             to face Kansas State in another basketball matchup between the two old rivals.
             """;
 
-    @MockBean
+    @MockitoBean
     private NewsHttpClient httpClient;
 
     @Autowired

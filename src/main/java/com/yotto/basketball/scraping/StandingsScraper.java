@@ -1,8 +1,8 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
 import org.slf4j.Logger;
@@ -69,7 +69,7 @@ public class StandingsScraper {
             }
 
             for (JsonNode confChild : children) {
-                String confEspnId = confChild.path("id").asText();
+                String confEspnId = confChild.path("id").asString();
 
                 // Never re-point a team's conference membership at a non-conference event group
                 // (e.g. the College Basketball Crown), which would clobber its real conference.
@@ -110,7 +110,7 @@ public class StandingsScraper {
 
     private boolean hasNoStandingsEntries(JsonNode children) {
         for (JsonNode confChild : children) {
-            if (!EspnGroups.isNonConference(confChild.path("id").asText())
+            if (!EspnGroups.isNonConference(confChild.path("id").asString())
                     && !confChild.path("standings").path("entries").isEmpty()) {
                 return false;
             }
@@ -126,7 +126,7 @@ public class StandingsScraper {
     private JsonNode rosterEntries(int seasonYear, String confEspnId) {
         ArrayNode entries = JsonNodeFactory.instance.arrayNode();
         for (JsonNode item : espnApiClient.fetchConferenceTeams(seasonYear, confEspnId).path("items")) {
-            Matcher m = TEAM_REF.matcher(item.path("$ref").asText());
+            Matcher m = TEAM_REF.matcher(item.path("$ref").asString());
             if (m.find()) {
                 entries.addObject().putObject("team").put("id", m.group(1));
             }
@@ -142,8 +142,8 @@ public class StandingsScraper {
     private Conference createFromStandingsChild(JsonNode confChild, String confEspnId) {
         Conference conference = new Conference();
         conference.setEspnId(confEspnId);
-        conference.setName(confChild.path("name").asText("Conference " + confEspnId));
-        String abbr = confChild.path("shortName").asText(confChild.path("abbreviation").asText(null));
+        conference.setName(confChild.path("name").asString("Conference " + confEspnId));
+        String abbr = confChild.path("shortName").asString(confChild.path("abbreviation").asString(null));
         if (abbr != null && !abbr.isBlank()) {
             conference.setAbbreviation(abbr);
         }
@@ -153,7 +153,7 @@ public class StandingsScraper {
     }
 
     private void processStandingsEntry(JsonNode entry, Conference conference, Season season, ScrapeBatch batch) {
-        String teamEspnId = entry.path("team").path("id").asText();
+        String teamEspnId = entry.path("team").path("id").asString();
 
         Team team = teamRepository.findByEspnId(teamEspnId).orElse(null);
         if (team == null) {
@@ -200,7 +200,7 @@ public class StandingsScraper {
         if (!statsArray.isArray()) return;
 
         for (JsonNode stat : statsArray) {
-            String type = stat.path("type").asText();
+            String type = stat.path("type").asString();
             int value = stat.path("value").asInt(0);
 
             // ESPN returns individual stat entries with compound type keys

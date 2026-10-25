@@ -1,6 +1,6 @@
 package com.yotto.basketball.scraping;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.repository.ScrapeBatchRepository;
@@ -80,7 +80,7 @@ public class TeamScraper {
     }
 
     private void upsertTeam(JsonNode teamNode, boolean isActive, ScrapeBatch batch) {
-        String espnId = teamNode.path("id").asText();
+        String espnId = teamNode.path("id").asString();
 
         Team existing = teamRepository.findByEspnId(espnId).orElse(null);
         if (existing != null) {
@@ -98,26 +98,26 @@ public class TeamScraper {
     }
 
     private void applyTeamFields(Team team, JsonNode node) {
-        team.setEspnId(node.path("id").asText());
-        team.setName(node.path("location").asText(node.path("displayName").asText("Unknown")));
-        team.setMascot(node.path("name").asText(null));
-        team.setNickname(node.path("nickname").asText(null));
-        team.setAbbreviation(node.path("abbreviation").asText(null));
-        team.setSlug(node.path("slug").asText(null));
-        team.setColor(node.path("color").asText(null));
-        team.setAlternateColor(node.path("alternateColor").asText(null));
+        team.setEspnId(node.path("id").asString());
+        team.setName(node.path("location").asString(node.path("displayName").asString("Unknown")));
+        team.setMascot(node.path("name").asString(null));
+        team.setNickname(node.path("nickname").asString(null));
+        team.setAbbreviation(node.path("abbreviation").asString(null));
+        team.setSlug(node.path("slug").asString(null));
+        team.setColor(node.path("color").asString(null));
+        team.setAlternateColor(node.path("alternateColor").asString(null));
 
         JsonNode logos = node.path("logos");
         if (logos.isArray() && !logos.isEmpty()) {
             String defaultUrl = null;
             String darkUrl = null;
             for (JsonNode logo : logos) {
-                String href = logo.path("href").asText(null);
+                String href = logo.path("href").asString(null);
                 JsonNode rel = logo.path("rel");
                 boolean isDark = false;
                 if (rel.isArray()) {
                     for (JsonNode r : rel) {
-                        if ("dark".equals(r.asText())) { isDark = true; break; }
+                        if ("dark".equals(r.asString())) { isDark = true; break; }
                     }
                 }
                 if (isDark) { if (darkUrl == null) darkUrl = href; }

@@ -1,6 +1,6 @@
 package com.yotto.basketball.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.yotto.basketball.entity.MlModel;
 import com.yotto.basketball.repository.MlModelRepository;
 import jakarta.annotation.PostConstruct;
