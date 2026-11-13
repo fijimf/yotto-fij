@@ -33,6 +33,42 @@ map $request_uri $deepfij_uri_skip {
     ~^/(admin|account|login|logout|register|verify|forgot-password|reset-password|error) 1;
 }
 
+# ── Bot control ──────────────────────────────────────────────────────────────
+# SEO backlink/rank crawlers are ~30% of all requests and worth nothing to a
+# college-basketball site. They honor robots.txt, but dropping them here costs
+# nothing and doesn't depend on their good behaviour. Search engines
+# (Googlebot, Bingbot, DuckDuckBot, Applebot) and AI *answer* fetchers are not
+# listed — AI *training* crawlers are governed by robots.txt only, so that
+# policy can change without touching nginx.
+map $http_user_agent $deepfij_drop_bot {
+    default 0;
+    ~*AhrefsBot              1;
+    ~*SemrushBot             1;
+    ~*MJ12bot                1;
+    ~*SERankingBacklinksBot  1;
+    ~*DotBot                 1;
+    ~*PetalBot               1;
+    ~*Sogou                  1;
+    ~*Baiduspider            1;
+    ~*BLEXBot                1;
+    ~*DataForSeoBot          1;
+    ~*Barkrowler             1;
+}
+
+# Per-IP rate limit for page requests. The Nov 2026 scrapers ran ~1.5 req/s for
+# hours from single residential IPs with a forged Chrome UA — a human never
+# sustains that. Static assets (/css /js /img, content-hashed + 7d cached) are
+# exempt so a cold page load's burst of assets isn't counted. 1r/s with a burst
+# of 60 lets a real visitor click freely but caps any one IP at ~3.6k pages/hour.
+map $request_uri $deepfij_page_key {
+    default            $binary_remote_addr;
+    ~^/(css|js|img)/   "";
+}
+limit_req_zone $deepfij_page_key zone=deepfij_pages:10m rate=1r/s;
+limit_req_status 429;
+limit_conn_zone $binary_remote_addr zone=deepfij_conn:10m;
+limit_conn_status 429;
+
 server {
     listen 80;
         listen [::]:80;
@@ -84,6 +120,11 @@ server {
     }
 
     location / {
+        # 444 closes the connection without a response — no upstream call, no bytes.
+        if ($deepfij_drop_bot) { return 444; }
+        limit_req zone=deepfij_pages burst=60 nodelay;
+        limit_conn deepfij_conn 20;
+
         proxy_pass http://app:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
