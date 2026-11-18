@@ -60,13 +60,19 @@ map $http_user_agent $deepfij_drop_bot {
 # sustains that. Static assets (/css /js /img, content-hashed + 7d cached) are
 # exempt so a cold page load's burst of assets isn't counted. 1r/s with a burst
 # of 60 lets a real visitor click freely but caps any one IP at ~3.6k pages/hour.
-map $request_uri $deepfij_page_key {
+# Keyed on the normalized $uri, not the raw $request_uri, so "/css/../teams/1"
+# can't claim the static exemption. News thumbnails (/news/img, served by the
+# app but nginx-cached) are exempt too: a news page fetches a dozen of them in
+# parallel over HTTP/2, and each parallel request counts as a connection.
+map $uri $deepfij_page_key {
     default            $binary_remote_addr;
     ~^/(css|js|img)/   "";
+    ~^/news/img/       "";
 }
 limit_req_zone $deepfij_page_key zone=deepfij_pages:10m rate=1r/s;
 limit_req_status 429;
-limit_conn_zone $binary_remote_addr zone=deepfij_conn:10m;
+# Per-IP concurrency shares the page key so assets never count against it.
+limit_conn_zone $deepfij_page_key zone=deepfij_conn:10m;
 limit_conn_status 429;
 
 # Distributed scraper signature (Oct–Nov 2026): ~23k requests from ~23k distinct
@@ -87,9 +93,13 @@ map $http_referer $deepfij_forged_ref {
 # all 200 Tomcat threads into the Hikari queue, every request waited 30s for a
 # connection and failed, and even cached pages died for ~3 minutes. Shedding the
 # excess with an instant 429 keeps the app answering for everyone else.
-map $request_uri $deepfij_total_key {
-    default            "all";
-    ~^/(css|js|img)/   "";
+# Auth/admin paths have their own key so a flood of public pages can never
+# lock an admin out; they stay under the per-IP cap. Normalized $uri, as above.
+map $uri $deepfij_total_key {
+    default                                   "all";
+    ~^/(css|js|img)/                          "";
+    ~^/news/img/                              "";
+    ~^/(admin|account|login|logout)(/|$)      "auth";
 }
 limit_conn_zone $deepfij_total_key zone=deepfij_total:1m;
 
@@ -123,6 +133,11 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
+    # Slow clients can't park in a limit_conn slot: drop a connection that takes
+    # longer than this to send its headers/body (defaults are 60s).
+    client_header_timeout 15s;
+    client_body_timeout 15s;
+
     access_log /var/log/nginx/goaccess.log combined;
     # NOTE: not access.log — in nginx:alpine that's a symlink to /dev/stdout inside the
     # nginx_logs volume, so netdata could never read it as a file.
@@ -148,7 +163,9 @@ server {
         if ($deepfij_drop_bot) { return 444; }
         if ($deepfij_forged_ref) { return 444; }
         limit_req zone=deepfij_pages burst=60 nodelay;
-        limit_conn deepfij_conn 20;
+        # Per-IP cap well under the site-wide one so no single client can hold
+        # the whole shared bucket. HTTP/2 page navigation needs a few at most.
+        limit_conn deepfij_conn 6;
         limit_conn deepfij_total 30;
 
         proxy_pass http://app:8080;
