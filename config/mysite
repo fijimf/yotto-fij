@@ -69,6 +69,30 @@ limit_req_status 429;
 limit_conn_zone $binary_remote_addr zone=deepfij_conn:10m;
 limit_conn_status 429;
 
+# Distributed scraper signature (Oct–Nov 2026): ~23k requests from ~23k distinct
+# residential IPs, one request each, forged browser UAs, and a Referer of exactly
+# the bare origin with no trailing slash. A real browser never sends that — URL
+# serialization always includes the "/" path, even under Referrer-Policy: origin.
+# Per-IP limits can't touch a one-request-per-IP botnet, so match the header.
+map $http_referer $deepfij_forged_ref {
+    default                  0;
+    "https://fijimf.com"     1;
+    "https://www.fijimf.com" 1;
+    "http://fijimf.com"      1;
+    "http://www.fijimf.com"  1;
+}
+
+# Site-wide in-flight cap for page requests (static assets exempt). The box has
+# 2 cores and a 25-connection DB pool; ~90 concurrent uncached page requests put
+# all 200 Tomcat threads into the Hikari queue, every request waited 30s for a
+# connection and failed, and even cached pages died for ~3 minutes. Shedding the
+# excess with an instant 429 keeps the app answering for everyone else.
+map $request_uri $deepfij_total_key {
+    default            "all";
+    ~^/(css|js|img)/   "";
+}
+limit_conn_zone $deepfij_total_key zone=deepfij_total:1m;
+
 server {
     listen 80;
         listen [::]:80;
@@ -122,8 +146,10 @@ server {
     location / {
         # 444 closes the connection without a response — no upstream call, no bytes.
         if ($deepfij_drop_bot) { return 444; }
+        if ($deepfij_forged_ref) { return 444; }
         limit_req zone=deepfij_pages burst=60 nodelay;
         limit_conn deepfij_conn 20;
+        limit_conn deepfij_total 30;
 
         proxy_pass http://app:8080;
         proxy_set_header Host $host;
