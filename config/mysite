@@ -103,12 +103,16 @@ map $uri $deepfij_total_key {
 }
 limit_conn_zone $deepfij_total_key zone=deepfij_total:1m;
 
-# Auth/admin paths get a small reserved bucket of their own (a single zone's
+# Auth and admin paths get small reserved buckets of their own (a single zone's
 # limit applies per key value, so a second value in deepfij_total would have
-# doubled the site-wide cap). They stay under the per-IP cap as well.
+# doubled the site-wide cap). /admin is a separate key value so a flood of
+# anonymous /login or /register traffic can never fill the admin bucket; an
+# already signed-in admin (session or remember-me cookie) is unaffected by it.
+# Both stay under the per-IP cap as well.
 map $uri $deepfij_auth_key {
     default                                   "";
-    ~^/(admin|account|login|logout)(/|$)      "auth";
+    ~^/admin(/|$)                             "admin";
+    ~^/(account|login|logout)(/|$)            "auth";
 }
 limit_conn_zone $deepfij_auth_key zone=deepfij_auth:1m;
 
