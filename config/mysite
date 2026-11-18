@@ -99,9 +99,39 @@ map $uri $deepfij_total_key {
     default                                   "all";
     ~^/(css|js|img)/                          "";
     ~^/news/img/                              "";
-    ~^/(admin|account|login|logout)(/|$)      "auth";
+    ~^/(admin|account|login|logout)(/|$)      "";
 }
 limit_conn_zone $deepfij_total_key zone=deepfij_total:1m;
+
+# Auth/admin paths get a small reserved bucket of their own (a single zone's
+# limit applies per key value, so a second value in deepfij_total would have
+# doubled the site-wide cap). They stay under the per-IP cap as well.
+map $uri $deepfij_auth_key {
+    default                                   "";
+    ~^/(admin|account|login|logout)(/|$)      "auth";
+}
+limit_conn_zone $deepfij_auth_key zone=deepfij_auth:1m;
+
+# News thumbnails are tiny (~20ms, nginx-cached) but are still app requests, so
+# they get their own bounded buckets instead of a blanket exemption: generous
+# per-IP so one news page can load its dozen in parallel, and a site-wide cap.
+map $uri $deepfij_img_ip_key {
+    default            "";
+    ~^/news/img/       $binary_remote_addr;
+}
+map $uri $deepfij_img_total_key {
+    default            "";
+    ~^/news/img/       "img";
+}
+limit_conn_zone $deepfij_img_ip_key    zone=deepfij_img_ip:10m;
+limit_conn_zone $deepfij_img_total_key zone=deepfij_img_total:1m;
+
+# Thumbnails are immutable per article id: cache on $uri so "?x=<random>" can't
+# bust the cache and reach the DB. Everything else keeps the query string.
+map $uri $deepfij_cache_key {
+    default            $scheme$host$request_uri;
+    ~^/news/img/       $scheme$host$uri;
+}
 
 server {
     listen 80;
@@ -167,6 +197,9 @@ server {
         # the whole shared bucket. HTTP/2 page navigation needs a few at most.
         limit_conn deepfij_conn 6;
         limit_conn deepfij_total 30;
+        limit_conn deepfij_auth 8;
+        limit_conn deepfij_img_ip 24;
+        limit_conn deepfij_img_total 20;
 
         proxy_pass http://app:8080;
         proxy_set_header Host $host;
@@ -175,7 +208,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
 
         proxy_cache deepfij;
-        proxy_cache_key $scheme$host$request_uri;
+        proxy_cache_key $deepfij_cache_key;
         proxy_cache_bypass $deepfij_cookie_skip $deepfij_uri_skip;
         proxy_no_cache $deepfij_cookie_skip $deepfij_uri_skip;
         # The app marks everything no-store (Spring Security default); freshness
@@ -183,6 +216,9 @@ server {
         # still never cached (nginx default — deliberately NOT ignored).
         proxy_ignore_headers Cache-Control Expires;
         proxy_cache_valid 200 301 302 60s;
+        # Short negative cache so nonexistent ids (thumbnails, games) can't be
+        # enumerated straight through to the app.
+        proxy_cache_valid 404 60s;
         # Collapse concurrent misses into one upstream request, and keep serving
         # a stale copy while refreshing or if the app is down/overloaded.
         proxy_cache_lock on;
