@@ -49,7 +49,10 @@ services:
         condition: service_healthy
 
   nginx:
-    image: nginx:alpine
+    # Pinned to the stable branch: the floating `alpine` tag drifted nine months
+    # (1.29.5 with 31 open advisories) because nothing ever pulled it. deploy.sh
+    # pulls this tag on every deploy so patch releases land automatically.
+    image: nginx:1.30-alpine
     ports:
       - "80:80"
       - "443:443"
