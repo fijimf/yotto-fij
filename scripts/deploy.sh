@@ -46,7 +46,8 @@ ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_DIR} && set -a && . ./.env && s
 echo "==> Restarting services on ${REMOTE_HOST}..."
 # Build trainer image first (while app is still running) to minimise downtime.
 # docker compose build works on profiled services when named explicitly.
-# Pull the pinned nginx tag so security patch releases land with every deploy.
-ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_DIR} && docker compose pull nginx && docker compose build trainer && docker compose down && docker compose up -d"
+# Pull the image-based services so security patch releases land with every deploy
+# (all tags float within a fixed major: postgres 16, nginx 1.30, netdata stable).
+ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_DIR} && docker compose pull nginx db goaccess netdata && docker compose build trainer && docker compose down && docker compose up -d"
 
 echo "==> Deploy complete."
