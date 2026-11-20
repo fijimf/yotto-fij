@@ -9,6 +9,9 @@
   const W = 960, H = 620, MARGIN = { top: 20, right: 40, bottom: 48, left: 56 };
   const fmtDate = d3.timeFormat("%b %-d, %Y");
   const f1 = d3.format(".1f"), fs = d3.format("+.1f");
+  // Names come from the ESPN feed, not users, but the tooltip is innerHTML:
+  // escape anything interpolated so a stray '<' can never become markup.
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   const root = document.querySelector("[data-landscape]");
   if (!root || root.dataset.landscapeInit) return;
@@ -164,7 +167,7 @@
       const box = root.getBoundingClientRect();
       const rk = evt.currentTarget.__rank;
       tip.style("display", "block")
-        .html(`<b>${t.name}</b>${t.conf ? ` · ${t.conf}` : ""}\n${fmtDate(dates[k])}${rk ? ` · #${rk} by net` : ""}\n` +
+        .html(`<b>${esc(t.name)}</b>${t.conf ? ` · ${esc(t.conf)}` : ""}\n${fmtDate(dates[k])}${rk ? ` · #${rk} by net` : ""}\n` +
               `AdjO ${f1(t.off[k])} · AdjD ${f1(t.def[k])} · Net ${fs(net(t))}` +
               `${t.tempo[k] != null ? `\nTempo ${f1(t.tempo[k])}` : ""}${t.gp[k] != null ? ` · ${t.gp[k]} GP` : ""}`)
         .style("left", `${evt.clientX - box.left + 14}px`).style("top", `${evt.clientY - box.top - 10}px`);

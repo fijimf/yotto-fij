@@ -11,6 +11,9 @@
   const W = 960, ROW = 30, MARGIN = { top: 18, right: 176, bottom: 30, left: 34 };
   const fmtDate = d3.timeFormat("%b %-d");
   const fmtRating = d3.format("+.2f");
+  // Names come from the ESPN feed, not users, but the tooltip is innerHTML:
+  // escape anything interpolated so a stray '<' can never become markup.
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   // ── color helpers ────────────────────────────────────────────────────────
   function rgb(c) {
@@ -174,7 +177,7 @@
         const rk = t.rank[i], rt = t.rating[i];
         const box = root.getBoundingClientRect();
         tip.style("display", "block")
-          .html(`<b>${t.name}</b>\n${fmtDate(dates[i])} · national #${rk ?? "—"}${rt != null ? ` · ${fmtRating(rt)}` : ""}`)
+          .html(`<b>${esc(t.name)}</b>\n${fmtDate(dates[i])} · national #${rk ?? "—"}${rt != null ? ` · ${fmtRating(rt)}` : ""}`)
           .style("left", `${evt.clientX - box.left + 14}px`).style("top", `${evt.clientY - box.top - 10}px`);
       }
       hits.on("mouseenter", (e, t) => highlight(teams.indexOf(t)))
