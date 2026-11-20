@@ -5521,7 +5521,7 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 .day-strip__guide { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--chart-grid); padding-top: 1px; font-size: 9px; line-height: 1; color: var(--color-text-muted); }
 .day-strip__guide--100 { top: 0; }
 .day-strip__guide--50 { top: 50%; }
-.day-strip__guide--0 { bottom: 0; border-top: 1px solid var(--chart-axis); transform: translateY(1px); }
+.day-strip__guide--0 { bottom: 0; border-top: none; border-bottom: 1px solid var(--chart-axis); padding-top: 0; padding-bottom: 2px; } /* baseline flush under the bars; label hangs above it in the gutter */
 .day-strip__bars { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 100%; }
 /* Bars shrink to fit (150 games ≈ 6px each) rather than scroll; the 2px gap is the surface spacer. */
 .day-strip__game { position: relative; flex: 1 1 0; min-width: 0; max-width: 22px; height: 100%; display: block; text-decoration: none; }
