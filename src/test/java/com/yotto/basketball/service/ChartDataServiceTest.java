@@ -7,6 +7,7 @@ import com.yotto.basketball.entity.PowerModelParamSnapshot;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
 import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
+import com.yotto.basketball.entity.TeamStatSnapshot;
 import com.yotto.basketball.repository.ConferenceMembershipRepository;
 import com.yotto.basketball.repository.ConferenceRepository;
 import com.yotto.basketball.repository.PowerModelParamSnapshotRepository;
@@ -14,6 +15,9 @@ import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamRepository;
 import com.yotto.basketball.service.ChartDataService.EfficiencyLandscape;
+import com.yotto.basketball.service.ChartDataService.FingerprintAxis;
+import com.yotto.basketball.service.ChartDataService.FingerprintTeam;
+import com.yotto.basketball.service.ChartDataService.Fingerprints;
 import com.yotto.basketball.service.ChartDataService.LandscapeTeam;
 import com.yotto.basketball.service.ChartDataService.RatingRiver;
 import com.yotto.basketball.service.ChartDataService.RiverModel;
@@ -25,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +43,7 @@ class ChartDataServiceTest extends BaseIntegrationTest {
     @Autowired TeamRepository teamRepo;
     @Autowired TeamPowerRatingSnapshotRepository ratingRepo;
     @Autowired PowerModelParamSnapshotRepository paramRepo;
+    @Autowired com.yotto.basketball.repository.TeamStatSnapshotRepository statSnapshotRepo;
 
     static final LocalDate D1 = LocalDate.of(2025, 1, 1), D2 = LocalDate.of(2025, 1, 2), D3 = LocalDate.of(2025, 1, 3);
 
@@ -133,6 +139,62 @@ class ChartDataServiceTest extends BaseIntegrationTest {
         assertThat(land.teams()).isEmpty();
     }
 
+    // ── fingerprints ──
+
+    @Test
+    void fingerprints_orientsPercentilesByBetterDirection_andResolvesDates() {
+        LocalDate d1 = LocalDate.of(2025, 2, 1), d2 = LocalDate.of(2025, 2, 8);
+        for (LocalDate d : List.of(d1, d2)) {
+            stat(duke, "efg_pct", d, 0.56); stat(unc, "efg_pct", d, 0.50); stat(purdue, "efg_pct", d, 0.47);
+            stat(duke, "tov_rate", d, 0.14); stat(unc, "tov_rate", d, 0.18); stat(purdue, "tov_rate", d, 0.22);
+            stat(duke, "pace", d, 70.0); stat(unc, "pace", d, 66.0); stat(purdue, "pace", d, 62.0);
+            stat(duke, "off_efficiency", d, 118.0); stat(duke, "def_efficiency", d, 95.0);
+            stat(unc, "off_efficiency", d, 110.0); stat(unc, "def_efficiency", d, 100.0);
+        }
+        // wake has no box-score stats at all: must be absent, not a row of nulls
+
+        Fingerprints fp = service.buildFingerprints(2025, null);
+
+        assertThat(fp.date()).isEqualTo(d2);
+        assertThat(fp.latestDate()).isEqualTo(d2);
+        assertThat(fp.axes()).extracting(FingerprintAxis::key).containsExactly("efg", "tov", "reb", "ft", "tempo");
+        assertThat(fp.teams()).extracting(FingerprintTeam::name).containsExactly("Duke", "North Carolina", "Purdue"); // by net desc, null last
+        FingerprintTeam d = fp.teams().get(0), p = fp.teams().get(2);
+        assertThat(d.pct().get("efg_pct")).isEqualTo(1.0);     // best shooting
+        assertThat(p.pct().get("efg_pct")).isEqualTo(0.0);
+        assertThat(d.pct().get("tov_rate")).isEqualTo(1.0);    // lowest turnover rate → best
+        assertThat(p.pct().get("tov_rate")).isEqualTo(0.0);
+        assertThat(fp.teams().get(1).pct().get("tov_rate")).isEqualTo(0.5);
+        assertThat(d.pct().get("pace")).isEqualTo(1.0);        // tempo: faster points outward
+        assertThat(d.net()).isEqualTo(23.0);
+        assertThat(p.net()).isNull();
+        assertThat(d.conf()).isEqualTo("ACC");
+        assertThat(fp.confMedianPct().get("ACC").get("efg_pct")).isEqualTo(0.75);   // median of Duke 1.0, UNC 0.5
+        assertThat(fp.confMedianPct().get("Big Ten").get("efg_pct")).isEqualTo(0.0);
+
+        // Date resolution: on/before → that snapshot; before the first → the first.
+        assertThat(service.buildFingerprints(2025, LocalDate.of(2025, 2, 5)).date()).isEqualTo(d1);
+        assertThat(service.buildFingerprints(2025, LocalDate.of(2025, 1, 1)).date()).isEqualTo(d1);
+        assertThat(service.buildFingerprints(2025, LocalDate.of(2026, 1, 1)).date()).isEqualTo(d2);
+    }
+
+    @Test
+    void fingerprints_emptyWithoutStats() {
+        Fingerprints fp = service.buildFingerprints(2025, null);
+        assertThat(fp.date()).isNull();
+        assertThat(fp.teams()).isEmpty();
+    }
+
+    @Test
+    void percentile_tiesCountHalf_andSingleValueIsMedian() {
+        double[] sorted = {1, 2, 2, 3};
+        assertThat(ChartDataService.percentile(sorted, 1, true)).isEqualTo(0.0);
+        assertThat(ChartDataService.percentile(sorted, 3, true)).isEqualTo(1.0);
+        assertThat(ChartDataService.percentile(sorted, 2, true)).isEqualTo(0.5);
+        assertThat(ChartDataService.percentile(sorted, 3, false)).isEqualTo(0.0);
+        assertThat(ChartDataService.percentile(new double[]{7}, 7, true)).isEqualTo(0.5);
+    }
+
     // ── helpers ──
 
     private Conference mkConf(String name, String espnId) {
@@ -158,6 +220,13 @@ class ChartDataServiceTest extends BaseIntegrationTest {
         s.setTeam(team); s.setSeason(season); s.setModelType(modelType); s.setSnapshotDate(date);
         s.setRating(rating); s.setRank(rank); s.setGamesPlayed(1); s.setCalculatedAt(LocalDateTime.now());
         ratingRepo.save(s);
+    }
+
+    private void stat(Team team, String statName, LocalDate date, double value) {
+        TeamStatSnapshot s = new TeamStatSnapshot();
+        s.setTeam(team); s.setSeason(season); s.setStatName(statName); s.setSnapshotDate(date);
+        s.setValue(value);
+        statSnapshotRepo.save(s);
     }
 
     private void param(String modelType, String name, LocalDate date, double value) {

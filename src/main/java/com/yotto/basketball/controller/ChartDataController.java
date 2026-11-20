@@ -27,6 +27,14 @@ public class ChartDataController {
         return chartDataService.buildRatingRiver(conferenceId, year, riverModel);
     }
 
+    @GetMapping("/api/charts/fingerprints")
+    public ChartDataService.Fingerprints fingerprints(@RequestParam int year,
+                                                      @RequestParam(required = false)
+                                                      @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+                                                      java.time.LocalDate date) {
+        return chartDataService.buildFingerprints(year, date);
+    }
+
     @GetMapping("/api/charts/efficiency-landscape")
     public EfficiencyLandscape efficiencyLandscape(@RequestParam int year) {
         return chartDataService.buildEfficiencyLandscape(year);

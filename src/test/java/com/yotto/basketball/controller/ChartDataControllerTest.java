@@ -73,6 +73,23 @@ class ChartDataControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    void fingerprints_apiAndPage() throws Exception {
+        mockMvc.perform(get("/api/charts/fingerprints").param("year", "2025"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(2025))
+                .andExpect(jsonPath("$.axes[0].key").value("efg"))
+                .andExpect(jsonPath("$.teams").isEmpty());
+        mockMvc.perform(get("/api/charts/fingerprints").param("year", "1999"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/seasons/2025/stats/fingerprints"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-fingerprints")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-year=\"2025\"")));
+        mockMvc.perform(get("/stats/fingerprints"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
     void efficiencyLandscape_returnsEmptyPayloadWithoutAdjRatings() throws Exception {
         mockMvc.perform(get("/api/charts/efficiency-landscape").param("year", "2025"))
                 .andExpect(status().isOk())

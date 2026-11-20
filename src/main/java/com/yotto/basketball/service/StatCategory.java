@@ -37,7 +37,7 @@ public enum StatCategory {
             "Defensive playmaking and discipline: steals, blocks, and fouling.");
 
     /** /stats/{x} names that are never stat names or category slugs. */
-    public static final Set<String> RESERVED_SLUGS = Set.of("predictor", "correlation");
+    public static final Set<String> RESERVED_SLUGS = Set.of("predictor", "correlation", "fingerprints");
 
     private final String slug;
     private final String catalogCategory;

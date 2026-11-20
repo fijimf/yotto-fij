@@ -12,6 +12,8 @@ import com.yotto.basketball.repository.PowerModelParamSnapshotRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository.SeriesRow;
+import com.yotto.basketball.repository.TeamStatSnapshotRepository;
+import com.yotto.basketball.entity.TeamStatSnapshot;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -65,6 +67,22 @@ public class ChartDataService {
                                 List<Double> off, List<Double> def, List<Double> tempo, List<Integer> gp) {}
     public record EfficiencyLandscape(int year, List<LocalDate> dates, List<LandscapeTeam> teams) {}
 
+    /** One spoke of the fingerprint glyph: an offensive stat and its defensive mirror (tempo has none). */
+    public record FingerprintAxis(String key, String label, String offStat, String defStat) {}
+    public record FingerprintTeam(long id, String name, String abbr, String conf, String logoUrl, String color, String altColor,
+                                  Map<String, Double> values, Map<String, Double> pct,
+                                  Double offEff, Double defEff, Double net) {}
+    /** {@code confMedianPct} is conference → statName → median oriented percentile. */
+    public record Fingerprints(int year, LocalDate date, LocalDate latestDate, List<FingerprintAxis> axes,
+                               List<FingerprintTeam> teams, Map<String, Map<String, Double>> confMedianPct) {}
+
+    public static final List<FingerprintAxis> FINGERPRINT_AXES = List.of(
+            new FingerprintAxis("efg",   "Shooting (eFG%)",          "efg_pct",  "opp_efg_pct"),
+            new FingerprintAxis("tov",   "Ball security (TOV rate)", "tov_rate", "opp_tov_rate"),
+            new FingerprintAxis("reb",   "Rebounding (ORB% / DRB%)", "orb_pct",  "drb_pct"),
+            new FingerprintAxis("ft",    "Free throws (FT rate)",    "ft_rate",  "opp_ft_rate"),
+            new FingerprintAxis("tempo", "Tempo (faster outward)",   "pace",     null));
+
     /** Landscape frames: every Nth snapshot date, plus the latest, keep the payload ~7 frames/month. */
     static final int LANDSCAPE_FRAME_STEP = 4;
 
@@ -74,19 +92,22 @@ public class ChartDataService {
     private final TeamPowerRatingSnapshotRepository ratingRepository;
     private final PowerModelParamSnapshotRepository paramRepository;
     private final ConferenceNamingService namingService;
+    private final TeamStatSnapshotRepository statSnapshotRepository;
 
     public ChartDataService(SeasonRepository seasonRepository,
                             ConferenceRepository conferenceRepository,
                             ConferenceMembershipRepository membershipRepository,
                             TeamPowerRatingSnapshotRepository ratingRepository,
                             PowerModelParamSnapshotRepository paramRepository,
-                            ConferenceNamingService namingService) {
+                            ConferenceNamingService namingService,
+                            TeamStatSnapshotRepository statSnapshotRepository) {
         this.seasonRepository = seasonRepository;
         this.conferenceRepository = conferenceRepository;
         this.membershipRepository = membershipRepository;
         this.ratingRepository = ratingRepository;
         this.paramRepository = paramRepository;
         this.namingService = namingService;
+        this.statSnapshotRepository = statSnapshotRepository;
     }
 
     // ── Rating river ─────────────────────────────────────────────────────────
@@ -188,6 +209,95 @@ public class ChartDataService {
         }
         teams.sort(Comparator.comparing(LandscapeTeam::name));
         return new EfficiencyLandscape(year, frames, teams);
+    }
+
+    // ── Team fingerprints ───────────────────────────────────────────────────
+
+    /**
+     * Every team's four factors (both sides) and tempo on one date as league
+     * percentiles oriented so that outward is better, plus per-conference medians
+     * for the ghost polygon. {@code date} resolves to the latest snapshot on or
+     * before it (null = latest); the resolved date is in the payload.
+     */
+    @Cacheable(value = CacheConfig.CHART_FINGERPRINTS, key = "#year + ':' + #date")
+    @Transactional(readOnly = true)
+    public Fingerprints buildFingerprints(int year, LocalDate date) {
+        Season season = requireSeason(year);
+        List<LocalDate> dates = statSnapshotRepository.findSnapshotDates(season.getId());
+        if (dates.isEmpty()) return new Fingerprints(year, null, null, FINGERPRINT_AXES, List.of(), Map.of());
+        LocalDate latest = dates.get(dates.size() - 1);
+        LocalDate resolved = latest;
+        if (date != null) {
+            resolved = dates.get(0);
+            for (LocalDate d : dates) if (!d.isAfter(date)) resolved = d;
+        }
+
+        List<String> stats = new ArrayList<>();
+        for (FingerprintAxis ax : FINGERPRINT_AXES) { stats.add(ax.offStat()); if (ax.defStat() != null) stats.add(ax.defStat()); }
+        stats.add("off_efficiency"); stats.add("def_efficiency");
+
+        Map<Long, Team> teams = new LinkedHashMap<>();
+        Map<Long, Map<String, Double>> values = new HashMap<>();
+        Map<Long, Map<String, Double>> pcts = new HashMap<>();
+        for (String stat : stats) {
+            List<TeamStatSnapshot> rows = statSnapshotRepository.findBySeasonStatAndDate(season.getId(), stat, resolved);
+            boolean higherBetter = StatCatalog.require(stat).higherIsBetter();
+            double[] sorted = rows.stream().filter(r -> r.getValue() != null).mapToDouble(TeamStatSnapshot::getValue).sorted().toArray();
+            for (TeamStatSnapshot r : rows) {
+                if (r.getValue() == null) continue;
+                teams.putIfAbsent(r.getTeam().getId(), r.getTeam());
+                values.computeIfAbsent(r.getTeam().getId(), k -> new HashMap<>()).put(stat, r.getValue());
+                pcts.computeIfAbsent(r.getTeam().getId(), k -> new HashMap<>()).put(stat, percentile(sorted, r.getValue(), higherBetter));
+            }
+        }
+
+        Map<Long, String> confByTeam = new HashMap<>();
+        for (ConferenceMembership m : membershipRepository.findBySeasonIdWithTeamAndConference(season.getId())) {
+            confByTeam.put(m.getTeam().getId(), namingService.resolve(m.getConference(), year).abbreviation());
+        }
+
+        List<FingerprintTeam> out = new ArrayList<>();
+        Map<String, Map<String, List<Double>>> confSamples = new HashMap<>();
+        for (Team t : teams.values()) {
+            Map<String, Double> v = values.getOrDefault(t.getId(), Map.of());
+            Map<String, Double> p = pcts.getOrDefault(t.getId(), Map.of());
+            if (!v.containsKey("efg_pct")) continue;   // no box-score stats yet
+            Double off = v.get("off_efficiency"), def = v.get("def_efficiency");
+            String conf = confByTeam.get(t.getId());
+            out.add(new FingerprintTeam(t.getId(), t.getName(), t.getAbbreviation(), conf, t.getLogoUrl(),
+                    hex(t.getColor()), hex(t.getAlternateColor()), v, p, off, def,
+                    off != null && def != null ? round1(off - def) : null));
+            if (conf != null) {
+                for (Map.Entry<String, Double> e : p.entrySet()) {
+                    confSamples.computeIfAbsent(conf, k -> new HashMap<>()).computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
+                }
+            }
+        }
+        out.sort(Comparator.comparing((FingerprintTeam t) -> t.net() == null ? Double.NEGATIVE_INFINITY : t.net()).reversed());
+
+        Map<String, Map<String, Double>> medians = new HashMap<>();
+        for (Map.Entry<String, Map<String, List<Double>>> c : confSamples.entrySet()) {
+            Map<String, Double> m = new HashMap<>();
+            for (Map.Entry<String, List<Double>> e : c.getValue().entrySet()) m.put(e.getKey(), median(e.getValue()));
+            medians.put(c.getKey(), m);
+        }
+        return new Fingerprints(year, resolved, latest, FINGERPRINT_AXES, out, medians);
+    }
+
+    /** Share of the league this value beats (ties count half), oriented so 1.0 is best. */
+    static double percentile(double[] sorted, double v, boolean higherIsBetter) {
+        int below = 0, equal = 0;
+        for (double x : sorted) { if (x < v) below++; else if (x == v) equal++; }
+        double below0 = below + 0.5 * equal - 0.5; // exclude self from the tie count
+        double p = sorted.length <= 1 ? 0.5 : below0 / (sorted.length - 1);
+        p = Math.max(0, Math.min(1, p));
+        return Math.round((higherIsBetter ? p : 1 - p) * 1000.0) / 1000.0;
+    }
+
+    private static double median(List<Double> xs) {
+        List<Double> s = new ArrayList<>(xs); s.sort(Double::compareTo);
+        int n = s.size();
+        return n % 2 == 1 ? s.get(n / 2) : (s.get(n / 2 - 1) + s.get(n / 2)) / 2.0;
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="'Team Fingerprints — ' + ${year}">Team Fingerprints</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <a class="stat-detail__crumb" th:href="@{/stats}">&larr; All stats</a>
+            <h1 class="page-title">Team Fingerprints</h1>
+            <p class="page-header__subtitle">
+                Every team's four factors and tempo as one glyph. Each spoke is a league percentile,
+                so a big shape is good at everything and a lopsided one tells you how a team wins.
+                The filled shape is offense; the outline is defense.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <select th:replace="~{fragments/controls :: seasonSelect(${availableSeasons}, ${year},
+                    '/seasons/{year}/stats/fingerprints')}"></select>
+        </div>
+    </div>
+
+    <div class="analytics-date-row" th:if="${latestDate != null}">
+        <label class="form-label" for="fp-date">As of:</label>
+        <input type="date" id="fp-date" class="form-input form-input--sm"
+               th:value="${date}" th:max="${latestDate}"
+               th:attr="data-base=@{'/seasons/' + ${year} + '/stats/fingerprints'}"
+               onchange="window.location = this.dataset.base + '?date=' + this.value"/>
+        <label class="form-label fp-control">Sort
+            <select class="form-input form-input--sm" data-fp-sort aria-label="Sort teams">
+                <option value="net" selected>Net efficiency</option>
+                <option value="off">Offense</option>
+                <option value="def">Defense</option>
+                <option value="conf">Conference</option>
+                <option value="name">Name</option>
+            </select>
+        </label>
+        <label class="form-label fp-control">Conference
+            <select class="form-input form-input--sm" data-fp-conf aria-label="Filter by conference">
+                <option value="">All</option>
+            </select>
+        </label>
+        <input type="search" class="form-input form-input--sm stat-detail__find" data-fp-find
+               placeholder="Find team&hellip;" autocomplete="off" spellcheck="false" aria-label="Find a team">
+    </div>
+
+    <section class="fp card" data-fingerprints th:attr="data-year=${year}, data-date=${date}">
+        <div class="fp-layout">
+            <div class="fp-main">
+                <div class="fp-legend" data-fp-legend></div>
+                <div class="fp-grid" data-fp-grid>
+                    <p class="rating-river__status text-muted">Loading the league&hellip;</p>
+                </div>
+            </div>
+            <aside class="fp-detail" data-fp-detail aria-live="polite">
+                <p class="text-muted fp-detail__hint">Hover or focus a team to read its fingerprint.</p>
+            </aside>
+        </div>
+        <p class="rating-river__note text-muted">
+            Percentiles are league-wide on the selected date, oriented so outward is better
+            (turnover rate and opponent shooting are inverted); tempo simply points outward when faster.
+            The gray ghost in the detail panel is the team's conference median. Click a glyph for the team page.
+        </p>
+    </section>
+
+</main>
+
+<th:block layout:fragment="scripts">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script th:src="@{/js/fingerprints.js}"></script>
+</th:block>
+</body>
+</html>
