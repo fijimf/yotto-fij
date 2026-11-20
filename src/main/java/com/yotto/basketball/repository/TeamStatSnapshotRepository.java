@@ -70,6 +70,12 @@ public interface TeamStatSnapshotRepository extends JpaRepository<TeamStatSnapsh
     @Query("SELECT DISTINCT s.snapshotDate FROM TeamStatSnapshot s WHERE s.season.id = :seasonId ORDER BY s.snapshotDate ASC")
     List<LocalDate> findSnapshotDates(@Param("seasonId") Long seasonId);
 
+    @Query("SELECT MAX(s.snapshotDate) FROM TeamStatSnapshot s WHERE s.season.id = :seasonId AND s.snapshotDate <= :date")
+    Optional<LocalDate> findLatestSnapshotDateOnOrBefore(@Param("seasonId") Long seasonId, @Param("date") LocalDate date);
+
+    @Query("SELECT MIN(s.snapshotDate) FROM TeamStatSnapshot s WHERE s.season.id = :seasonId")
+    Optional<LocalDate> findFirstSnapshotDate(@Param("seasonId") Long seasonId);
+
     @Query("SELECT MAX(s.snapshotDate) FROM TeamStatSnapshot s WHERE s.season.id = :seasonId")
     Optional<LocalDate> findLatestSnapshotDate(@Param("seasonId") Long seasonId);
 

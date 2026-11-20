@@ -16,6 +16,7 @@ import com.yotto.basketball.repository.TeamStatSnapshotRepository;
 import com.yotto.basketball.entity.TeamStatSnapshot;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,6 +94,8 @@ public class ChartDataService {
     private final PowerModelParamSnapshotRepository paramRepository;
     private final ConferenceNamingService namingService;
     private final TeamStatSnapshotRepository statSnapshotRepository;
+    /** Proxy to self so the cached delegate below is reached through the cache interceptor. */
+    private final ChartDataService self;
 
     public ChartDataService(SeasonRepository seasonRepository,
                             ConferenceRepository conferenceRepository,
@@ -100,7 +103,8 @@ public class ChartDataService {
                             TeamPowerRatingSnapshotRepository ratingRepository,
                             PowerModelParamSnapshotRepository paramRepository,
                             ConferenceNamingService namingService,
-                            TeamStatSnapshotRepository statSnapshotRepository) {
+                            TeamStatSnapshotRepository statSnapshotRepository,
+                            @Lazy ChartDataService self) {
         this.seasonRepository = seasonRepository;
         this.conferenceRepository = conferenceRepository;
         this.membershipRepository = membershipRepository;
@@ -108,6 +112,7 @@ public class ChartDataService {
         this.paramRepository = paramRepository;
         this.namingService = namingService;
         this.statSnapshotRepository = statSnapshotRepository;
+        this.self = self;
     }
 
     // ── Rating river ─────────────────────────────────────────────────────────
@@ -219,18 +224,24 @@ public class ChartDataService {
      * for the ghost polygon. {@code date} resolves to the latest snapshot on or
      * before it (null = latest); the resolved date is in the payload.
      */
-    @Cacheable(value = CacheConfig.CHART_FINGERPRINTS, key = "#year + ':' + #date")
     @Transactional(readOnly = true)
     public Fingerprints buildFingerprints(int year, LocalDate date) {
         Season season = requireSeason(year);
-        List<LocalDate> dates = statSnapshotRepository.findSnapshotDates(season.getId());
-        if (dates.isEmpty()) return new Fingerprints(year, null, null, FINGERPRINT_AXES, List.of(), Map.of());
-        LocalDate latest = dates.get(dates.size() - 1);
-        LocalDate resolved = latest;
-        if (date != null) {
-            resolved = dates.get(0);
-            for (LocalDate d : dates) if (!d.isAfter(date)) resolved = d;
-        }
+        // Resolve the request date to a real snapshot date BEFORE the cache boundary,
+        // so the cache key space is the season's snapshot dates, not arbitrary input.
+        LocalDate latest = statSnapshotRepository.findLatestSnapshotDate(season.getId()).orElse(null);
+        if (latest == null) return new Fingerprints(year, null, null, FINGERPRINT_AXES, List.of(), Map.of());
+        LocalDate resolved = date == null ? latest
+                : statSnapshotRepository.findLatestSnapshotDateOnOrBefore(season.getId(), date)
+                        .orElseGet(() -> statSnapshotRepository.findFirstSnapshotDate(season.getId()).orElse(latest));
+        return self.buildFingerprintsAt(year, resolved, latest);
+    }
+
+    /** Cached on (year, snapshot date); only ever called with a resolved date. */
+    @Cacheable(value = CacheConfig.CHART_FINGERPRINTS, key = "#year + ':' + #resolved")
+    @Transactional(readOnly = true)
+    public Fingerprints buildFingerprintsAt(int year, LocalDate resolved, LocalDate latest) {
+        Season season = requireSeason(year);
 
         List<String> stats = new ArrayList<>();
         for (FingerprintAxis ax : FINGERPRINT_AXES) { stats.add(ax.offStat()); if (ax.defStat() != null) stats.add(ax.defStat()); }
