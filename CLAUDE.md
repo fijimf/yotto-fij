@@ -88,7 +88,7 @@ Data is sourced from ESPN's public JSON APIs. See [SCRAPING.md](SCRAPING.md) for
 - **GameStatsScraper** - per-game team-level box score backfill via ESPN summary endpoint; one API call per FINAL game; idempotent upsert keyed on (game_id, team_id)
 - **ScrapeOrchestrator** - coordinates scrapers in dependency order (conferences -> teams -> standings -> games -> odds -> game stats), then runs the stats calc block: conference-game flag refresh -> StatCalcGateService change detection (skip when nothing changed, watermark-incremental otherwise) -> SeasonGameDataLoader loads games once -> all calculators. Snapshot writes go through SnapshotJdbcWriter (batched JDBC). See docs/STATS_PIPELINE_ANALYSIS.md and docs/STATS_PIPELINE_IMPLEMENTATION_PLAN.md.
 - **AsyncScrapeService** - @Async wrappers for long-running scrapes
-- **ScrapeScheduler** - @Scheduled cron (default every 12h) for automatic current-season re-scraping
+- **ScrapeScheduler** - two crons sharing one in-flight lock: the full current-season cycle (`espn.scraping.schedule`, default every 12h; re-fetches every date with a non-final game ≈ 115 ESPN calls / 5 min in season) and the light `scrapeRecentScores` cycle (`espn.scraping.recent-schedule`, default hourly through the ET evening window; yesterday..tomorrow + box scores + incremental calcs ≈ 30s)
 
 ### Scraping Conventions
 - All scrapers are idempotent (upsert by ESPN ID)

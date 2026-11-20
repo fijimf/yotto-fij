@@ -151,6 +151,25 @@ public class ScrapeOrchestrator {
      * calculators entirely when nothing changed since the last recorded run, and
      * otherwise load the season's games once for every calculator.
      */
+    /**
+     * Light "recent scores" cycle for the in-season evening window: standings (one
+     * call), yesterday..tomorrow scoreboards, box scores for newly-FINAL games, then
+     * the incremental calc block (~5s). No odds backfill and no schedule-wide
+     * re-fetch — those stay with the twice-daily {@link #scrapeCurrentSeason}.
+     */
+    public void scrapeRecentScores(int seasonYear, ScrapeBatch.Source source) {
+        PipelineContext run = new PipelineContext(UUID.randomUUID(), null, source);
+        log.info("Starting recent-scores scrape for {} (pipeline {})", seasonYear, run.pipelineRunId());
+
+        standingsScraper.scrape(seasonYear, run.step(1));
+        gameScraper.scrapeRecentDates(seasonYear, run.step(2));
+        gameStatsScraper.backfill(seasonYear, run.step(3));
+
+        runCalculations(seasonYear);
+
+        log.info("Recent-scores scrape completed for {} (pipeline {})", seasonYear, run.pipelineRunId());
+    }
+
     private void runCalculations(int seasonYear) {
         conferenceGameFlagService.updateForSeason(seasonYear);
 

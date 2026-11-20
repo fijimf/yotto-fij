@@ -459,7 +459,7 @@ The control panel allows the administrator to:
 | Type | Behavior |
 |------|----------|
 | **Historical** | Scraped once. All 181 dates fetched in a single batch. Not re-scraped unless forced by admin. |
-| **Current** | Re-scraped on a recurring schedule (default: twice daily). Re-fetches today's date plus any recent dates that still have non-final games (e.g., postponed or in-progress games). |
+| **Current** | Re-scraped on two schedules. Full cycle (default twice daily): today + 8 days plus every date that still has a non-final game — in season that is the whole remaining schedule. Light cycle (default hourly through the evening game window): yesterday, today and tomorrow only, then box scores and the incremental recalc. |
 
 The scraping schedule should be configurable through the control panel.
 

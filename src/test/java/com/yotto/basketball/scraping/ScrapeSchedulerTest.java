@@ -22,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -60,6 +63,48 @@ class ScrapeSchedulerTest {
         InOrder order = inOrder(orchestrator);
         order.verify(orchestrator).scrapeCurrentSeason(2026, ScrapeBatch.Source.SCHEDULED);
         order.verify(orchestrator).scrapeCurrentSeason(2025, ScrapeBatch.Source.SCHEDULED);
+    }
+
+    @Test
+    void scheduledRecentScrape_invokesRecentScoresCycle_notTheFullOne() {
+        when(seasonRepository.findByAutoRefreshTrueOrderByYearDesc())
+                .thenReturn(List.of(mkSeason(2026), mkSeason(2025)));
+
+        scheduler.scheduledRecentScrape();
+
+        InOrder order = inOrder(orchestrator);
+        order.verify(orchestrator).scrapeRecentScores(2026, ScrapeBatch.Source.SCHEDULED);
+        order.verify(orchestrator).scrapeRecentScores(2025, ScrapeBatch.Source.SCHEDULED);
+        verify(orchestrator, never()).scrapeCurrentSeason(anyInt(), any());
+    }
+
+    @Test
+    void recentCycle_sharesTheInFlightLockWithTheFullCycle() throws Exception {
+        CountDownLatch fullStarted = new CountDownLatch(1);
+        CountDownLatch releaseFull = new CountDownLatch(1);
+        when(seasonRepository.findByAutoRefreshTrueOrderByYearDesc())
+                .thenReturn(List.of(mkSeason(2025)));
+        doAnswer(inv -> {
+            fullStarted.countDown();
+            releaseFull.await(5, TimeUnit.SECONDS);
+            return null;
+        }).when(orchestrator).scrapeCurrentSeason(2025, ScrapeBatch.Source.SCHEDULED);
+
+        ExecutorService exec = Executors.newSingleThreadExecutor();
+        try {
+            var full = exec.submit(() -> scheduler.tryRunNow(ScrapeBatch.Source.SCHEDULED));
+            fullStarted.await(5, TimeUnit.SECONDS);
+
+            boolean recentRan = scheduler.tryRunNow(ScrapeBatch.Source.SCHEDULED, ScrapeScheduler.Mode.RECENT);
+            assertThat(recentRan).isFalse();
+            verify(orchestrator, never()).scrapeRecentScores(anyInt(), any());
+
+            releaseFull.countDown();
+            assertThat(full.get(5, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            releaseFull.countDown();
+            exec.shutdownNow();
+        }
     }
 
     @Test

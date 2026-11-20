@@ -1,5 +1,6 @@
 package com.yotto.basketball.scraping;
 
+import static org.mockito.ArgumentMatchers.anyInt;
 import com.yotto.basketball.entity.ScrapeBatch;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.service.ConferenceGameFlagService;
@@ -122,6 +123,25 @@ class ScrapeOrchestratorTest {
         order.verify(powerRatingService).calculateAndStoreForSeason(eq(gameData), any());
         order.verify(teamStatTimeSeriesService).calculateAndStoreForSeason(eq(gameData), any());
         order.verify(statCalcGateService).recordRun(eq(2025), any());
+    }
+
+    @Test
+    void scrapeRecentScores_runsStandingsRecentDatesBoxScoresAndCalcs_butNoOddsOrFullRescrape() {
+        stubCalcBlock();
+
+        orchestrator.scrapeRecentScores(2025, ScrapeBatch.Source.SCHEDULED);
+
+        InOrder order = inOrder(standingsScraper, gameScraper, gameStatsScraper,
+                conferenceGameFlagService, statCalcGateService, statsCalculationService, pageCacheEvictionService);
+        order.verify(standingsScraper).scrape(eq(2025), any());
+        order.verify(gameScraper).scrapeRecentDates(eq(2025), any());
+        order.verify(gameStatsScraper).backfill(eq(2025), any());
+        order.verify(conferenceGameFlagService).updateForSeason(2025);
+        order.verify(statCalcGateService).check(2025);
+        order.verify(statsCalculationService).calculateAndUpdateForSeason(gameData);
+        order.verify(pageCacheEvictionService).evictAll();
+        verify(oddsBackfillScraper, never()).backfill(anyInt(), any());
+        verify(gameScraper, never()).scrapeCurrentSeason(anyInt(), any());
     }
 
     @Test

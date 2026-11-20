@@ -65,6 +65,24 @@ public class GameScraper {
         return scrapeDateRange(seasonYear, start, end, ctx);
     }
 
+    /** How far either side of today the light "recent scores" cycle looks. */
+    static final int RECENT_WINDOW_DAYS = 1;
+
+    /**
+     * Light scores pass: yesterday, today and tomorrow only (three scoreboard calls).
+     * The full {@link #scrapeCurrentSeason} re-fetches every date that still has a
+     * non-final game — in season that is every remaining date through March, ~115
+     * ESPN calls and a rewrite of ~5k scheduled rows — so it can't run hourly. This
+     * can. "Today" is the JVM date (UTC on the server); the one-day margin on each
+     * side covers ET games that finish after UTC midnight.
+     */
+    @Transactional
+    public ScrapeBatch scrapeRecentDates(int seasonYear, PipelineContext ctx) {
+        LocalDate today = LocalDate.now();
+        return scrapeDateRange(seasonYear, today.minusDays(RECENT_WINDOW_DAYS),
+                today.plusDays(RECENT_WINDOW_DAYS), ctx);
+    }
+
     @Transactional
     public ScrapeBatch scrapeCurrentSeason(int seasonYear) {
         return scrapeCurrentSeason(seasonYear, PipelineContext.manual());
@@ -143,7 +161,7 @@ public class GameScraper {
         }
 
         batch.complete();
-        log.info("Full season scrape for {}: {} created, {} updated, {}/{} dates OK/failed",
+        log.info("Date-range scrape {}..{} for {}: {} created, {} updated, {}/{} dates OK/failed", start, end,
                 seasonYear, batch.getRecordsCreated(), batch.getRecordsUpdated(),
                 batch.getDatesSucceeded(), batch.getDatesFailed());
 

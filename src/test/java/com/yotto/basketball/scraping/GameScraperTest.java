@@ -1,4 +1,7 @@
 package com.yotto.basketball.scraping;
+
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -72,6 +75,22 @@ class GameScraperTest extends BaseIntegrationTest {
             season.setEndDate(LocalDate.of(2025, 4, 30));
             seasonRepository.save(season);
         }
+    }
+
+    @Test
+    void scrapeRecentDates_fetchesExactlyYesterdayTodayAndTomorrow() throws Exception {
+        when(espnApiClient.fetchScoreboard(any(LocalDate.class)))
+                .thenReturn(mapper.readTree("{\"events\":[]}"));
+
+        ScrapeBatch batch = gameScraper.scrapeRecentDates(2025, PipelineContext.manual());
+
+        LocalDate today = LocalDate.now();
+        verify(espnApiClient).fetchScoreboard(today.minusDays(1));
+        verify(espnApiClient).fetchScoreboard(today);
+        verify(espnApiClient).fetchScoreboard(today.plusDays(1));
+        verify(espnApiClient, times(3)).fetchScoreboard(any(LocalDate.class));
+        assertThat(batch.getDatesSucceeded()).isEqualTo(3);
+        assertThat(batch.getStatus()).isEqualTo(ScrapeBatch.ScrapeStatus.COMPLETED);
     }
 
     @Test
