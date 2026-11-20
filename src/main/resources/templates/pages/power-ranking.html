@@ -23,6 +23,10 @@
         </div>
     </div>
 
+    <th:block th:if="${rankingTabs != null}">
+        <nav th:replace="~{fragments/tabs :: tabs(${rankingTabs})}"></nav>
+    </th:block>
+
     <div class="analytics-date-row" th:if="${page.latestDate() != null}">
         <label class="form-label" for="pr-date">As of:</label>
         <input type="date" id="pr-date" class="form-input form-input--sm"

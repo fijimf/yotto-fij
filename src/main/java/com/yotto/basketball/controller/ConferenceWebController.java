@@ -150,6 +150,7 @@ public class ConferenceWebController {
 
         ConferenceIdentity identity = namingService.resolve(conference, year);
         model.addAttribute("identity", identity);
+        model.addAttribute("conferenceId", id);
         // Signals the fragment to emit hx-swap-oob hero updates (name/abbr/logo can
         // differ per season); must stay off for the inline render on the full page.
         model.addAttribute("oobHero", true);

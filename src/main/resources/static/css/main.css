@@ -5354,3 +5354,116 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 .matchup-row--highlight td {
     background: rgba(var(--color-primary-rgb), 0.08);
 }
+
+/* ── Season-animation charts: rating river (conference page) + efficiency
+      landscape (rankings). Colors come from --chart-* via chart-theme.js and
+      from team brand colors; nothing is hardcoded in the scripts. ──────────── */
+.rating-river,
+.eff-landscape {
+    position: relative;
+    margin: 1rem 0 1.5rem;
+    padding: 1rem 1.25rem 0.75rem;
+}
+.rating-river__head,
+.eff-landscape__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+}
+.rating-river__title {
+    margin: 0;
+    font-size: 1.1rem;
+    flex: 1 1 auto;
+}
+.rating-river__model-label,
+.eff-landscape__controls .form-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-size: 0.85rem;
+}
+.eff-landscape__check input { accent-color: var(--color-primary); }
+.rating-river__chart svg,
+.eff-landscape__chart svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+.rating-river__status { margin: 1.5rem 0; font-size: 0.9rem; }
+.rating-river__note {
+    margin: 0.5rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+}
+.chart-scrub {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.25rem 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+.chart-scrub[hidden] { display: none; }
+.chart-scrub__play { white-space: nowrap; }
+.chart-scrub__range {
+    flex: 1 1 auto;
+    min-width: 0;
+    accent-color: var(--color-primary);
+}
+.chart-scrub__date {
+    flex: 0 0 auto;
+    min-width: 7.5em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+}
+.viz-tip {
+    position: absolute;
+    display: none;
+    z-index: 50;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-line;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    max-width: 260px;
+}
+.viz-tip b { font-weight: 600; }
+/* Chart text wears text tokens, never the series color. */
+.rating-river__chart text,
+.eff-landscape__chart text {
+    fill: var(--color-text);
+    font-family: inherit;
+}
+.rating-river__chart .axis text,
+.eff-landscape__chart .axis text { fill: var(--color-text-muted); font-size: 11px; }
+.rating-river__chart .axis path,
+.eff-landscape__chart .axis path { stroke: var(--chart-axis); }
+/* Tick lines double as the grid: keep them recessive. */
+.rating-river__chart .axis .tick line,
+.eff-landscape__chart .axis .tick line { stroke: var(--chart-grid); }
+.rating-river__chart .rank-label { fill: var(--color-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.rating-river__chart .team-label { font-size: 12px; font-weight: 600; }
+.rating-river__chart .river-line { fill: none; stroke-width: 2.5px; stroke-linejoin: round; stroke-linecap: round; transition: opacity 120ms ease; }
+.rating-river__chart .river-line--dim,
+.rating-river__chart .team-label-group--dim { opacity: 0.15; }
+.rating-river__chart .river-line--hot { stroke-width: 4.5px; }
+.eff-landscape__chart .point { stroke: var(--color-bg-surface); stroke-width: 1.5px; transition: opacity 120ms ease; }
+.eff-landscape__chart .point--dim { opacity: 0.18; }
+.eff-landscape__chart .point--hot { stroke: var(--color-text); stroke-width: 2px; }
+.eff-landscape__chart .point-label { font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--color-bg-surface); stroke-width: 3px; stroke-linejoin: round; }
+.eff-landscape__chart .iso-net { stroke: var(--chart-grid); stroke-dasharray: 2 4; }
+.eff-landscape__chart .iso-net-label { fill: var(--color-text-muted); font-size: 10px; }
+.eff-landscape__chart .mean-line { stroke: var(--chart-axis); stroke-dasharray: 5 4; opacity: 0.6; }
+.eff-landscape__chart .hull { fill-opacity: 0.12; stroke-width: 1.5px; stroke-linejoin: round; }
+@media (max-width: 640px) {
+    .rating-river__head .rating-river__title { flex-basis: 100%; }
+}

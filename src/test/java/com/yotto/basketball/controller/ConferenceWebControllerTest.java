@@ -1,5 +1,6 @@
 package com.yotto.basketball.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.*;
 import com.yotto.basketball.repository.*;
@@ -17,6 +18,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -220,6 +222,19 @@ class ConferenceWebControllerTest extends BaseIntegrationTest {
     }
 
     // ── helpers ──
+
+    @Test
+    void conferenceDetail_andSeasonSwap_renderTheRatingRiverShell() throws Exception {
+        mockMvc.perform(get("/conferences/" + sec.getId()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-rating-river")))
+                .andExpect(content().string(containsString("data-conference-id=\"" + sec.getId() + "\"")))
+                .andExpect(content().string(containsString("rating-river.js")));
+        mockMvc.perform(get("/conferences/" + sec.getId() + "/season/2025"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-conference-id=\"" + sec.getId() + "\"")))
+                .andExpect(content().string(containsString("data-year=\"2025\"")));
+    }
 
     private Conference mkConf(String name, String espnId) {
         Conference c = new Conference();

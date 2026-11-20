@@ -39,6 +39,37 @@
         </div>
     </div>
 
+    <!-- Rating race: bump chart of each member's national rank through the season
+         (data from /api/charts/rating-river; drawn by js/rating-river.js) -->
+    <section class="rating-river card" data-rating-river
+             th:attr="data-conference-id=${conferenceId}, data-year=${detail.year}">
+        <div class="rating-river__head">
+            <h2 class="rating-river__title">Rating race</h2>
+            <label class="form-label rating-river__model-label">Model
+                <select class="form-input form-input--sm" data-river-model aria-label="Rating model">
+                    <option value="massey" selected>Massey</option>
+                    <option value="bradley-terry">Bradley-Terry</option>
+                    <option value="bradley-terry-weighted">Weighted Bradley-Terry</option>
+                </select>
+            </label>
+        </div>
+        <div class="rating-river__chart" data-river-chart>
+            <p class="rating-river__status text-muted">Loading the season&hellip;</p>
+        </div>
+        <div class="chart-scrub" data-river-scrub hidden>
+            <button type="button" class="btn btn--sm chart-scrub__play" data-river-play
+                    title="Replay the season">&#9654; Replay season</button>
+            <input type="range" class="chart-scrub__range" data-river-range min="0" max="0" value="0"
+                   aria-label="Season date">
+            <span class="chart-scrub__date" data-river-date></span>
+        </div>
+        <p class="rating-river__note text-muted">
+            Lines are ordered by national rank within the conference on each day; hover a team for its
+            national rank and rating. Drag the slider or press replay to watch the race unfold.
+        </p>
+        <div class="viz-tip" data-river-tip></div>
+    </section>
+
     <!-- Section tabs -->
     <nav class="conf-tabs">
         <button class="conf-tabs__tab conf-tabs__tab--active" type="button" data-conf-tab="standings">

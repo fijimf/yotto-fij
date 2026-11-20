@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="'Efficiency Landscape — ' + ${year}">Efficiency Landscape</title>
+</head>
+<body>
+<main layout:fragment="content">
+
+    <div class="page-header">
+        <div>
+            <a class="stat-detail__crumb" th:href="@{/rankings}">&larr; Rankings overview</a>
+            <h1 class="page-title">Adjusted Efficiency Landscape</h1>
+            <p class="page-header__subtitle power-ranking__explainer">
+                Every team by adjusted offensive and defensive efficiency, points per 100 possessions
+                against an average opponent. Up and to the right is good. Press play to watch the
+                season reshape the league.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <select th:replace="~{fragments/controls :: seasonSelect(${availableSeasons}, ${year},
+                    '/seasons/{year}/rankings/adjusted-efficiency/landscape')}"></select>
+        </div>
+    </div>
+
+    <nav th:replace="~{fragments/tabs :: tabs(${rankingTabs})}"></nav>
+
+    <section class="eff-landscape card" data-landscape th:attr="data-year=${year}">
+        <div class="eff-landscape__controls">
+            <label class="form-label">Conference
+                <select class="form-input form-input--sm" data-landscape-conf aria-label="Highlight a conference">
+                    <option value="">All conferences</option>
+                </select>
+            </label>
+            <label class="form-label eff-landscape__check">
+                <input type="checkbox" data-landscape-labels checked> Label top 10
+            </label>
+            <label class="form-label eff-landscape__check">
+                <input type="checkbox" data-landscape-isonet checked> Net-rating guides
+            </label>
+            <input type="search" class="form-input form-input--sm stat-detail__find" data-landscape-find
+                   placeholder="Find team&hellip;" autocomplete="off" spellcheck="false" aria-label="Find a team">
+        </div>
+        <div class="eff-landscape__chart" data-landscape-chart>
+            <p class="rating-river__status text-muted">Loading the season&hellip;</p>
+        </div>
+        <div class="chart-scrub" data-landscape-scrub hidden>
+            <button type="button" class="btn btn--sm chart-scrub__play" data-landscape-play
+                    title="Play the season">&#9654; Play season</button>
+            <input type="range" class="chart-scrub__range" data-landscape-range min="0" max="0" value="0"
+                   aria-label="Season date">
+            <span class="chart-scrub__date" data-landscape-date></span>
+        </div>
+        <p class="rating-river__note text-muted">
+            Dots are team colors; pick a conference to outline its hull. Diagonal guides are lines of equal
+            net rating (offense minus defense). Dashed lines mark the league average on the selected date.
+            Ratings come from the <a th:href="@{'/seasons/' + ${year} + '/rankings/adjusted-efficiency'}">adjusted
+            efficiency model</a>; frames are sampled every few calculation days.
+        </p>
+        <div class="viz-tip" data-landscape-tip></div>
+    </section>
+
+</main>
+
+<th:block layout:fragment="scripts">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script th:src="@{/js/efficiency-landscape.js}"></script>
+</th:block>
+</body>
+</html>

@@ -1,5 +1,6 @@
 package com.yotto.basketball.controller;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import com.yotto.basketball.BaseIntegrationTest;
 import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.Team;
@@ -67,6 +68,33 @@ class PowerRankingPageControllerTest extends BaseIntegrationTest {
 
         mkWide(teamA, 0.62, 18, 2);
         mkWide(teamB, 0.41, 9, 11);
+    }
+
+    // ── Efficiency landscape (Table | Landscape tab strip on the ADJ model) ──
+
+    @Test
+    void adjustedEfficiencyTable_showsLandscapeTab_otherModelsDoNot() throws Exception {
+        mockMvc.perform(get("/seasons/2025/rankings/adjusted-efficiency"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/seasons/2025/rankings/adjusted-efficiency/landscape")));
+        mockMvc.perform(get("/seasons/2025/rankings/massey"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/landscape"))));
+    }
+
+    @Test
+    void landscapePage_rendersChartShell_andLatestRedirects() throws Exception {
+        mockMvc.perform(get("/seasons/2025/rankings/adjusted-efficiency/landscape"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("pages/efficiency-landscape"))
+                .andExpect(content().string(containsString("data-landscape")))
+                .andExpect(content().string(containsString("data-year=\"2025\"")))
+                .andExpect(content().string(containsString("data-landscape-chart")));
+        mockMvc.perform(get("/rankings/adjusted-efficiency/landscape"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/seasons/2025/rankings/adjusted-efficiency/landscape"));
+        mockMvc.perform(get("/seasons/1999/rankings/adjusted-efficiency/landscape"))
+                .andExpect(status().isNotFound());
     }
 
     private Team mkTeam(String name, String espnId) {

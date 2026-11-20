@@ -89,6 +89,34 @@ public interface TeamPowerRatingSnapshotRepository extends JpaRepository<TeamPow
             @Param("modelType") String modelType,
             @Param("beforeDate") LocalDate beforeDate);
 
+    /** Time-series row for chart payloads (rank included). */
+    interface SeriesRow {
+        Long getTeamId();
+        String getModelType();
+        LocalDate getSnapshotDate();
+        Double getRating();
+        Integer getRank();
+        Integer getGamesPlayed();
+    }
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT r.team.id AS teamId, r.modelType AS modelType, r.snapshotDate AS snapshotDate, " +
+            "       r.rating AS rating, r.rank AS rank, r.gamesPlayed AS gamesPlayed " +
+            "FROM TeamPowerRatingSnapshot r " +
+            "WHERE r.season.id = :seasonId AND r.modelType = :modelType AND r.team.id IN :teamIds " +
+            "ORDER BY r.snapshotDate ASC")
+    List<SeriesRow> findSeriesBySeasonModelAndTeams(@Param("seasonId") Long seasonId,
+                                                    @Param("modelType") String modelType,
+                                                    @Param("teamIds") java.util.Collection<Long> teamIds);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT r.team.id AS teamId, r.modelType AS modelType, r.snapshotDate AS snapshotDate, " +
+            "       r.rating AS rating, r.rank AS rank, r.gamesPlayed AS gamesPlayed " +
+            "FROM TeamPowerRatingSnapshot r " +
+            "WHERE r.season.id = :seasonId AND r.modelType IN :modelTypes")
+    List<SeriesRow> findSeriesBySeasonAndModels(@Param("seasonId") Long seasonId,
+                                                @Param("modelTypes") java.util.Collection<String> modelTypes);
+
     /** Lightweight row for bulk season loads (SeasonPredictionCache). */
     interface RatingRow {
         Long getTeamId();
