@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Front-page upset-o-meter. m: title, date, strip (DayStripService.DayStrip) -->
+<section th:fragment="panel(m)" class="home-panel">
+    <div class="home-panel__header">
+        <h2 class="home-panel__title">
+            <span th:text="${m.title}">Tonight's Upset-o-meter</span>
+            <span class="home-panel__date" th:text="${#temporals.format(m.date, 'EEE MMM d')}">Sat Mar 14</span>
+        </h2>
+        <a class="home-panel__more" th:href="@{/games(date=${m.date})}">Full slate →</a>
+    </div>
+    <div class="home-day-strip">
+        <th:block th:insert="~{fragments/day-strip :: strip(${m.strip}, false)}"/>
+    </div>
+</section>
+
+</body>
+</html>

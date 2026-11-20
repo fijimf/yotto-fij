@@ -5509,3 +5509,52 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     .fp-layout { grid-template-columns: 1fr; }
     .fp-detail { position: static; }
 }
+
+/* ── Upset-o-meter day strip (schedule page + front page) ───────────────── */
+.day-strip { margin: 0.75rem 0 1.25rem; }
+.home-day-strip .day-strip { margin: 0; padding: 0.75rem 1rem 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-bg-surface); }
+.day-strip__head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.35rem; }
+.day-strip__title { font-weight: 700; font-size: 0.95rem; }
+.day-strip__meta { font-size: 0.78rem; color: var(--color-text-muted); }
+.day-strip__plot { position: relative; height: 96px; padding-left: 34px; }
+.day-strip__guides { position: absolute; inset: 0 0 0 0; pointer-events: none; }
+.day-strip__guide { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--chart-grid); padding-top: 1px; font-size: 9px; line-height: 1; color: var(--color-text-muted); }
+.day-strip__guide--100 { top: 0; }
+.day-strip__guide--50 { top: 50%; }
+.day-strip__guide--0 { bottom: 0; border-top: 1px solid var(--chart-axis); transform: translateY(1px); }
+.day-strip__bars { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 100%; }
+/* Bars shrink to fit (150 games ≈ 6px each) rather than scroll; the 2px gap is the surface spacer. */
+.day-strip__game { position: relative; flex: 1 1 0; min-width: 0; max-width: 22px; height: 100%; display: block; text-decoration: none; }
+.day-strip__bar {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--chart-1); opacity: 0.55; border-radius: 3px 3px 0 0;
+    transition: opacity 120ms ease;
+}
+.day-strip__game[data-state="held"] .day-strip__bar { background: var(--chart-neutral); opacity: 0.6; }
+.day-strip__game[data-state="upset"] .day-strip__bar { background: var(--chart-neg); opacity: 0.95; }
+.day-strip__game[data-state="live"] .day-strip__bar { opacity: 1; animation: day-strip-pulse 1.6s ease-in-out infinite; }
+@keyframes day-strip-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.day-strip__game:hover .day-strip__bar, .day-strip__game:focus-visible .day-strip__bar { opacity: 1; outline: 2px solid var(--color-text); outline-offset: -1px; }
+.day-strip__book { position: absolute; left: -1px; right: -1px; height: 2px; background: var(--color-text); opacity: 0.85; pointer-events: none; }
+.day-strip__tip {
+    display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    z-index: 30; min-width: 190px; max-width: 260px; padding: 6px 9px;
+    background: var(--color-bg-surface); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); font-size: 11.5px; line-height: 1.35; white-space: normal; text-align: left;
+    pointer-events: none;
+}
+.day-strip__tip b { font-weight: 600; white-space: nowrap; }
+.day-strip__game:hover .day-strip__tip, .day-strip__game:focus-visible .day-strip__tip { display: block; }
+.day-strip__game:first-child .day-strip__tip, .day-strip__game:nth-child(2) .day-strip__tip, .day-strip__game:nth-child(3) .day-strip__tip { left: 0; transform: none; }
+.day-strip__game:last-child .day-strip__tip, .day-strip__game:nth-last-child(2) .day-strip__tip, .day-strip__game:nth-last-child(3) .day-strip__tip { left: auto; right: 0; transform: none; }
+.day-strip__legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin-top: 0.5rem; font-size: 0.74rem; color: var(--color-text-muted); }
+.day-strip__swatch { display: inline-block; width: 10px; height: 10px; margin-right: 0.3rem; border-radius: 2px; vertical-align: -1px; }
+.day-strip__swatch--pending { background: var(--chart-1); opacity: 0.55; }
+.day-strip__swatch--held { background: var(--chart-neutral); opacity: 0.6; }
+.day-strip__swatch--upset { background: var(--chart-neg); }
+.day-strip__swatch--book { height: 2px; background: var(--color-text); vertical-align: 3px; }
+.day-strip__legend-note { margin-left: auto; }
+@media (max-width: 640px) {
+    .day-strip__plot { height: 72px; }
+    .day-strip__legend-note { margin-left: 0; }
+}

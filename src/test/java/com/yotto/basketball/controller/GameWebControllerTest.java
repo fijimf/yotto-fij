@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -30,6 +31,7 @@ class GameWebControllerTest extends BaseIntegrationTest {
     @Autowired SeasonRepository seasonRepo;
     @Autowired TeamRepository teamRepo;
     @Autowired GameRepository gameRepo;
+    @Autowired com.yotto.basketball.repository.PredictionEvaluationRepository evaluationRepo;
 
     Season season;
     Team a, b;
@@ -127,6 +129,23 @@ class GameWebControllerTest extends BaseIntegrationTest {
     }
 
     // ── helpers ──
+
+    @Test
+    void gamesPage_rendersTheUpsetOMeter_whenTheDayHasModeledGames() throws Exception {
+        LocalDate day = LocalDate.of(2026, 1, 16);
+        Game g = mkGame(a, b, 70, 75, Game.GameStatus.FINAL,
+                day.atTime(19, 0).atZone(java.time.ZoneId.of("America/New_York")).withZoneSameInstant(java.time.ZoneOffset.UTC).toLocalDateTime());
+        com.yotto.basketball.entity.PredictionEvaluation pe = new com.yotto.basketball.entity.PredictionEvaluation();
+        pe.setGame(g); pe.setSeason(season); pe.setModelType("MASSEY"); pe.setGameDate(day);
+        pe.setPredictedHomeWinProb(0.7); pe.setActualMargin(-5); pe.setActualTotal(145); pe.setHomeWon(false);
+        pe.setEvaluatedAt(java.time.LocalDateTime.of(2026, 4, 30, 12, 0));
+        evaluationRepo.save(pe);
+
+        mockMvc.perform(get("/games").param("date", day.toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-state=\"upset\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Upset-o-meter")));
+    }
 
     private Team mkTeam(String name, String espnId) {
         Team t = new Team();

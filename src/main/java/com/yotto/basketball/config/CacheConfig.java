@@ -31,12 +31,13 @@ public class CacheConfig {
     public static final String CHART_RATING_RIVER = "chartRatingRiver";
     public static final String CHART_EFF_LANDSCAPE = "chartEffLandscape";
     public static final String CHART_FINGERPRINTS = "chartFingerprints";
+    public static final String CHART_DAY_STRIP = "chartDayStrip";
 
     @Bean
     public CaffeineCacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager(
                 MODEL_COMPARE, MODEL_ABOUT, MODEL_HEADLINES, STAT_PAGE,
-                TEAM_SCHEDULE, TEAM_STAT_PANEL, CHART_RATING_RIVER, CHART_EFF_LANDSCAPE, CHART_FINGERPRINTS);
+                TEAM_SCHEDULE, TEAM_STAT_PANEL, CHART_RATING_RIVER, CHART_EFF_LANDSCAPE, CHART_FINGERPRINTS, CHART_DAY_STRIP);
         manager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(5_000)
                 .expireAfterWrite(Duration.ofHours(6)));

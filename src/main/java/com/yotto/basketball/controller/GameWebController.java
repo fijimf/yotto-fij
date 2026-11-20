@@ -33,6 +33,8 @@ import java.util.Optional;
 @Controller
 public class GameWebController {
 
+    private final com.yotto.basketball.service.DayStripService dayStripService;
+
     static final ZoneId EASTERN = EasternDates.EASTERN;
     private static final LocalTime NOON = LocalTime.NOON;
 
@@ -42,7 +44,9 @@ public class GameWebController {
 
     public GameWebController(GameRepository gameRepository,
                             SeasonRepository seasonRepository,
-                            TournamentBadgeFormatter tournamentBadgeFormatter) {
+                            TournamentBadgeFormatter tournamentBadgeFormatter,
+                             com.yotto.basketball.service.DayStripService dayStripService) {
+        this.dayStripService = dayStripService;
         this.gameRepository = gameRepository;
         this.seasonRepository = seasonRepository;
         this.tournamentBadgeFormatter = tournamentBadgeFormatter;
@@ -77,6 +81,7 @@ public class GameWebController {
         model.addAttribute("nextDate", nextDateWithGames(window[1]).orElse(null));
         model.addAttribute("games", games.stream().map(this::toRow).toList());
         model.addAttribute("gameCount", games.size());
+        model.addAttribute("dayStrip", games.isEmpty() ? null : dayStripService.build(date));
     }
 
     /** Most recent Eastern date with games strictly before this window. */

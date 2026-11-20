@@ -35,6 +35,8 @@
         <span class="games-nav__btn games-nav__btn--disabled" th:if="${nextDate == null}">Next &#9654;</span>
     </div>
 
+    <th:block th:if="${dayStrip != null}" th:insert="~{fragments/day-strip :: strip(${dayStrip}, true)}"/>
+
     <div th:if="${games.isEmpty()}" class="teams-empty">
         No games on this date.
     </div>

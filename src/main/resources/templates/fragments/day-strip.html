@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/* Upset-o-meter: one bar per game in tip order. Bar height = the model's win
+      probability for the favorite above a coin flip (short = toss-up); the tick
+      is the book's implied probability; final games are colored by outcome.
+      Pure HTML/CSS — no script — so it renders inside HTMX swaps and caches.
+      strip: DayStripService.DayStrip; showHead: render the inline title/legend */-->
+<div th:fragment="strip(strip, showHead)" class="day-strip" th:unless="${strip == null or strip.isEmpty()}">
+    <div class="day-strip__head" th:if="${showHead}">
+        <span class="day-strip__title">Upset-o-meter</span>
+        <span class="day-strip__meta" th:text="${strip.games.size()} + ' games · ' + ${strip.modelLabel}">63 games · Model</span>
+    </div>
+    <div class="day-strip__plot">
+        <div class="day-strip__guides" aria-hidden="true">
+            <span class="day-strip__guide day-strip__guide--100">lock</span>
+            <span class="day-strip__guide day-strip__guide--50">75%</span>
+            <span class="day-strip__guide day-strip__guide--0">50%</span>
+        </div>
+        <div class="day-strip__bars">
+            <!--/* State goes in a data attribute: a BEM "__" inside a th: expression is
+                  Thymeleaf preprocessing syntax and breaks the parse. */-->
+            <a th:each="g : ${strip.games}" class="day-strip__game"
+               th:attr="data-state=${g.isLive() ? 'live' : (g.isFinal() ? (g.isUpset() ? 'upset' : 'held') : 'pending')}"
+               th:href="@{'/games/' + ${g.gameId}}"
+               th:with="vs=${g.neutralSite ? ' vs ' : (g.favIsHome ? ' vs ' : ' at ')}"
+               th:aria-label="${g.favAbbr + ' favored over ' + g.dogAbbr + ', ' + g.probLabel()}">
+                <span class="day-strip__bar" th:style="'height:' + ${g.barPct()} + '%'"></span>
+                <span class="day-strip__book" th:if="${g.bookPct() != null}" th:style="'bottom:' + ${g.bookPct()} + '%'"></span>
+                <span class="day-strip__tip">
+                    <b th:text="${g.favAbbr} + ${vs} + ${g.dogAbbr}">DUKE vs UNC</b>
+                    <span th:text="${#temporals.format(g.tipEastern, 'h:mm a')}">7:00 PM</span><br/>
+                    <span th:text="${strip.modelLabel} + ' ' + ${g.probLabel()}">Model 68%</span>
+                    <span th:if="${g.bookLabel() != null}" th:text="' · book ' + ${g.bookLabel()}"> · book 71%</span>
+                    <th:block th:if="${g.isFinal()}"><br/>
+                        <span th:text="${g.isUpset() ? 'Upset' : 'Held'} + ' · ' + ${g.favScore} + '–' + ${g.dogScore}">Held · 78–72</span>
+                    </th:block>
+                    <span th:if="${g.isLive()}"><br/>In progress</span>
+                </span>
+            </a>
+        </div>
+    </div>
+    <div class="day-strip__legend">
+        <span><i class="day-strip__swatch day-strip__swatch--pending"></i>upcoming</span>
+        <span><i class="day-strip__swatch day-strip__swatch--held"></i>favorite held</span>
+        <span><i class="day-strip__swatch day-strip__swatch--upset"></i>upset</span>
+        <span><i class="day-strip__swatch day-strip__swatch--book"></i>book's number</span>
+        <span class="day-strip__legend-note">bar height = favorite's win probability above a coin flip</span>
+        <span th:if="${strip.finals > 0}" class="day-strip__legend-note"
+              th:text="${strip.upsets} + ' upset' + (${strip.upsets == 1} ? '' : 's') + ' in ' + ${strip.finals} + ' finals'">3 upsets in 40 finals</span>
+    </div>
+</div>
+
+</body>
+</html>

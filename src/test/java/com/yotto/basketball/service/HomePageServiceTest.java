@@ -575,6 +575,28 @@ class HomePageServiceTest extends BaseIntegrationTest {
         ratingSnapshotRepo.save(s);
     }
 
+    @Test
+    void inSeason_addsTheDayStripPanel_whenTheDayHasEnoughModeledGames() {
+        LocalDate jan15 = JAN_16.minusDays(1);
+        Team e = mkTeam("Elon", "e"), f = mkTeam("Furman", "f"), g = mkTeam("Gonzaga", "g"), h = mkTeam("Hofstra", "h");
+        for (Game game : java.util.List.of(mkFinal(a, b, 71, 70, jan15), mkFinal(c, d, 60, 80, jan15),
+                                           mkFinal(e, f, 90, 80, jan15), mkFinal(g, h, 77, 75, jan15))) {
+            PredictionEvaluation pe = mkEval(game, "MASSEY", 3.0);
+            pe.setPredictedHomeWinProb(0.62);
+            evaluationRepo.save(pe);
+        }
+        seasonPhaseService.setOverride(null, JAN_16);
+
+        HomePageService.HomePage page = service.build();
+
+        java.util.List<String> fragments = page.panels().stream().map(HomePageService.HomePanel::fragment).toList();
+        assertThat(fragments).contains("day-strip");
+        assertThat(fragments.indexOf("day-strip")).isLessThan(fragments.indexOf("results"));
+        DayStripService.DayStrip strip = (DayStripService.DayStrip) page.panels().get(fragments.indexOf("day-strip")).model().get("strip");
+        assertThat(strip.games()).hasSize(4);
+        assertThat(strip.upsets()).isEqualTo(1);   // Duke (away) beat Colgate while the home side was favored
+    }
+
     private Team mkTeam(String name, String espnId) {
         Team t = new Team();
         t.setName(name);

@@ -50,6 +50,8 @@ public class HomePageService {
     static final int PANEL_GAME_LIMIT = 6;
     private static final int NEWS_COMPACT_COUNT = 5;
     private static final int MIN_REPORT_CARD_GAMES = 5;
+    /** Fewer games than this and the strip is a handful of bars, not a picture of the day. */
+    private static final int MIN_DAY_STRIP_GAMES = 4;
     /** Results/slate lookback/lookahead: beyond this the panels go quiet instead of showing stale games. */
     private static final int GAME_WINDOW_DAYS = 6;
 
@@ -88,6 +90,7 @@ public class HomePageService {
     private final com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepository;
     private final BracketService bracketService;
     private final SeasonWrapService seasonWrapService;
+    private final DayStripService dayStripService;
 
     public HomePageService(SeasonPhaseService seasonPhaseService,
                            GameRepository gameRepository,
@@ -103,7 +106,8 @@ public class HomePageService {
                            FavoriteTeamService favoriteTeamService,
                            com.yotto.basketball.repository.SeasonStatisticsRepository seasonStatisticsRepository,
                            BracketService bracketService,
-                           SeasonWrapService seasonWrapService) {
+                           SeasonWrapService seasonWrapService,
+                           DayStripService dayStripService) {
         this.seasonPhaseService = seasonPhaseService;
         this.gameRepository = gameRepository;
         this.predictionService = predictionService;
@@ -119,6 +123,7 @@ public class HomePageService {
         this.seasonStatisticsRepository = seasonStatisticsRepository;
         this.bracketService = bracketService;
         this.seasonWrapService = seasonWrapService;
+        this.dayStripService = dayStripService;
     }
 
     /** Anonymous build. */
@@ -159,6 +164,7 @@ public class HomePageService {
 
         reportCardPanel(resultsDate.orElse(null), modelKey, modelLabel).ifPresent(panels::add);
         yourTeamsPanel(phase, userId, modelKey).ifPresent(panels::add);
+        dayStripPanel(slateDate.orElse(resultsDate.orElse(null)), today).ifPresent(panels::add);
         resultsPanel(resultsDate.orElse(null), resultRows, allResults.size(), today).ifPresent(panels::add);
         slatePanel(slateDate.orElse(null), slateRows, allSlate.size(), today, modelLabel).ifPresent(panels::add);
         newsPanel(true).ifPresent(panels::add);
@@ -236,6 +242,17 @@ public class HomePageService {
         }
         rows.sort(Comparator.comparingDouble(HomeGameRow::interest).reversed());
         return rows;
+    }
+
+    /** The whole day as a strip of tension: today's slate if there is one, else the latest results. */
+    private Optional<HomePanel> dayStripPanel(LocalDate date, LocalDate today) {
+        if (date == null) return Optional.empty();
+        DayStripService.DayStrip strip = dayStripService.build(date);
+        if (strip.games().size() < MIN_DAY_STRIP_GAMES) return Optional.empty();
+        String title = date.equals(today) ? "Tonight's Upset-o-meter"
+                : date.isAfter(today) ? "Next Up: Upset-o-meter"
+                : date.equals(today.minusDays(1)) ? "Last Night's Upset-o-meter" : "Upset-o-meter";
+        return Optional.of(new HomePanel("day-strip", model("title", title, "date", date, "strip", strip)));
     }
 
     private Optional<HomePanel> resultsPanel(LocalDate date, List<HomeGameRow> rows, int total, LocalDate today) {
