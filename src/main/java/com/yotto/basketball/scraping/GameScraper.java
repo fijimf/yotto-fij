@@ -7,7 +7,9 @@ import com.yotto.basketball.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -32,13 +34,23 @@ public class GameScraper {
     private final ScrapeBatchRepository scrapeBatchRepository;
     private final NonD1GameObservationRepository nonD1GameObservationRepository;
     private final TournamentClassifier tournamentClassifier;
+    /**
+     * One transaction per scoreboard date. The scrapes used to be a single
+     * {@code @Transactional} method, so by the end of an in-season re-scrape ~5k
+     * Game entities sat in the persistence context and every repository lookup
+     * auto-flushed through all of them: 135s of pure dirty-checking for a run that
+     * changed a dozen rows (GameScraperRescrapeBenchmarkTest). Committing per date
+     * keeps the context to one day's games and bounds a bad date's blast radius.
+     */
+    private final TransactionTemplate perDateTx;
 
     public GameScraper(EspnApiClient espnApiClient, ScrapingProperties scrapingProperties,
                        TeamRepository teamRepository, SeasonRepository seasonRepository,
                        GameRepository gameRepository, BettingOddsRepository bettingOddsRepository,
                        ScrapeBatchRepository scrapeBatchRepository,
                        NonD1GameObservationRepository nonD1GameObservationRepository,
-                       TournamentClassifier tournamentClassifier) {
+                       TournamentClassifier tournamentClassifier,
+                       PlatformTransactionManager transactionManager) {
         this.espnApiClient = espnApiClient;
         this.scrapingProperties = scrapingProperties;
         this.teamRepository = teamRepository;
@@ -48,14 +60,14 @@ public class GameScraper {
         this.scrapeBatchRepository = scrapeBatchRepository;
         this.nonD1GameObservationRepository = nonD1GameObservationRepository;
         this.tournamentClassifier = tournamentClassifier;
+        this.perDateTx = new TransactionTemplate(transactionManager);
+        this.perDateTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    @Transactional
     public ScrapeBatch scrapeFullSeason(int seasonYear) {
         return scrapeFullSeason(seasonYear, PipelineContext.manual());
     }
 
-    @Transactional
     public ScrapeBatch scrapeFullSeason(int seasonYear, PipelineContext ctx) {
         LocalDate start = LocalDate.of(seasonYear - 1, scrapingProperties.getSeasonStartMonth(),
                 scrapingProperties.getSeasonStartDay());
@@ -76,19 +88,16 @@ public class GameScraper {
      * can. "Today" is the JVM date (UTC on the server); the one-day margin on each
      * side covers ET games that finish after UTC midnight.
      */
-    @Transactional
     public ScrapeBatch scrapeRecentDates(int seasonYear, PipelineContext ctx) {
         LocalDate today = LocalDate.now();
         return scrapeDateRange(seasonYear, today.minusDays(RECENT_WINDOW_DAYS),
                 today.plusDays(RECENT_WINDOW_DAYS), ctx);
     }
 
-    @Transactional
     public ScrapeBatch scrapeCurrentSeason(int seasonYear) {
         return scrapeCurrentSeason(seasonYear, PipelineContext.manual());
     }
 
-    @Transactional
     public ScrapeBatch scrapeCurrentSeason(int seasonYear, PipelineContext ctx) {
         Season season = seasonRepository.findByYear(seasonYear).orElse(null);
         if (season == null) {
@@ -117,15 +126,7 @@ public class GameScraper {
         batch = scrapeBatchRepository.save(batch);
 
         for (LocalDate date : datesToFetch) {
-            batch.setCurrentStep("GAMES " + date);
-            try {
-                scrapeDate(date, seasonYear, batch);
-                batch.incrementDatesSucceeded();
-            } catch (Exception e) {
-                log.error("Failed to scrape date {}", date, e);
-                batch.incrementDatesFailed();
-            }
-            batch = scrapeBatchRepository.save(batch);
+            batch = scrapeDateInOwnTransaction(date, seasonYear, batch);
         }
 
         batch.complete();
@@ -146,18 +147,8 @@ public class GameScraper {
 
         LocalDate current = start;
         while (!current.isAfter(end)) {
-            batch.setCurrentStep("GAMES " + current);
-            try {
-                scrapeDate(current, seasonYear, batch);
-                batch.incrementDatesSucceeded();
-            } catch (Exception e) {
-                log.error("Failed to scrape date {}", current, e);
-                batch.incrementDatesFailed();
-            }
+            batch = scrapeDateInOwnTransaction(current, seasonYear, batch);
             current = current.plusDays(1);
-
-            // Save every iteration so the dashboard can show live progress.
-            batch = scrapeBatchRepository.save(batch);
         }
 
         batch.complete();
@@ -166,6 +157,28 @@ public class GameScraper {
                 batch.getDatesSucceeded(), batch.getDatesFailed());
 
         return scrapeBatchRepository.save(batch);
+    }
+
+    /**
+     * Scrapes one date in its own committed transaction and returns the batch row
+     * with that date's counters applied (saved every date so the admin dashboard
+     * shows live progress). A failed date rolls back only its own games; the
+     * failure is then recorded on the batch in a fresh transaction.
+     */
+    private ScrapeBatch scrapeDateInOwnTransaction(LocalDate date, int seasonYear, ScrapeBatch batch) {
+        batch.setCurrentStep("GAMES " + date);
+        try {
+            return perDateTx.execute(status -> {
+                ScrapeBatch managed = scrapeBatchRepository.save(batch);
+                scrapeDate(date, seasonYear, managed);
+                managed.incrementDatesSucceeded();
+                return scrapeBatchRepository.save(managed);
+            });
+        } catch (Exception e) {
+            log.error("Failed to scrape date {}", date, e);
+            batch.incrementDatesFailed();
+            return scrapeBatchRepository.save(batch);
+        }
     }
 
     private void scrapeDate(LocalDate date, int seasonYear, ScrapeBatch batch) {
