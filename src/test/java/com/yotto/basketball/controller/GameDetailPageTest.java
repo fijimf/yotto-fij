@@ -114,10 +114,8 @@ class GameDetailPageTest extends BaseIntegrationTest {
                 .andExpect(model().attributeExists("awayStats"))
                 .andExpect(model().attributeExists("homeDerived"))
                 .andExpect(model().attributeExists("awayDerived"))
-                .andExpect(model().attributeExists("homeNeutralWins"))
-                .andExpect(model().attributeExists("awayNeutralWins"))
-                .andExpect(model().attributeExists("homeLast5Wins"))
-                .andExpect(model().attributeExists("awayLast5Wins"))
+                .andExpect(model().attributeExists("homeRecord"))
+                .andExpect(model().attributeExists("awayRecord"))
                 .andExpect(model().attributeExists("chartDataJson"));
     }
 
@@ -138,7 +136,10 @@ class GameDetailPageTest extends BaseIntegrationTest {
      */
     @Test
     void comparisonTable_rendersStreaks() throws Exception {
-        setStreaks(4, -2); // home on a 4-game win streak, away on a 2-game skid
+        // home on a 4-game win streak, away on a 2-game skid — all before tip-off
+        Team opp = mkTeam("Opponent", "OPP");
+        for (int d = 1; d <= 4; d++) priorGame(homeTeamId, opp.getId(), LocalDateTime.of(2025, 1, d, 19, 0), 80, 70, false, false);
+        for (int d = 1; d <= 2; d++) priorGame(awayTeamId, opp.getId(), LocalDateTime.of(2025, 1, 10 + d, 19, 0), 60, 70, false, false);
 
         String html = mockMvc.perform(get("/games/" + gameId))
                 .andExpect(status().isOk())
@@ -265,14 +266,6 @@ class GameDetailPageTest extends BaseIntegrationTest {
         paramRepo.save(p);
     }
 
-    private void setStreaks(int homeStreak, int awayStreak) {
-        SeasonStatistics home = statsRepo.findByTeamAndSeasonWithConference(homeTeamId, seasonDbId).orElseThrow();
-        home.setCalcStreak(homeStreak);
-        statsRepo.save(home);
-        SeasonStatistics away = statsRepo.findByTeamAndSeasonWithConference(awayTeamId, seasonDbId).orElseThrow();
-        away.setCalcStreak(awayStreak);
-        statsRepo.save(away);
-    }
 
     private void addDerivedStat(String statName, double homeValue, double awayValue) {
         Team home = teamRepo.findById(homeTeamId).orElseThrow();
@@ -300,6 +293,67 @@ class GameDetailPageTest extends BaseIntegrationTest {
         odds.setHomeMoneyline(homeML);
         odds.setAwayMoneyline(awayML);
         oddsRepo.save(odds);
+    }
+
+    // ── Team Comparison: records are as of tip-off, not today's totals ────────
+
+    /**
+     * Regression: the record rows used to read SeasonStatistics (current season
+     * totals), so a game page showed records that included the game itself and
+     * everything after it. They must be derived from FINAL games before tip only.
+     */
+    @Test
+    void comparisonTable_recordsReflectOnlyGamesBeforeTipOff() throws Exception {
+        Team opp = mkTeam("Opponent", "OPP");
+        // Home team before the Feb 15 game: home conf W, road conf L, neutral W → 2-1
+        priorGame(homeTeamId, opp.getId(), LocalDateTime.of(2025, 1, 10, 19, 0), 80, 70, false, true);
+        priorGame(opp.getId(), homeTeamId, LocalDateTime.of(2025, 1, 20, 19, 0), 75, 65, false, true);
+        priorGame(homeTeamId, opp.getId(), LocalDateTime.of(2025, 2, 1, 19, 0), 90, 60, true, false);
+        // A later game must NOT count
+        priorGame(homeTeamId, opp.getId(), LocalDateTime.of(2025, 2, 20, 19, 0), 50, 99, false, true);
+        // Away team has played nothing before tip-off
+
+        var result = mockMvc.perform(get("/games/" + gameId))
+                .andExpect(status().isOk())
+                .andReturn();
+        var home = (com.yotto.basketball.controller.dto.PreGameRecordDto) result.getModelAndView().getModel().get("homeRecord");
+        var away = (com.yotto.basketball.controller.dto.PreGameRecordDto) result.getModelAndView().getModel().get("awayRecord");
+        org.assertj.core.api.Assertions.assertThat(home.wins()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(home.losses()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(home.confWins()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(home.confLosses()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(home.homeWins()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(home.awayLosses()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(home.neutralWins()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(home.last5Wins()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(home.streak()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(home.avgPointsFor()).isEqualTo((80 + 65 + 90) / 3.0);
+        org.assertj.core.api.Assertions.assertThat(away.wins()).isZero();
+        org.assertj.core.api.Assertions.assertThat(away.streak()).isNull();
+        String html = result.getResponse().getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(html)
+                .contains(">2-1<")          // home overall, pre-game
+                .contains(">0-0<")          // away overall, pre-game
+                .doesNotContain(">15-5<")   // the SeasonStatistics totals must not leak in
+                .doesNotContain(">12-8<");
+    }
+
+    private int priorGameSeq = 0;
+
+    private void priorGame(Long homeId, Long awayId, LocalDateTime when, int hs, int as, boolean neutral, boolean conf) {
+        Game g = new Game();
+        g.setHomeTeam(teamRepo.findById(homeId).orElseThrow());
+        g.setAwayTeam(teamRepo.findById(awayId).orElseThrow());
+        g.setSeason(seasonRepo.findById(seasonDbId).orElseThrow());
+        g.setStatus(Game.GameStatus.FINAL);
+        g.setHomeScore(hs);
+        g.setAwayScore(as);
+        g.setNeutralSite(neutral);
+        g.setConferenceGame(conf);
+        g.setGameDate(when);
+        g.setEspnId("t" + (++priorGameSeq)); // espn_id is varchar(20) and unique
+        gameRepo.save(g);
     }
 
     private Team mkTeam(String name, String abbr) {

@@ -5,6 +5,7 @@ import com.yotto.basketball.controller.dto.ChartDataDto;
 import com.yotto.basketball.controller.dto.ChartModelPointDto;
 import com.yotto.basketball.controller.dto.LastMeetingDto;
 import com.yotto.basketball.controller.dto.PastMeetingDto;
+import com.yotto.basketball.controller.dto.PreGameRecordDto;
 import com.yotto.basketball.controller.dto.SeasonGameMarkerDto;
 import com.yotto.basketball.controller.dto.SnapshotPointDto;
 import com.yotto.basketball.entity.*;
@@ -14,7 +15,6 @@ import com.yotto.basketball.service.PredictionResult;
 import com.yotto.basketball.service.PredictionService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -137,23 +137,13 @@ public class GameDetailController {
                 .toList();
         model.addAttribute("lastMeetings", lastMeetings);
 
-        // ── Neutral-site record this season ─────────────────────────────────────
-        List<Game> homeNeutral = gameRepository.findNeutralSiteFinalGames(home.getId(), seasonId);
-        List<Game> awayNeutral = gameRepository.findNeutralSiteFinalGames(away.getId(), seasonId);
-        model.addAttribute("homeNeutralWins", countWins(homeNeutral, home.getId()));
-        model.addAttribute("homeNeutralLosses", countLosses(homeNeutral, home.getId()));
-        model.addAttribute("awayNeutralWins", countWins(awayNeutral, away.getId()));
-        model.addAttribute("awayNeutralLosses", countLosses(awayNeutral, away.getId()));
-
-        // ── Last-5-games record ─────────────────────────────────────────────────
-        List<Game> homeLast5 = gameRepository.findRecentFinalGamesForTeam(
-                home.getId(), seasonId, gameDateTime, PageRequest.of(0, 5));
-        List<Game> awayLast5 = gameRepository.findRecentFinalGamesForTeam(
-                away.getId(), seasonId, gameDateTime, PageRequest.of(0, 5));
-        model.addAttribute("homeLast5Wins", countWins(homeLast5, home.getId()));
-        model.addAttribute("homeLast5Losses", countLosses(homeLast5, home.getId()));
-        model.addAttribute("awayLast5Wins", countWins(awayLast5, away.getId()));
-        model.addAttribute("awayLast5Losses", countLosses(awayLast5, away.getId()));
+        // ── Pre-game records (overall/conf/home/away/neutral/last-5/streak/scoring) ──
+        // Derived from each team's FINAL games strictly before tip, so a played game
+        // shows what the teams were going in — never today's SeasonStatistics totals.
+        model.addAttribute("homeRecord", PreGameRecordDto.from(
+                gameRepository.findSeasonFinalGamesForTeamBefore(home.getId(), seasonId, gameDateTime), home.getId()));
+        model.addAttribute("awayRecord", PreGameRecordDto.from(
+                gameRepository.findSeasonFinalGamesForTeamBefore(away.getId(), seasonId, gameDateTime), away.getId()));
 
         // ── Power ratings ────────────────────────────────────────────────────────
         TeamPowerRatingSnapshot homeMassey = powerRatingRepository
@@ -302,22 +292,8 @@ public class GameDetailController {
         return byName;
     }
 
-    private boolean isWinner(Game g, Long teamId) {
-        if (g.getHomeScore() == null || g.getAwayScore() == null) return false;
-        if (teamId.equals(g.getHomeTeam().getId())) return g.getHomeScore() > g.getAwayScore();
-        return g.getAwayScore() > g.getHomeScore();
-    }
 
-    private int countWins(List<Game> games, Long teamId) {
-        return (int) games.stream().filter(g -> isWinner(g, teamId)).count();
-    }
 
-    private int countLosses(List<Game> games, Long teamId) {
-        return (int) games.stream()
-                .filter(g -> g.getHomeScore() != null && g.getAwayScore() != null)
-                .filter(g -> !isWinner(g, teamId))
-                .count();
-    }
 
     private LastMeetingDto toLastMeeting(Game g) {
         boolean homeWon = g.getHomeScore() > g.getAwayScore();

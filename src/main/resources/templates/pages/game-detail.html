@@ -307,68 +307,64 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Records -->
-                    <tr th:if="${homeStats != null and awayStats != null}">
+                    <!-- Records: as of tip-off (homeRecord/awayRecord), not today's totals -->
+                    <tr>
                         <td class="game-detail-comparison-table__label">Overall</td>
-                        <td th:text="${(homeStats.wins ?: 0) + '-' + (homeStats.losses ?: 0)}">10-8</td>
-                        <td th:text="${(awayStats.wins ?: 0) + '-' + (awayStats.losses ?: 0)}">14-3</td>
+                        <td th:text="${homeRecord.wins + '-' + homeRecord.losses}">10-8</td>
+                        <td th:text="${awayRecord.wins + '-' + awayRecord.losses}">14-3</td>
                     </tr>
-                    <tr th:if="${homeStats != null and awayStats != null}">
+                    <tr>
                         <td class="game-detail-comparison-table__label">Conference</td>
-                        <td th:text="${(homeStats.conferenceWins ?: 0) + '-' + (homeStats.conferenceLosses ?: 0)}">2-4</td>
-                        <td th:text="${(awayStats.conferenceWins ?: 0) + '-' + (awayStats.conferenceLosses ?: 0)}">5-1</td>
+                        <td th:text="${homeRecord.confWins + '-' + homeRecord.confLosses}">2-4</td>
+                        <td th:text="${awayRecord.confWins + '-' + awayRecord.confLosses}">5-1</td>
                     </tr>
-                    <tr th:if="${homeStats != null and awayStats != null}">
+                    <tr>
                         <td class="game-detail-comparison-table__label">Home</td>
-                        <td th:text="${(homeStats.homeWins ?: 0) + '-' + (homeStats.homeLosses ?: 0)}">7-2</td>
-                        <td th:text="${(awayStats.homeWins ?: 0) + '-' + (awayStats.homeLosses ?: 0)}">10-0</td>
+                        <td th:text="${homeRecord.homeWins + '-' + homeRecord.homeLosses}">7-2</td>
+                        <td th:text="${awayRecord.homeWins + '-' + awayRecord.homeLosses}">10-0</td>
                     </tr>
-                    <tr th:if="${homeStats != null and awayStats != null}">
+                    <tr>
                         <td class="game-detail-comparison-table__label">Away</td>
-                        <td th:text="${(homeStats.roadWins ?: 0) + '-' + (homeStats.roadLosses ?: 0)}">2-4</td>
-                        <td th:text="${(awayStats.roadWins ?: 0) + '-' + (awayStats.roadLosses ?: 0)}">2-2</td>
+                        <td th:text="${homeRecord.awayWins + '-' + homeRecord.awayLosses}">2-4</td>
+                        <td th:text="${awayRecord.awayWins + '-' + awayRecord.awayLosses}">2-2</td>
                     </tr>
                     <tr>
                         <td class="game-detail-comparison-table__label">Neutral</td>
-                        <td th:text="${homeNeutralWins + '-' + homeNeutralLosses}">1-2</td>
-                        <td th:text="${awayNeutralWins + '-' + awayNeutralLosses}">2-1</td>
+                        <td th:text="${homeRecord.neutralWins + '-' + homeRecord.neutralLosses}">1-2</td>
+                        <td th:text="${awayRecord.neutralWins + '-' + awayRecord.neutralLosses}">2-1</td>
                     </tr>
                     <tr>
                         <td class="game-detail-comparison-table__label">Last 5</td>
-                        <td th:text="${homeLast5Wins + '-' + homeLast5Losses}">2-3</td>
-                        <td th:text="${awayLast5Wins + '-' + awayLast5Losses}">4-1</td>
+                        <td th:text="${homeRecord.last5Wins + '-' + homeRecord.last5Losses}">2-3</td>
+                        <td th:text="${awayRecord.last5Wins + '-' + awayRecord.last5Losses}">4-1</td>
                     </tr>
-                    <tr th:if="${homeStats != null and awayStats != null}">
+                    <tr>
                         <td class="game-detail-comparison-table__label">Streak</td>
-                        <td th:if="${homeStats.calcStreak != null}">
-                            <span th:if="${homeStats.calcStreak >= 0}" class="game-detail-comparison-table__streak--win"
-                                  th:text="${'W' + homeStats.calcStreak}">W3</span>
-                            <span th:if="${homeStats.calcStreak < 0}" class="game-detail-comparison-table__streak--loss"
-                                  th:text="${'L' + (-homeStats.calcStreak)}">L2</span>
+                        <td th:if="${homeRecord.streak != null}">
+                            <span th:if="${homeRecord.streak >= 0}" class="game-detail-comparison-table__streak--win"
+                                  th:text="${'W' + homeRecord.streak}">W3</span>
+                            <span th:if="${homeRecord.streak < 0}" class="game-detail-comparison-table__streak--loss"
+                                  th:text="${'L' + (-homeRecord.streak)}">L2</span>
                         </td>
-                        <td th:if="${homeStats.calcStreak == null}">—</td>
-                        <td th:if="${awayStats.calcStreak != null}">
-                            <span th:if="${awayStats.calcStreak >= 0}" class="game-detail-comparison-table__streak--win"
-                                  th:text="${'W' + awayStats.calcStreak}">W3</span>
-                            <span th:if="${awayStats.calcStreak < 0}" class="game-detail-comparison-table__streak--loss"
-                                  th:text="${'L' + (-awayStats.calcStreak)}">L2</span>
+                        <td th:if="${homeRecord.streak == null}">—</td>
+                        <td th:if="${awayRecord.streak != null}">
+                            <span th:if="${awayRecord.streak >= 0}" class="game-detail-comparison-table__streak--win"
+                                  th:text="${'W' + awayRecord.streak}">W3</span>
+                            <span th:if="${awayRecord.streak < 0}" class="game-detail-comparison-table__streak--loss"
+                                  th:text="${'L' + (-awayRecord.streak)}">L2</span>
                         </td>
-                        <td th:if="${awayStats.calcStreak == null}">—</td>
+                        <td th:if="${awayRecord.streak == null}">—</td>
                     </tr>
-                    <!-- Scoring -->
-                    <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
+                    <!-- Scoring (pre-game averages) -->
+                    <tr>
                         <td class="game-detail-comparison-table__label">Avg Pts For</td>
-                        <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
-                            th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">68.2</td>
-                        <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
-                            th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsFor ?: 0) * 1.0 / g, 1, 1) : '—'}">71.2</td>
+                        <td th:text="${homeRecord.avgPointsFor != null ? #numbers.formatDecimal(homeRecord.avgPointsFor, 1, 1) : '—'}">68.2</td>
+                        <td th:text="${awayRecord.avgPointsFor != null ? #numbers.formatDecimal(awayRecord.avgPointsFor, 1, 1) : '—'}">71.2</td>
                     </tr>
-                    <tr th:if="${homeStats != null and awayStats != null and homeStats.calcWins != null}">
+                    <tr>
                         <td class="game-detail-comparison-table__label">Avg Pts Against</td>
-                        <td th:with="g=${(homeStats.calcWins ?: 0) + (homeStats.calcLosses ?: 0)}"
-                            th:text="${g > 0 ? #numbers.formatDecimal((homeStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">62.1</td>
-                        <td th:with="g=${(awayStats.calcWins ?: 0) + (awayStats.calcLosses ?: 0)}"
-                            th:text="${g > 0 ? #numbers.formatDecimal((awayStats.calcPointsAgainst ?: 0) * 1.0 / g, 1, 1) : '—'}">58.5</td>
+                        <td th:text="${homeRecord.avgPointsAgainst != null ? #numbers.formatDecimal(homeRecord.avgPointsAgainst, 1, 1) : '—'}">62.1</td>
+                        <td th:text="${awayRecord.avgPointsAgainst != null ? #numbers.formatDecimal(awayRecord.avgPointsAgainst, 1, 1) : '—'}">58.5</td>
                     </tr>
                     <!-- Ratings -->
                     <tr>
