@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import tools.jackson.core.JacksonException;
 
+import com.yotto.basketball.util.EasternDates;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -78,7 +79,10 @@ public class GameDetailController {
         BettingOdds odds = game.getBettingOdds();
         Season season = game.getSeason();
         Long seasonId = season.getId();
-        LocalDate gameLocalDate = game.getGameDate().toLocalDate();
+        // Stored game times are UTC. The Eastern calendar date is the basketball "game day":
+        // it drives the pre-game snapshot cutoffs (a 9 PM ET tip is already tomorrow in UTC,
+        // which would otherwise admit that night's post-game snapshot) and the displayed date.
+        LocalDate gameLocalDate = EasternDates.toEasternDate(game.getGameDate());
         LocalDateTime gameDateTime = game.getGameDate();
 
         // ── Basic game attributes ───────────────────────────────────────────────
@@ -95,7 +99,7 @@ public class GameDetailController {
         model.addAttribute("awayTeamMascot", away.getMascot());
         model.addAttribute("awayTeamLogoUrl", away.getLogoUrl());
         model.addAttribute("awayTeamColor", away.getColor());
-        model.addAttribute("gameDate", game.getGameDate());
+        model.addAttribute("gameDate", EasternDates.toEasternTime(game.getGameDate()));
         model.addAttribute("venue", game.getVenue());
         model.addAttribute("neutralSite", Boolean.TRUE.equals(game.getNeutralSite()));
         model.addAttribute("conferenceGame", Boolean.TRUE.equals(game.getConferenceGame()));
