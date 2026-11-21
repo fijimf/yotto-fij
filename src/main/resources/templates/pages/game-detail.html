@@ -9,7 +9,10 @@
 <body>
 <main layout:fragment="content">
 
-<!-- ── Game Header ──────────────────────────────────────────────────────── -->
+<!-- ── Game Header ──────────────────────────────────────────────────────────
+     Everything about the game itself lives here: teams with pre-game record and
+     ranks, score/status, venue/date and the betting line, so no card below has to
+     repeat it. Team colours paint the top band and the name accents. -->
 <div class="game-detail-header card"
      th:style="'--home-color: #' + (${homeTeamColor} ?: '1a1a2e') + '; --away-color: #' + (${awayTeamColor} ?: '1a1a2e')">
     <div class="game-detail-matchup">
@@ -25,7 +28,13 @@
                           th:text="'(' + ${homeSeed} + ')'">(1)</span>
                     <span th:text="${homeTeamName}">Duke</span>
                 </span>
-                <span class="game-detail-team__mascot" th:text="${homeTeamMascot}">Blue Devils</span>
+                <span class="game-detail-team__line" th:if="${homeRecord != null}">
+                    <span th:text="${homeRecord.wins + '-' + homeRecord.losses}">10-8</span>
+                    <span th:if="${homeRecord.confWins + homeRecord.confLosses > 0}"
+                          th:text="${homeRecord.confWins + '-' + homeRecord.confLosses + ' conf'}">2-4 conf</span>
+                    <span th:if="${homeMassey != null}" th:text="'Massey #' + ${homeMassey.rank}">Massey #46</span>
+                    <span th:if="${homeRpiRank != null}" class="game-detail-team__line-rpi" th:text="'RPI #' + ${homeRpiRank}">RPI #81</span>
+                </span>
             </div>
         </a>
 
@@ -65,7 +74,13 @@
                           th:text="'(' + ${awaySeed} + ')'">(16)</span>
                     <span th:text="${awayTeamName}">UNC</span>
                 </span>
-                <span class="game-detail-team__mascot" th:text="${awayTeamMascot}">Tar Heels</span>
+                <span class="game-detail-team__line" th:if="${awayRecord != null}">
+                    <span th:text="${awayRecord.wins + '-' + awayRecord.losses}">14-3</span>
+                    <span th:if="${awayRecord.confWins + awayRecord.confLosses > 0}"
+                          th:text="${awayRecord.confWins + '-' + awayRecord.confLosses + ' conf'}">5-1 conf</span>
+                    <span th:if="${awayMassey != null}" th:text="'Massey #' + ${awayMassey.rank}">Massey #12</span>
+                    <span th:if="${awayRpiRank != null}" class="game-detail-team__line-rpi" th:text="'RPI #' + ${awayRpiRank}">RPI #15</span>
+                </span>
             </div>
             <div class="game-detail-team__logo-wrap" th:if="${awayTeamLogoUrl}">
                 <img th:src="${awayTeamLogoUrl}" th:alt="${awayTeamName}" class="game-detail-team__logo"/>
@@ -73,76 +88,61 @@
         </a>
     </div>
 
-    <!-- Meta line: Conference · Venue · Date -->
+    <!-- Meta line: Conference · Venue · Date · betting line -->
     <div class="game-detail-meta">
         <span th:if="${conferenceName}" th:text="${conferenceName}" class="game-detail-meta__conf"></span>
         <span th:if="${conferenceName}" class="game-detail-meta__sep">·</span>
         <span th:if="${venue}" th:text="${venue + (neutralSite ? ' (Neutral)' : '')}">Smith Center</span>
         <span th:if="${venue}" class="game-detail-meta__sep">·</span>
         <span th:text="${#temporals.format(gameDate, 'MMMM d, yyyy')}">January 21, 2025</span>
+        <th:block th:if="${odds != null and (odds.spread != null or odds.overUnder != null or odds.homeMoneyline != null)}">
+            <span class="game-detail-meta__sep game-detail-meta__sep--lines">·</span>
+            <span class="game-detail-line" th:if="${odds.spread != null}" th:with="s=${odds.spread.doubleValue()}">
+                <span class="game-detail-line__lbl">Line</span>
+                <span th:if="${s == 0}">Pick'em</span>
+                <span th:if="${s != 0}"
+                      th:text="${s < 0 ? homeTeamAbbr + ' ' + #numbers.formatDecimal(s, 1, 1)
+                                       : awayTeamAbbr + ' -' + #numbers.formatDecimal(s, 1, 1)}">DUKE -1.5</span>
+                <!-- Spread is a handicap (negative = home favored): home covers when margin + spread > 0 -->
+                <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualMargin != null}"
+                      th:with="atsMargin=${prediction.actualMargin + s}"
+                      class="game-detail-outcome"
+                      th:classappend="${atsMargin > 0 ? ' game-detail-outcome--win' : (atsMargin < 0 ? ' game-detail-outcome--loss' : '')}"
+                      th:text="${atsMargin > 0 ? 'Home covered' : (atsMargin < 0 ? 'Away covered' : 'Push')}">Home covered</span>
+            </span>
+            <span class="game-detail-line" th:if="${odds.overUnder != null}">
+                <span class="game-detail-line__lbl">O/U</span>
+                <span th:text="${#numbers.formatDecimal(odds.overUnder, 1, 1)}">147.5</span>
+                <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualTotal != null}"
+                      th:with="wentOver=${prediction.actualTotal > odds.overUnder.doubleValue()}"
+                      class="game-detail-outcome"
+                      th:classappend="${wentOver} ? ' game-detail-outcome--win' : ' game-detail-outcome--loss'"
+                      th:text="${wentOver} ? 'Over' : 'Under'">Over</span>
+            </span>
+            <span class="game-detail-line" th:if="${odds.homeMoneyline != null or odds.awayMoneyline != null}">
+                <span class="game-detail-line__lbl">ML</span>
+                <span th:text="${homeTeamAbbr}">DUKE</span>
+                <span th:if="${odds.homeMoneyline != null}"
+                      th:text="${odds.homeMoneyline > 0 ? '+' + odds.homeMoneyline : odds.homeMoneyline}">-158</span>
+                <span th:unless="${odds.homeMoneyline != null}">N/A</span>
+                <span class="game-detail-meta__sep">/</span>
+                <span th:text="${awayTeamAbbr}">UNC</span>
+                <span th:if="${odds.awayMoneyline != null}"
+                      th:text="${odds.awayMoneyline > 0 ? '+' + odds.awayMoneyline : odds.awayMoneyline}">+133</span>
+                <span th:unless="${odds.awayMoneyline != null}">N/A</span>
+            </span>
+        </th:block>
     </div>
 </div>
 
-<!-- ── Betting + Predictions + Last Meetings ─────────────────────────────
-     Desktop: betting lines and last meetings stack in the left column while the
-     taller predictions table spans both rows on the right (no empty left column). -->
+<!-- ── Information band ──────────────────────────────────────────────────────
+     Desktop: three columns of roughly equal depth — predictions (+ last meetings
+     beneath), record & ratings, shooting & four factors — so the first screen is
+     all numbers. Tablet: 2×2. Phone: one column, each card a native accordion. -->
 <div class="game-detail-grid">
 
-    <!-- Betting Information -->
-    <details class="game-detail-col card game-detail-accordion" open
-             th:if="${odds != null and (odds.spread != null or odds.overUnder != null or odds.homeMoneyline != null)}">
-        <summary class="game-detail-section__title game-detail-accordion__summary">Betting Lines</summary>
-        <table class="game-detail-odds-table">
-            <tbody>
-                <!-- Spread -->
-                <tr th:if="${odds.spread != null}">
-                    <td class="game-detail-odds-table__label">Spread</td>
-                    <td th:with="s=${odds.spread.doubleValue()}">
-                        <span th:if="${s == 0}">Pick'em</span>
-                        <span th:if="${s != 0}"
-                              th:text="${s < 0 ? homeTeamAbbr + ' ' + #numbers.formatDecimal(s, 1, 1)
-                                               : awayTeamAbbr + ' -' + #numbers.formatDecimal(s, 1, 1)}">DUKE -1.5</span>
-                        <!-- Spread is a handicap (negative = home favored): home covers when margin + spread > 0 -->
-                        <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualMargin != null}"
-                              th:with="atsMargin=${prediction.actualMargin + s}"
-                              class="game-detail-outcome"
-                              th:classappend="${atsMargin > 0 ? ' game-detail-outcome--win' : (atsMargin < 0 ? ' game-detail-outcome--loss' : '')}"
-                              th:text="${atsMargin > 0 ? 'Home covered' : (atsMargin < 0 ? 'Away covered' : 'Push')}">Home covered</span>
-                    </td>
-                </tr>
-                <!-- O/U -->
-                <tr th:if="${odds.overUnder != null}">
-                    <td class="game-detail-odds-table__label">O/U</td>
-                    <td>
-                        <span th:text="${#numbers.formatDecimal(odds.overUnder, 1, 1)}">147.5</span>
-                        <span th:if="${status.name() == 'FINAL' and prediction != null and prediction.actualTotal != null}"
-                              th:with="wentOver=${prediction.actualTotal > odds.overUnder.doubleValue()}"
-                              class="game-detail-outcome"
-                              th:classappend="${wentOver} ? ' game-detail-outcome--win' : ' game-detail-outcome--loss'"
-                              th:text="${wentOver} ? 'Over' : 'Under'">Over</span>
-                    </td>
-                </tr>
-                <!-- Moneyline -->
-                <tr th:if="${odds.homeMoneyline != null or odds.awayMoneyline != null}">
-                    <td class="game-detail-odds-table__label">Money</td>
-                    <td>
-                        <span th:text="${homeTeamAbbr}">DUKE</span>
-                        <span th:if="${odds.homeMoneyline != null}"
-                              th:text="${odds.homeMoneyline > 0 ? '+' + odds.homeMoneyline : odds.homeMoneyline}">-158</span>
-                        <span th:unless="${odds.homeMoneyline != null}">N/A</span>
-                        <span class="game-detail-meta__sep">/</span>
-                        <span th:text="${awayTeamAbbr}">UNC</span>
-                        <span th:if="${odds.awayMoneyline != null}"
-                              th:text="${odds.awayMoneyline > 0 ? '+' + odds.awayMoneyline : odds.awayMoneyline}">+133</span>
-                        <span th:unless="${odds.awayMoneyline != null}">N/A</span>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </details>
-
     <!-- Model Predictions (with error vs. actual for FINAL games) -->
-    <details class="game-detail-col card game-detail-accordion game-detail-grid__tall" open
+    <details class="card game-detail-accordion game-detail-grid__pred" open
              th:if="${prediction != null and (prediction.massey != null or prediction.masseyTotal != null
                      or prediction.bradleyTerry != null or prediction.bradleyTerryWeighted != null
                      or !#maps.isEmpty(prediction.mlModels))}"
@@ -263,8 +263,8 @@
     </details>
 
     <!-- Last Five Meetings -->
-    <section class="game-detail-col card" th:if="${not #lists.isEmpty(lastMeetings)}">
-        <h2 class="game-detail-section__title">Last 5 Meetings</h2>
+    <details class="card game-detail-accordion game-detail-grid__meet" open th:if="${not #lists.isEmpty(lastMeetings)}">
+        <summary class="game-detail-section__title game-detail-accordion__summary">Last 5 Meetings</summary>
         <table class="game-detail-meetings-table">
             <tbody>
                 <tr th:each="m, s : ${lastMeetings}"
@@ -283,20 +283,16 @@
                 </tr>
             </tbody>
         </table>
-    </section>
-</div><!-- end grid -->
+    </details>
 
-<!-- ── Team Comparison Table ─────────────────────────────────────────────── -->
-<section class="game-detail-section card" th:if="${homeStats != null or awayStats != null}">
-    <h2 class="game-detail-section__title">Team Comparison</h2>
-    <div class="game-detail-comparison-grid">
-
-        <!-- Column 1: Records & Ratings -->
+    <!-- Record & Ratings (records as of tip-off, not today's totals) -->
+    <details class="card game-detail-accordion game-detail-grid__rec" open th:if="${homeStats != null or awayStats != null}">
+        <summary class="game-detail-section__title game-detail-accordion__summary">Record &amp; Ratings</summary>
         <div class="game-detail-comparison-wrap">
             <table class="game-detail-comparison-table">
                 <thead>
                     <tr>
-                        <th>Record &amp; Ratings</th>
+                        <th></th>
                         <th th:text="${homeTeamAbbr}">DUKE</th>
                         <th th:text="${awayTeamAbbr}">UNC</th>
                     </tr>
@@ -364,50 +360,45 @@
                     <!-- Ratings -->
                     <tr>
                         <td class="game-detail-comparison-table__label">Massey</td>
-                        <td th:if="${homeMassey != null}"
-                            th:text="${#numbers.formatDecimal(homeMassey.rating, 1, 1) + ' (#' + homeMassey.rank + ')'}">68.2 (#232)</td>
+                        <td th:if="${homeMassey != null}"><span th:text="${#numbers.formatDecimal(homeMassey.rating, 1, 1)}">1.0</span> <small class="game-detail-comparison-table__rank" th:text="'#' + ${homeMassey.rank}">#1</small></td>
                         <td th:unless="${homeMassey != null}">—</td>
-                        <td th:if="${awayMassey != null}"
-                            th:text="${#numbers.formatDecimal(awayMassey.rating, 1, 1) + ' (#' + awayMassey.rank + ')'}">71.2 (#150)</td>
+                        <td th:if="${awayMassey != null}"><span th:text="${#numbers.formatDecimal(awayMassey.rating, 1, 1)}">1.0</span> <small class="game-detail-comparison-table__rank" th:text="'#' + ${awayMassey.rank}">#1</small></td>
                         <td th:unless="${awayMassey != null}">—</td>
                     </tr>
                     <tr>
                         <td class="game-detail-comparison-table__label">Bradley-Terry</td>
-                        <td th:if="${homeBT != null}"
-                            th:text="${#numbers.formatDecimal(homeBT.rating, 1, 2) + ' (#' + homeBT.rank + ')'}">-0.18 (#210)</td>
+                        <td th:if="${homeBT != null}"><span th:text="${#numbers.formatDecimal(homeBT.rating, 1, 2)}">1.0</span> <small class="game-detail-comparison-table__rank" th:text="'#' + ${homeBT.rank}">#1</small></td>
                         <td th:unless="${homeBT != null}">—</td>
-                        <td th:if="${awayBT != null}"
-                            th:text="${#numbers.formatDecimal(awayBT.rating, 1, 2) + ' (#' + awayBT.rank + ')'}">1.39 (#14)</td>
+                        <td th:if="${awayBT != null}"><span th:text="${#numbers.formatDecimal(awayBT.rating, 1, 2)}">1.0</span> <small class="game-detail-comparison-table__rank" th:text="'#' + ${awayBT.rank}">#1</small></td>
                         <td th:unless="${awayBT != null}">—</td>
                     </tr>
                     <tr>
                         <td class="game-detail-comparison-table__label">W. Bradley-Terry</td>
-                        <td th:if="${homeBTW != null}"
-                            th:text="${#numbers.formatDecimal(homeBTW.rating, 1, 2) + ' (#' + homeBTW.rank + ')'}">-0.20 (#215)</td>
+                        <td th:if="${homeBTW != null}"><span th:text="${#numbers.formatDecimal(homeBTW.rating, 1, 2)}">1.0</span> <small class="game-detail-comparison-table__rank" th:text="'#' + ${homeBTW.rank}">#1</small></td>
                         <td th:unless="${homeBTW != null}">—</td>
-                        <td th:if="${awayBTW != null}"
-                            th:text="${#numbers.formatDecimal(awayBTW.rating, 1, 2) + ' (#' + awayBTW.rank + ')'}">1.41 (#12)</td>
+                        <td th:if="${awayBTW != null}"><span th:text="${#numbers.formatDecimal(awayBTW.rating, 1, 2)}">1.0</span> <small class="game-detail-comparison-table__rank" th:text="'#' + ${awayBTW.rank}">#1</small></td>
                         <td th:unless="${awayBTW != null}">—</td>
                     </tr>
                     <tr>
                         <td class="game-detail-comparison-table__label">RPI</td>
-                        <td th:if="${homeSnap != null and homeSnap.rpi != null}"
-                            th:text="${#numbers.formatDecimal(homeSnap.rpi, 1, 3) + (homeRpiRank != null ? ' (#' + homeRpiRank + ')' : '')}">0.568 (#67)</td>
+                        <td th:if="${homeSnap != null and homeSnap.rpi != null}"><span th:text="${#numbers.formatDecimal(homeSnap.rpi, 1, 3)}">0.500</span> <small class="game-detail-comparison-table__rank" th:if="${homeRpiRank != null}" th:text="'#' + ${homeRpiRank}">#1</small></td>
                         <td th:unless="${homeSnap != null and homeSnap.rpi != null}">—</td>
-                        <td th:if="${awaySnap != null and awaySnap.rpi != null}"
-                            th:text="${#numbers.formatDecimal(awaySnap.rpi, 1, 3) + (awayRpiRank != null ? ' (#' + awayRpiRank + ')' : '')}">0.613 (#15)</td>
+                        <td th:if="${awaySnap != null and awaySnap.rpi != null}"><span th:text="${#numbers.formatDecimal(awaySnap.rpi, 1, 3)}">0.500</span> <small class="game-detail-comparison-table__rank" th:if="${awayRpiRank != null}" th:text="'#' + ${awayRpiRank}">#1</small></td>
                         <td th:unless="${awaySnap != null and awaySnap.rpi != null}">—</td>
                     </tr>
                 </tbody>
             </table>
         </div>
+    </details>
 
-        <!-- Column 2: Shooting, Rebounding & Four Factors -->
+    <!-- Shooting, Rebounding & Four Factors -->
+    <details class="card game-detail-accordion game-detail-grid__ff" open th:if="${homeStats != null or awayStats != null}">
+        <summary class="game-detail-section__title game-detail-accordion__summary">Shooting &amp; Four Factors</summary>
         <div class="game-detail-comparison-wrap">
             <table class="game-detail-comparison-table">
                 <thead>
                     <tr>
-                        <th>Shooting &amp; Four Factors</th>
+                        <th></th>
                         <th th:text="${homeTeamAbbr}">DUKE</th>
                         <th th:text="${awayTeamAbbr}">UNC</th>
                     </tr>
@@ -491,8 +482,8 @@
                 </tbody>
             </table>
         </div>
-    </div>
-</section>
+    </details>
+</div><!-- end information band -->
 
 <!-- ── Game Analysis Chart ─────────────────────────────────────────────── -->
 <section class="game-detail-section card">

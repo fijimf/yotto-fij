@@ -2710,6 +2710,20 @@ a.team-hero__conference:hover {
     font-size: 0.8rem;
     color: var(--color-text-muted);
 }
+/* Pre-game record · conf record · Massey # · RPI # under the team name */
+.game-detail-team__line {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.game-detail-team__line > span { white-space: nowrap; }
+.game-detail-team__line > span + span::before {
+    content: '·';
+    margin: 0 0.3rem;
+    color: var(--color-border);
+}
 .game-detail-score {
     text-align: center;
     flex-shrink: 0;
@@ -2788,7 +2802,8 @@ a.team-hero__conference:hover {
     }
     /* away markup is info-then-logo (row-reverse on desktop); keep the logo on top */
     .game-detail-team--away { flex-direction: column-reverse; }
-    .game-detail-team__mascot { display: none; }
+    .game-detail-team__line { font-size: 0.72rem; }
+    .game-detail-team__line-rpi { display: none; }
     .game-detail-team__info--home,
     .game-detail-team__info--away {
         border-left: 0;
@@ -3437,37 +3452,41 @@ a.team-hero__conference:hover {
 
 /* ── Game Detail Page Layout ──────────────────────────────────────────── */
 
-/* Betting lines + last meetings stack in the left column; the predictions table
-   spans both rows on the right, so neither column is left empty. Items without an
-   explicit placement auto-flow into the free cells, so a missing betting card just
-   moves last meetings up. */
+/* Information band: three columns of similar depth on desktop (predictions with
+   last meetings beneath | record & ratings | shooting & four factors), 2×2 on
+   tablets, one column on phones. Named areas keep the DOM order sensible for
+   phones while desktop places the short meetings card under predictions. */
 .game-detail-grid {
     display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    /* row 1 hugs the betting card so last meetings sits right under it; row 2 takes the rest */
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.1fr) minmax(0, 0.95fr);
     grid-template-rows: auto 1fr;
-    grid-auto-flow: row dense;
+    grid-template-areas:
+        "pred rec ff"
+        "meet rec ff";
     gap: 1rem;
     align-items: start;
     margin-bottom: 1rem;
 }
-.game-detail-grid__tall {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-}
+.game-detail-grid__pred { grid-area: pred; }
+.game-detail-grid__meet { grid-area: meet; }
+.game-detail-grid__rec  { grid-area: rec; }
+.game-detail-grid__ff   { grid-area: ff; }
 
-@media (max-width: 1023px) {
+@media (max-width: 1099px) {
     .game-detail-grid {
-        grid-template-columns: 1fr;
-    }
-    .game-detail-grid__tall {
-        grid-column: auto;
-        grid-row: auto;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        grid-template-areas:
+            "pred rec"
+            "ff meet";
     }
 }
-
-.game-detail-col {
-    /* card styling already applied via .card class */
+@media (max-width: 767px) {
+    .game-detail-grid {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto;
+        grid-template-areas: "pred" "meet" "rec" "ff";
+    }
 }
 
 /* Game detail section (full-width) */
@@ -3487,6 +3506,28 @@ a.team-hero__conference:hover {
 }
 .game-detail-meta__sep { color: var(--color-border); }
 .game-detail-meta__conf { font-weight: 600; }
+.game-detail-meta { flex-wrap: wrap; row-gap: 0.25rem; }
+/* Betting line items in the meta row: "Line ND -2.5 [Home covered] · O/U 150.5 [Over] · ML ND -148 / RUTG +124" */
+.game-detail-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+.game-detail-line + .game-detail-line::before {
+    content: '·';
+    color: var(--color-border);
+    margin-right: 0.2rem;
+}
+.game-detail-line__lbl {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+.game-detail-line .game-detail-outcome { margin-left: 0; }
 
 /* H2H summary */
 .game-detail-h2h__summary {
@@ -3500,6 +3541,8 @@ a.team-hero__conference:hover {
 .game-detail-odds-table {
     width: 100%;
     border-collapse: collapse;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
 }
 .game-detail-odds-table tr + tr td {
     border-top: 1px solid var(--color-border);
@@ -3563,7 +3606,7 @@ a.team-hero__conference:hover {
 .game-detail-comparison-table__group td {
     text-align: left;
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-muted);
@@ -3573,26 +3616,33 @@ a.team-hero__conference:hover {
 .game-detail-comparison-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
 }
 .game-detail-comparison-table th {
     text-align: center;
-    padding: 0.5rem;
+    padding: 0.3rem 0.5rem;
     color: var(--color-text-muted);
     font-weight: 600;
     border-bottom: 2px solid var(--color-border);
 }
 .game-detail-comparison-table th:first-child { text-align: left; }
 .game-detail-comparison-table td {
-    padding: 0.3rem 0.5rem;
+    padding: 0.28rem 0.5rem;
     text-align: center;
+    white-space: nowrap;
     border-bottom: 1px solid var(--color-border);
 }
 .game-detail-comparison-table__label {
     text-align: left !important;
     color: var(--color-text-muted);
-    font-size: 0.85rem;
-    padding-left: 0.75rem !important;
+    font-size: 0.82rem;
+    padding-left: 0.5rem !important;
+    white-space: nowrap;
+}
+.game-detail-comparison-table__rank {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
 }
 .game-detail-comparison-table__streak--win { color: var(--color-success); font-weight: 600; }
 .game-detail-comparison-table__streak--loss { color: var(--color-danger); font-weight: 600; }
