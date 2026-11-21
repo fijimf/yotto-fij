@@ -10,17 +10,16 @@
 <main layout:fragment="content">
 
 <!-- ── Game Header ──────────────────────────────────────────────────────── -->
-<div class="game-detail-header card">
+<div class="game-detail-header card"
+     th:style="'--home-color: #' + (${homeTeamColor} ?: '1a1a2e') + '; --away-color: #' + (${awayTeamColor} ?: '1a1a2e')">
     <div class="game-detail-matchup">
 
         <!-- Home team -->
         <a th:href="@{'/teams/' + ${homeTeamId}}" class="game-detail-team">
-            <div class="game-detail-team__logo-wrap"
-                 th:if="${homeTeamLogoUrl}"
-                 th:style="'background-color: #' + (${homeTeamColor} ?: '1a1a2e')">
+            <div class="game-detail-team__logo-wrap" th:if="${homeTeamLogoUrl}">
                 <img th:src="${homeTeamLogoUrl}" th:alt="${homeTeamName}" class="game-detail-team__logo"/>
             </div>
-            <div class="game-detail-team__info">
+            <div class="game-detail-team__info game-detail-team__info--home">
                 <span class="game-detail-team__name">
                     <span th:if="${homeSeed != null}" class="game-detail-team__seed"
                           th:text="'(' + ${homeSeed} + ')'">(1)</span>
@@ -60,7 +59,7 @@
 
         <!-- Away team -->
         <a th:href="@{'/teams/' + ${awayTeamId}}" class="game-detail-team game-detail-team--away">
-            <div class="game-detail-team__info">
+            <div class="game-detail-team__info game-detail-team__info--away">
                 <span class="game-detail-team__name">
                     <span th:if="${awaySeed != null}" class="game-detail-team__seed"
                           th:text="'(' + ${awaySeed} + ')'">(16)</span>
@@ -68,9 +67,7 @@
                 </span>
                 <span class="game-detail-team__mascot" th:text="${awayTeamMascot}">Tar Heels</span>
             </div>
-            <div class="game-detail-team__logo-wrap"
-                 th:if="${awayTeamLogoUrl}"
-                 th:style="'background-color: #' + (${awayTeamColor} ?: '1a1a2e')">
+            <div class="game-detail-team__logo-wrap" th:if="${awayTeamLogoUrl}">
                 <img th:src="${awayTeamLogoUrl}" th:alt="${awayTeamName}" class="game-detail-team__logo"/>
             </div>
         </a>
@@ -86,8 +83,10 @@
     </div>
 </div>
 
-<!-- ── Row 1: Betting ───────────────────────────────────────────────────── -->
-<div class="game-detail-row">
+<!-- ── Betting + Predictions + Last Meetings ─────────────────────────────
+     Desktop: betting lines and last meetings stack in the left column while the
+     taller predictions table spans both rows on the right (no empty left column). -->
+<div class="game-detail-grid">
 
     <!-- Betting Information -->
     <details class="game-detail-col card game-detail-accordion" open
@@ -143,7 +142,7 @@
     </details>
 
     <!-- Model Predictions (with error vs. actual for FINAL games) -->
-    <details class="game-detail-col card game-detail-accordion" open
+    <details class="game-detail-col card game-detail-accordion game-detail-grid__tall" open
              th:if="${prediction != null and (prediction.massey != null or prediction.masseyTotal != null
                      or prediction.bradleyTerry != null or prediction.bradleyTerryWeighted != null
                      or !#maps.isEmpty(prediction.mlModels))}"
@@ -262,10 +261,6 @@
             <a th:href="@{/models/compare}">Model performance →</a>
         </p>
     </details>
-</div><!-- end row 1 -->
-
-<!-- ── Row 2: Last Five Meetings ─────────────────────────────────────────── -->
-<div class="game-detail-row">
 
     <!-- Last Five Meetings -->
     <section class="game-detail-col card" th:if="${not #lists.isEmpty(lastMeetings)}">
@@ -289,7 +284,7 @@
             </tbody>
         </table>
     </section>
-</div><!-- end row 2 -->
+</div><!-- end grid -->
 
 <!-- ── Team Comparison Table ─────────────────────────────────────────────── -->
 <section class="game-detail-section card" th:if="${homeStats != null or awayStats != null}">

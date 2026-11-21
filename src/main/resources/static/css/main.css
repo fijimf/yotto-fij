@@ -2629,7 +2629,27 @@ a.team-hero__conference:hover {
 
 /* Game detail page */
 .game-detail-header {
-    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    padding-top: 1.1rem;
+    /* --home-color/--away-color are set inline from the Team rows; the *-ui copies are
+       what we paint with, lightened in dark mode so navy-on-navy teams stay visible */
+    --home-ui: var(--home-color);
+    --away-ui: var(--away-color);
+}
+[data-theme="dark"] .game-detail-header {
+    --home-ui: color-mix(in oklab, var(--home-color) 62%, white);
+    --away-ui: color-mix(in oklab, var(--away-color) 62%, white);
+}
+/* Team-colour flair: a split band across the top of the header (home colour left,
+   away colour right) instead of painting a box behind each logo. */
+.game-detail-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--home-ui) 0%, var(--home-ui) 44%, var(--away-ui) 56%, var(--away-ui) 100%);
 }
 .game-detail-matchup {
     display: flex;
@@ -2654,16 +2674,29 @@ a.team-hero__conference:hover {
 .game-detail-team__logo-wrap {
     width: 56px;
     height: 56px;
-    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
 .game-detail-team__logo {
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     object-fit: contain;
+}
+/* Dark logos vanish on the dark surface without the old painted box; a faint halo keeps them legible */
+[data-theme="dark"] .game-detail-team__logo {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.45));
+}
+/* Team colour accent on the name block: left edge for home, right edge for away */
+.game-detail-team__info--home {
+    border-left: 3px solid var(--home-ui);
+    padding-left: 0.6rem;
+}
+.game-detail-team__info--away {
+    border-right: 3px solid var(--away-ui);
+    padding-right: 0.6rem;
+}
 }
 .game-detail-team__name {
     display: block;
@@ -2740,6 +2773,36 @@ a.team-hero__conference:hover {
     border: 1px solid var(--color-border);
 }
 
+/* Phone: home | score | away in one row, logo stacked over the name, colour accent as an underline */
+@media (max-width: 767px) {
+    .game-detail-matchup {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+        align-items: start;
+        gap: 0.4rem;
+    }
+    .game-detail-team {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.35rem;
+        min-width: 0;
+    }
+    /* away markup is info-then-logo (row-reverse on desktop); keep the logo on top */
+    .game-detail-team--away { flex-direction: column-reverse; }
+    .game-detail-team__mascot { display: none; }
+    .game-detail-team__info--home,
+    .game-detail-team__info--away {
+        border-left: 0;
+        border-right: 0;
+        padding: 0 0 0.3rem;
+        border-bottom: 3px solid var(--home-ui);
+    }
+    .game-detail-team__info--away { border-bottom-color: var(--away-ui); }
+    .game-detail-team__name { font-size: 1rem; line-height: 1.15; }
+    .game-detail-score__badges { gap: 0.25rem; }
+    .game-detail-score__number { font-size: 2rem; }
+    .game-detail-meta { flex-wrap: wrap; }
+
 /* Tournament chip — used on schedule rows and on the game detail header. */
 .tournament-badge {
     display: inline-block;
@@ -2773,18 +2836,18 @@ a.team-hero__conference:hover {
     font-weight: 500;
 }
 .game-detail-meta {
-    margin-top: 0.75rem;
+    margin-top: 0.5rem;
     font-size: 0.8rem;
     color: var(--color-text-muted);
     text-align: center;
 }
 .game-detail-section {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 .game-detail-section__title {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -3374,17 +3437,32 @@ a.team-hero__conference:hover {
 
 /* ── Game Detail Page Layout ──────────────────────────────────────────── */
 
-/* Two-column rows (Betting+Predictions, H2H+Meetings) */
-.game-detail-row {
+/* Betting lines + last meetings stack in the left column; the predictions table
+   spans both rows on the right, so neither column is left empty. Items without an
+   explicit placement auto-flow into the free cells, so a missing betting card just
+   moves last meetings up. */
+.game-detail-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    /* row 1 hugs the betting card so last meetings sits right under it; row 2 takes the rest */
+    grid-template-rows: auto 1fr;
+    grid-auto-flow: row dense;
     gap: 1rem;
+    align-items: start;
     margin-bottom: 1rem;
+}
+.game-detail-grid__tall {
+    grid-column: 2;
+    grid-row: 1 / span 2;
 }
 
 @media (max-width: 1023px) {
-    .game-detail-row {
+    .game-detail-grid {
         grid-template-columns: 1fr;
+    }
+    .game-detail-grid__tall {
+        grid-column: auto;
+        grid-row: auto;
     }
 }
 
@@ -3403,7 +3481,7 @@ a.team-hero__conference:hover {
     align-items: center;
     gap: 0.5rem;
     justify-content: center;
-    margin-top: 0.75rem;
+    margin-top: 0.5rem;
     color: var(--color-text-muted);
     font-size: 0.9rem;
 }
@@ -3425,15 +3503,15 @@ a.team-hero__conference:hover {
 }
 .game-detail-odds-table tr + tr td {
     border-top: 1px solid var(--color-border);
-    padding-top: 0.5rem;
 }
 .game-detail-odds-table td {
-    padding: 0.4rem 0.25rem;
+    padding: 0.3rem 0.25rem;
 }
 .game-detail-odds-table__label {
     color: var(--color-text-muted);
     width: 80px;
     font-size: 0.85rem;
+    white-space: nowrap;
 }
 
 /* Last meetings table */
@@ -3443,7 +3521,7 @@ a.team-hero__conference:hover {
     font-size: 0.9rem;
 }
 .game-detail-meetings-table td {
-    padding: 0.45rem 0.5rem;
+    padding: 0.35rem 0.5rem;
 }
 .game-detail-meetings-table__row--alt td {
     background: var(--color-bg-surface);
@@ -3506,7 +3584,7 @@ a.team-hero__conference:hover {
 }
 .game-detail-comparison-table th:first-child { text-align: left; }
 .game-detail-comparison-table td {
-    padding: 0.4rem 0.5rem;
+    padding: 0.3rem 0.5rem;
     text-align: center;
     border-bottom: 1px solid var(--color-border);
 }
@@ -3761,6 +3839,11 @@ a.team-hero__conference:hover {
     /* Override UA stylesheet that hides non-summary children when not [open] */
     details.game-detail-accordion > :not(summary) {
         display: block !important;
+    }
+    /* display:block shrink-wraps a table to its content; keep tables full width */
+    details.game-detail-accordion > table {
+        display: table !important;
+        width: 100%;
     }
 }
 
