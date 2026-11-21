@@ -1490,41 +1490,101 @@ tbody tr:hover {
 .team-hero {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.team-hero__identity {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
 }
 
 .team-hero__logo-wrap {
-    width: 80px;
-    height: 80px;
-    border-radius: var(--radius);
+    width: 72px;
+    height: 72px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    padding: 0.5rem;
 }
 
 .team-hero__logo {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     object-fit: contain;
+}
+/* Plain logo, theme-matched: ESPN's light-background art by default, the dark variant in dark mode */
+.team-hero__logo--dark { display: none; }
+[data-theme="dark"] .team-hero__logo--light { display: none; }
+[data-theme="dark"] .team-hero__logo--dark {
+    display: block;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.35));
 }
 
 .team-hero__name {
     font-family: var(--font-display);
-    font-size: 2.25rem;
+    font-size: 2rem;
     font-weight: 700;
     color: var(--color-text);
     line-height: 1.1;
     letter-spacing: 0.01em;
+    margin: 0;
 }
 
 .team-hero__mascot {
-    font-size: 1.1rem;
+    font-family: var(--font-family);
+    font-size: 1rem;
+    font-weight: 500;
     color: var(--color-text-muted);
-    margin-top: 0.15rem;
+    margin-left: 0.4rem;
+    letter-spacing: 0;
+    white-space: nowrap;
 }
+
+/* Headline tiles: record · conf · streak · Massey # · B-T # · RPI # */
+.team-hero__tiles {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+    row-gap: 0.5rem;
+}
+.team-hero__tile {
+    padding: 0 1rem;
+    border-left: 1px solid var(--color-border);
+    text-align: center;
+    min-width: 4.5rem;
+}
+.team-hero__tile:first-child { border-left: 0; padding-left: 0; }
+.team-hero__tile dt {
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+.team-hero__tile dd {
+    margin: 0.1rem 0 0;
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.team-hero__tile dd small {
+    font-family: var(--font-family);
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-left: 0.15rem;
+}
+.team-hero__tile[data-trend="win"] dd { color: var(--color-success); }
+.team-hero__tile[data-trend="loss"] dd { color: var(--color-danger); }
 
 .team-hero__meta {
     display: flex;
@@ -1627,22 +1687,22 @@ a.team-hero__conference:hover {
 .schedule-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
 }
 
 .schedule-table thead th {
-    font-size: 0.75rem;
-    padding: 0.5rem 0.75rem;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.5rem;
 }
 
 .schedule-table tbody td {
-    padding: 0.5rem 0.75rem;
+    padding: 0.36rem 0.5rem;
 }
 
 .schedule-table__date {
     white-space: nowrap;
     color: var(--color-text-muted);
-    width: 5rem;
+    width: 4rem;
 }
 
 .schedule-table__loc {
@@ -2037,11 +2097,63 @@ a.team-hero__conference:hover {
     margin-bottom: 0.5rem;
     flex-wrap: wrap;
 }
+/* Rail title only matters when the panel is beside the schedule; tabs name it otherwise */
+.team-stats__title {
+    display: none;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--color-primary);
+    margin: 0;
+}
 
 .team-stats__asof {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--color-text-muted);
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+/* ── Team page body: schedule | stats rail (+ news beneath) from 1100px up ── */
+@media (min-width: 1100px) {
+    .team-tabs { display: none; }
+    .team-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+        grid-template-areas:
+            "sched stats"
+            "sched news";
+        column-gap: 2rem;
+        row-gap: 1.25rem;
+        align-items: start;
+    }
+    .team-body__schedule { grid-area: sched; margin-bottom: 0; }
+    .team-body__stats    { grid-area: stats; }
+    .team-body__news     { grid-area: news; }
+    .team-body__news > section { margin-top: 0 !important; }
+    /* both panels are always visible here; the tab script's hidden flag is ignored */
+    .team-body .team-tab-panel[hidden] { display: block; }
+    .team-stats__title { display: block; }
+    .team-body__stats .analytics-season-tabs { display: none; }
+    .team-body__stats .team-stats__header { margin-bottom: 0.25rem; }
+    /* venue is the widest, lowest-value column; the game page has it */
+    .team-body__schedule .schedule-table__venue { display: none; }
+    /* one column of compact stat rows in the rail: full labels, short rank, wide bar.
+       A 30-game schedule runs ~1650px, so the rail (stats ≈ 1200px + news) matches it. */
+    .team-body__stats .stat-groups { grid-template-columns: 1fr; }
+    .team-body__stats .stat-group { margin-bottom: 0.8rem; }
+    .team-body__stats .stat-group__header { font-size: 0.7rem; padding-bottom: 0.25rem; margin-bottom: 0.2rem; }
+    .team-body__stats .stat-grid__row {
+        grid-template-columns: minmax(0, 1fr) 3.4rem 2.8rem minmax(5rem, 8rem);
+        gap: 0.6rem;
+        padding: 0.14rem 0.25rem;
+    }
+    .team-body__stats .stat-grid__label { font-size: 0.8rem; }
+    .team-body__stats .stat-grid__value { font-size: 0.84rem; }
+    .team-body__stats .stat-grid__rank { font-size: 0.7rem; }
+    .team-body__stats .stat-bar { height: 5px; }
+    .team-body__schedule .schedule-table__odds { white-space: nowrap; }
 }
 
 .stat-groups {

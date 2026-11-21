@@ -172,6 +172,8 @@ public class TeamWebController {
         model.addAttribute("currentSeasonYear", currentSeason != null ? currentSeason.getYear() : null);
         model.addAttribute("statPanel", currentSeason != null
                 ? teamPageDataService.buildStatPanel(id, currentSeason.getYear()) : null);
+        model.addAttribute("headline", currentSeason != null
+                ? teamPageDataService.buildHeadline(id, currentSeason.getYear()) : null);
         model.addAttribute("newsCards", newsQueryService.teamNews(id, 5));
         model.addAttribute("newsMoreLink", "/news?teamId=" + id);
 

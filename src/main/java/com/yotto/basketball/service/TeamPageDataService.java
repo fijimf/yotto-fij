@@ -11,12 +11,14 @@ import com.yotto.basketball.entity.Season;
 import com.yotto.basketball.entity.SeasonPopulationStat;
 import com.yotto.basketball.entity.SeasonStatistics;
 import com.yotto.basketball.entity.Team;
+import com.yotto.basketball.entity.TeamPowerRatingSnapshot;
 import com.yotto.basketball.entity.TeamSeasonStatSnapshot;
 import com.yotto.basketball.entity.TeamStatSnapshot;
 import com.yotto.basketball.repository.GameRepository;
 import com.yotto.basketball.repository.SeasonPopulationStatRepository;
 import com.yotto.basketball.repository.SeasonRepository;
 import com.yotto.basketball.repository.SeasonStatisticsRepository;
+import com.yotto.basketball.repository.TeamPowerRatingSnapshotRepository;
 import com.yotto.basketball.repository.TeamSeasonStatSnapshotRepository;
 import com.yotto.basketball.repository.TeamStatSnapshotRepository;
 import com.yotto.basketball.service.ConferenceNamingService.ConferenceNames;
@@ -57,6 +59,7 @@ public class TeamPageDataService {
     private final TournamentBadgeFormatter tournamentBadgeFormatter;
     private final TeamStatSnapshotRepository teamStatSnapshotRepository;
     private final TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository;
+    private final TeamPowerRatingSnapshotRepository powerRatingSnapshotRepository;
     private final SeasonPopulationStatRepository popStatRepository;
     private final ConferenceNamingService namingService;
 
@@ -66,6 +69,7 @@ public class TeamPageDataService {
                                TournamentBadgeFormatter tournamentBadgeFormatter,
                                TeamStatSnapshotRepository teamStatSnapshotRepository,
                                TeamSeasonStatSnapshotRepository teamSeasonStatSnapshotRepository,
+                               TeamPowerRatingSnapshotRepository powerRatingSnapshotRepository,
                                SeasonPopulationStatRepository popStatRepository,
                                ConferenceNamingService namingService) {
         this.seasonRepository = seasonRepository;
@@ -74,8 +78,56 @@ public class TeamPageDataService {
         this.tournamentBadgeFormatter = tournamentBadgeFormatter;
         this.teamStatSnapshotRepository = teamStatSnapshotRepository;
         this.teamSeasonStatSnapshotRepository = teamSeasonStatSnapshotRepository;
+        this.powerRatingSnapshotRepository = powerRatingSnapshotRepository;
         this.popStatRepository = popStatRepository;
         this.namingService = namingService;
+    }
+
+    // ── Hero headline (latest ranks) ──
+
+    /**
+     * Headline numbers for the team hero: latest Massey / Bradley-Terry rating and
+     * rank plus RPI and its rank, all from the season's most recent snapshots.
+     * Every field is nullable — early in a season there may be no snapshots yet.
+     */
+    @Cacheable(value = CacheConfig.TEAM_HEADLINE, key = "#teamId + ':' + #year")
+    @Transactional(readOnly = true)
+    public Headline buildHeadline(Long teamId, int year) {
+        Season season = seasonRepository.findByYear(year)
+                .orElseThrow(() -> new EntityNotFoundException("Season not found: " + year));
+        Long seasonId = season.getId();
+
+        TeamPowerRatingSnapshot massey = powerRatingSnapshotRepository
+                .findLatest(teamId, seasonId, "MASSEY").orElse(null);
+        TeamPowerRatingSnapshot bt = powerRatingSnapshotRepository
+                .findLatest(teamId, seasonId, "BRADLEY_TERRY").orElse(null);
+
+        Double rpi = null;
+        Integer rpiRank = null;
+        Integer rpiField = null;
+        LocalDate rpiDate = teamSeasonStatSnapshotRepository.findLatestSnapshotDate(seasonId).orElse(null);
+        if (rpiDate != null) {
+            List<TeamSeasonStatSnapshot> all = teamSeasonStatSnapshotRepository.findBySeasonAndDate(seasonId, rpiDate);
+            TeamSeasonStatSnapshot mine = all.stream()
+                    .filter(r -> teamId.equals(r.getTeam().getId()))
+                    .findFirst().orElse(null);
+            if (mine != null && mine.getRpi() != null) {
+                double v = mine.getRpi();
+                rpi = v;
+                rpiRank = 1 + (int) all.stream().filter(r -> r.getRpi() != null && r.getRpi() > v).count();
+                rpiField = (int) all.stream().filter(r -> r.getRpi() != null).count();
+            }
+        }
+        return new Headline(
+                massey != null ? massey.getRating() : null, massey != null ? massey.getRank() : null,
+                bt != null ? bt.getRating() : null, bt != null ? bt.getRank() : null,
+                rpi, rpiRank, rpiField);
+    }
+
+    public record Headline(Double masseyRating, Integer masseyRank,
+                           Double btRating, Integer btRank,
+                           Double rpi, Integer rpiRank, Integer rpiField) {
+        public boolean isEmpty() { return masseyRank == null && btRank == null && rpiRank == null; }
     }
 
     // ── Season schedule ──
@@ -384,7 +436,14 @@ public class TeamPageDataService {
     // ── Records ──
 
     /** The full Team Profile panel: groups of stats for one team's latest snapshot. */
-    public record TeamStatPanel(int year, LocalDate asOfDate, int gamesPlayed, List<StatGroup> groups) {}
+    public record TeamStatPanel(int year, LocalDate asOfDate, int gamesPlayed, List<StatGroup> groups) {
+        /** Largest ranked field across the panel — shown once in the header so rows can print "#n" alone. */
+        public Integer fieldSize() {
+            return groups.stream().flatMap(g -> g.rows().stream())
+                    .map(StatRow::fieldSize).filter(Objects::nonNull)
+                    .max(Integer::compare).orElse(null);
+        }
+    }
 
     public record StatGroup(String header, List<StatRow> rows) {}
 
@@ -407,6 +466,11 @@ public class TeamPageDataService {
     ) {
         public String rankDisplay() {
             return (rank == null || fieldSize == null) ? "—" : "#" + rank + " of " + fieldSize;
+        }
+
+        /** "#n" — the field size is printed once in the panel header. */
+        public String rankShort() {
+            return rank == null ? "—" : "#" + rank;
         }
 
         /** True when this stat has a dedicated stat-detail page (the box-score catalog stats). */
@@ -435,6 +499,20 @@ public class TeamPageDataService {
     ) {
         public String record() { return wins + "-" + losses; }
         public String conferenceRecord() { return conferenceWins + "-" + conferenceLosses; }
+
+        /** Current streak over played games, e.g. "W3" / "L1"; null before the first result. */
+        public String streak() {
+            String last = null;
+            int n = 0;
+            for (int i = games.size() - 1; i >= 0; i--) {
+                String r = games.get(i).result();
+                if (r == null) continue;
+                if (last == null) { last = r; n = 1; }
+                else if (r.equals(last)) n++;
+                else break;
+            }
+            return last == null ? null : last + n;
+        }
     }
 
     /**

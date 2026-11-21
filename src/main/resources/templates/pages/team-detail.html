@@ -13,81 +13,123 @@
       th:data-team-id="${teamId}"
       th:data-season-year="${currentSeasonYear}">
 
-    <!-- Team header -->
+    <!-- Team hero: identity on the left, this season's headline numbers on the right.
+         Logos are plain (no painted box); the dark-theme variant swaps in via CSS. -->
     <div class="team-hero">
-        <div class="team-hero__logo-wrap"
-             th:if="${team.logoUrl}"
-             th:style="'background-color: #' + ${team.logoBackgroundColor}">
-            <img th:src="${team.effectiveLogoUrl}" th:alt="${team.name}" class="team-hero__logo" />
-        </div>
-        <div class="team-hero__info">
-            <h1 class="team-hero__name" th:text="${team.name}">Alabama</h1>
-            <p class="team-hero__mascot" th:text="${team.mascot}">Crimson Tide</p>
-            <div class="team-hero__meta">
-                <a th:if="${currentConference}" class="team-hero__conference"
-                   th:href="@{'/conferences/' + ${currentConference.id}}"
-                   th:text="${currentConferenceName}">SEC</a>
-                <a th:if="${team.espnId}" class="team-hero__espn-link"
-                   th:href="'https://www.espn.com/mens-college-basketball/team/_/id/' + ${team.espnId} + '/' + (${team.slug} ?: '')"
-                   target="_blank" rel="noopener">ESPN</a>
-                <th:block sec:authorize="isAuthenticated()">
-                    <th:block th:insert="~{fragments/follow-button :: button}"/>
-                </th:block>
+        <div class="team-hero__identity">
+            <div class="team-hero__logo-wrap" th:if="${team.logoUrl}">
+                <img th:src="${team.logoUrl}" th:alt="${team.name}" class="team-hero__logo team-hero__logo--light" />
+                <img th:src="${team.darkLogoUrl} ?: ${team.logoUrl}" th:alt="${team.name}" class="team-hero__logo team-hero__logo--dark" />
+            </div>
+            <div class="team-hero__info">
+                <h1 class="team-hero__name">
+                    <span th:text="${team.name}">Alabama</span>
+                    <span class="team-hero__mascot" th:text="${team.mascot}">Crimson Tide</span>
+                </h1>
+                <div class="team-hero__meta">
+                    <a th:if="${currentConference}" class="team-hero__conference"
+                       th:href="@{'/conferences/' + ${currentConference.id}}"
+                       th:text="${currentConferenceName}">SEC</a>
+                    <a th:if="${team.espnId}" class="team-hero__espn-link"
+                       th:href="'https://www.espn.com/mens-college-basketball/team/_/id/' + ${team.espnId} + '/' + (${team.slug} ?: '')"
+                       target="_blank" rel="noopener">ESPN</a>
+                    <th:block sec:authorize="isAuthenticated()">
+                        <th:block th:insert="~{fragments/follow-button :: button}"/>
+                    </th:block>
+                </div>
             </div>
         </div>
+
+        <dl class="team-hero__tiles" th:if="${schedule != null}">
+            <div class="team-hero__tile">
+                <dt>Overall</dt>
+                <dd th:text="${schedule.record()}">22-5</dd>
+            </div>
+            <div class="team-hero__tile" th:if="${schedule.conferenceName}">
+                <dt>Conf</dt>
+                <dd th:text="${schedule.conferenceRecord()}">10-3</dd>
+            </div>
+            <div class="team-hero__tile" th:if="${schedule.streak() != null}"
+                 th:attr="data-trend=${#strings.startsWith(schedule.streak(), 'W')} ? 'win' : 'loss'">
+                <dt>Streak</dt>
+                <dd th:text="${schedule.streak()}">W3</dd>
+            </div>
+            <div class="team-hero__tile" th:if="${headline != null and headline.masseyRank != null}">
+                <dt>Massey</dt>
+                <dd><span th:text="'#' + ${headline.masseyRank}">#46</span>
+                    <small th:text="${#numbers.formatDecimal(headline.masseyRating, 1, 1)}">10.9</small></dd>
+            </div>
+            <div class="team-hero__tile" th:if="${headline != null and headline.btRank != null}">
+                <dt>Bradley-Terry</dt>
+                <dd><span th:text="'#' + ${headline.btRank}">#55</span>
+                    <small th:text="${#numbers.formatDecimal(headline.btRating, 1, 2)}">1.66</small></dd>
+            </div>
+            <div class="team-hero__tile" th:if="${headline != null and headline.rpiRank != null}">
+                <dt>RPI</dt>
+                <dd><span th:text="'#' + ${headline.rpiRank}">#81</span>
+                    <small th:text="${#numbers.formatDecimal(headline.rpi, 1, 3)}">0.583</small></dd>
+            </div>
+        </dl>
     </div>
 
-    <!-- View tabs: Schedule | Team Profile -->
+    <!-- View tabs: Schedule | Team Statistics (narrow screens only — on desktop both panels show side by side) -->
     <nav class="team-tabs" th:if="${!seasons.isEmpty()}">
         <button class="team-tabs__tab team-tabs__tab--active" type="button" data-tab="schedule">Schedule</button>
         <button th:if="${statPanel != null}" class="team-tabs__tab" type="button" data-tab="stats">Team Statistics</button>
     </nav>
 
-    <!-- Schedule tab -->
-    <div id="tab-schedule" class="team-tab-panel schedule-section" th:if="${!seasons.isEmpty()}">
+    <!-- Desktop: schedule column | stats rail with news beneath. Narrow: tabbed panels, news last. -->
+    <div class="team-body">
 
-        <!-- Season tabs -->
-        <div class="season-tabs">
-            <button th:each="season : ${seasons}"
-                    class="season-tabs__tab"
-                    th:classappend="${season.year == currentSeasonYear} ? 'season-tabs__tab--active'"
-                    th:data-season="${season.year}"
-                    th:hx-get="@{'/teams/' + ${teamId} + '/season/' + ${season.year}}"
-                    hx-target="#season-content"
-                    hx-swap="innerHTML"
-                    th:text="${season.year}">2026</button>
-        </div>
+        <!-- Schedule -->
+        <div id="tab-schedule" class="team-tab-panel schedule-section team-body__schedule" th:if="${!seasons.isEmpty()}">
 
-        <!-- Season content (current season pre-loaded; others loaded on demand via HTMX) -->
-        <div id="season-content">
-            <div th:replace="~{fragments/team-season :: season-panel}"></div>
-        </div>
-    </div>
+            <!-- Season tabs: drive the schedule (HTMX) and, on desktop, the stats rail too -->
+            <div class="season-tabs">
+                <button th:each="season : ${seasons}"
+                        class="season-tabs__tab"
+                        th:classappend="${season.year == currentSeasonYear} ? 'season-tabs__tab--active'"
+                        th:data-season="${season.year}"
+                        th:hx-get="@{'/teams/' + ${teamId} + '/season/' + ${season.year}}"
+                        hx-target="#season-content"
+                        hx-swap="innerHTML"
+                        th:text="${season.year}">2026</button>
+            </div>
 
-    <div th:if="${seasons.isEmpty()}" class="teams-empty">
-        No games found for this team.
-    </div>
-
-    <!-- Team Profile tab (box-score analytics) -->
-    <section id="tab-stats" class="team-tab-panel team-stats" th:if="${statPanel != null}" hidden
-             th:data-team-id="${teamId}"
-             th:data-season-year="${currentSeasonYear}">
-        <div class="team-stats__header">
-            <div class="analytics-season-tabs">
-                <span th:each="season : ${seasons}"
-                      class="analytics-tab"
-                      th:classappend="${season.year == currentSeasonYear} ? 'analytics-tab--active'"
-                      th:data-year="${season.year}"
-                      th:text="${season.year}">2026</span>
+            <!-- Season content (current season pre-loaded; others loaded on demand via HTMX) -->
+            <div id="season-content">
+                <div th:replace="~{fragments/team-season :: season-panel}"></div>
             </div>
         </div>
 
-        <div id="team-stats-panel">
-            <div th:replace="~{fragments/team-stat-panel :: panel}"></div>
+        <div th:if="${seasons.isEmpty()}" class="teams-empty team-body__schedule">
+            No games found for this team.
         </div>
-    </section>
 
-    <div th:replace="~{fragments/news-cards :: news-section}"></div>
+        <!-- Team Statistics (box-score analytics) -->
+        <section id="tab-stats" class="team-tab-panel team-stats team-body__stats" th:if="${statPanel != null}" hidden
+                 th:data-team-id="${teamId}"
+                 th:data-season-year="${currentSeasonYear}">
+            <div class="team-stats__header">
+                <h2 class="team-stats__title">Team Statistics</h2>
+                <div class="analytics-season-tabs">
+                    <span th:each="season : ${seasons}"
+                          class="analytics-tab"
+                          th:classappend="${season.year == currentSeasonYear} ? 'analytics-tab--active'"
+                          th:data-year="${season.year}"
+                          th:text="${season.year}">2026</span>
+                </div>
+            </div>
+
+            <div id="team-stats-panel">
+                <div th:replace="~{fragments/team-stat-panel :: panel}"></div>
+            </div>
+        </section>
+
+        <div class="team-body__news">
+            <div th:replace="~{fragments/news-cards :: news-section}"></div>
+        </div>
+    </div>
 
 </main>
 
@@ -195,6 +237,26 @@
 
     // Enrich on initial load
     enrichPredictions(document.querySelector('#season-content'));
+
+    // Season tabs also drive the stats rail (desktop shows both panels at once)
+    document.querySelectorAll('.season-tabs__tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.season-tabs__tab').forEach(function (t) {
+                t.classList.toggle('season-tabs__tab--active', t === tab);
+            });
+            const year = tab.dataset.season;
+            const section = document.querySelector('.team-stats');
+            const panelEl = document.getElementById('team-stats-panel');
+            if (!section || !panelEl || !year) return;
+            section.querySelectorAll('.analytics-tab').forEach(function (t) {
+                t.classList.toggle('analytics-tab--active', t.dataset.year === year);
+            });
+            fetch('/teams/' + section.dataset.teamId + '/season/' + year + '/stats-panel')
+                .then(function (r) { return r.ok ? r.text() : ''; })
+                .then(function (html) { if (html) panelEl.innerHTML = html; })
+                .catch(function () {});
+        });
+    });
 
     // Re-enrich after HTMX season tab swaps
     document.body.addEventListener('htmx:afterSwap', function (evt) {
