@@ -2132,6 +2132,11 @@ a.team-hero__conference:hover {
     .team-body__stats    { grid-area: stats; }
     .team-body__news     { grid-area: news; }
     .team-body__news > section { margin-top: 0 !important; }
+    /* three compact cards in the rail (the More link covers the rest) so the rail stays level with the schedule */
+    .team-body__news li.card:nth-child(n+4) { display: none; }
+    .team-body__news li.card img { width: 64px !important; }
+    .team-body__news li.card p { display: none; }
+    .team-body__news li.card a { font-size: 0.88rem; line-height: 1.3; }
     /* both panels are always visible here; the tab script's hidden flag is ignored */
     .team-body .team-tab-panel[hidden] { display: block; }
     .team-stats__title { display: block; }
