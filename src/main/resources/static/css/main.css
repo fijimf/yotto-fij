@@ -2697,7 +2697,6 @@ a.team-hero__conference:hover {
     border-right: 3px solid var(--away-ui);
     padding-right: 0.6rem;
 }
-}
 .game-detail-team__name {
     display: block;
     font-family: var(--font-display);
@@ -2802,6 +2801,7 @@ a.team-hero__conference:hover {
     .game-detail-score__badges { gap: 0.25rem; }
     .game-detail-score__number { font-size: 2rem; }
     .game-detail-meta { flex-wrap: wrap; }
+}
 
 /* Tournament chip — used on schedule rows and on the game detail header. */
 .tournament-badge {
