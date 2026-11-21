@@ -3458,7 +3458,10 @@ a.team-hero__conference:hover {
    phones while desktop places the short meetings card under predictions. */
 .game-detail-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.1fr) minmax(0, 0.95fr);
+    /* Natural no-wrap widths measured on a played game with four ML rows: predictions
+       417px, record & ratings 296px, four factors 214px (+34px card chrome each).
+       At the 1200px main width this split gives 441/314/263 of inner room. */
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.17fr) minmax(0, 1fr);
     grid-template-rows: auto 1fr;
     grid-template-areas:
         "pred rec ff"
@@ -3472,7 +3475,7 @@ a.team-hero__conference:hover {
 .game-detail-grid__rec  { grid-area: rec; }
 .game-detail-grid__ff   { grid-area: ff; }
 
-@media (max-width: 1099px) {
+@media (max-width: 1199px) {
     .game-detail-grid {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         grid-template-rows: auto auto;
@@ -3549,6 +3552,10 @@ a.team-hero__conference:hover {
 }
 .game-detail-odds-table td {
     padding: 0.3rem 0.25rem;
+}
+/* One line per model on tablet/desktop; phones may wrap the error annotation */
+@media (min-width: 768px) {
+    .game-detail-odds-table td { white-space: nowrap; }
 }
 .game-detail-odds-table__label {
     color: var(--color-text-muted);
