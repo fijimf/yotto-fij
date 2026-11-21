@@ -1545,21 +1545,21 @@ tbody tr:hover {
     white-space: nowrap;
 }
 
-/* Headline tiles: record · conf · streak · Massey # · B-T # · RPI # */
-.team-hero__tiles {
+/* Headline tiles (team + conference heroes): record · conf · streak · ranks … */
+.hero-tiles {
     display: flex;
     flex-wrap: wrap;
     margin: 0;
     row-gap: 0.5rem;
 }
-.team-hero__tile {
+.hero-tile {
     padding: 0 1rem;
     border-left: 1px solid var(--color-border);
     text-align: center;
     min-width: 4.5rem;
 }
-.team-hero__tile:first-child { border-left: 0; padding-left: 0; }
-.team-hero__tile dt {
+.hero-tile:first-child { border-left: 0; padding-left: 0; }
+.hero-tile dt {
     font-size: 0.66rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -1567,7 +1567,7 @@ tbody tr:hover {
     color: var(--color-text-muted);
     white-space: nowrap;
 }
-.team-hero__tile dd {
+.hero-tile dd {
     margin: 0.1rem 0 0;
     font-family: var(--font-display);
     font-size: 1.35rem;
@@ -1576,15 +1576,15 @@ tbody tr:hover {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
-.team-hero__tile dd small {
+.hero-tile dd small {
     font-family: var(--font-family);
     font-size: 0.72rem;
     font-weight: 500;
     color: var(--color-text-muted);
     margin-left: 0.15rem;
 }
-.team-hero__tile[data-trend="win"] dd { color: var(--color-success); }
-.team-hero__tile[data-trend="loss"] dd { color: var(--color-danger); }
+.hero-tile[data-trend="win"] dd { color: var(--color-success); }
+.hero-tile[data-trend="loss"] dd { color: var(--color-danger); }
 
 .team-hero__meta {
     display: flex;
@@ -4500,12 +4500,12 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 .conf-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.86rem;
 }
 
 .conf-table thead th {
     text-align: left;
-    padding: 0.6rem 0.75rem;
+    padding: 0.45rem 0.5rem;
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -4515,9 +4515,10 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 }
 
 .conf-table tbody td {
-    padding: 0.55rem 0.75rem;
+    padding: 0.34rem 0.5rem;
     border-bottom: 1px solid var(--color-border);
 }
+.conf-table__name { white-space: nowrap; }
 
 .conf-table tbody tr:last-child td {
     border-bottom: none;
@@ -4531,7 +4532,7 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
     font-weight: 600;
-    width: 3.5rem;
+    width: 2.2rem;
 }
 
 .conf-table__num {
@@ -4558,12 +4559,20 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     flex-shrink: 0;
 }
 
-/* Conference hero */
+/* Conference hero: identity left, season headline tiles right (same tiles as the team page) */
 .conf-hero {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.conf-hero__identity {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
 }
 
 .conf-hero__logo-wrap {
@@ -4586,12 +4595,13 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
     font-size: 2rem;
     font-weight: 700;
     line-height: 1.1;
+    margin: 0;
 }
 
 .conf-hero__abbr {
-    font-size: 1rem;
+    font-size: 0.95rem;
     color: var(--color-text-muted);
-    margin-top: 0.15rem;
+    margin-top: 0.1rem;
 }
 
 /* Summary stat strip */
@@ -4631,18 +4641,19 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 .conf-tabs {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--color-border);
     overflow-x: auto;
+    overflow-y: hidden; /* the tabs' -1px margin otherwise shows a stray vertical scrollbar */
 }
 
 .conf-tabs__tab {
-    padding: 0.6rem 1.1rem;
+    padding: 0.45rem 0.9rem;
     border: none;
     background: none;
     color: var(--color-text-muted);
     font-family: var(--font-display);
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     cursor: pointer;
@@ -4663,6 +4674,31 @@ a.bracket-team__name:hover { color: var(--color-primary); text-decoration: under
 
 .conf-tab-panel[hidden] {
     display: none;
+}
+
+/* ── Conference body: standings | rating race side by side from 1100px; news in three columns ── */
+@media (min-width: 1100px) {
+    .conf-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+        grid-template-areas: "main river";
+        column-gap: 1.5rem;
+        align-items: start;
+    }
+    .conf-body__main  { grid-area: main; }
+    .conf-body__river { grid-area: river; margin: 0; }
+}
+@media (min-width: 900px) {
+    .conf-news ul {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.6rem !important;
+    }
+    .conf-news li.card { align-items: flex-start; }
+    .conf-news li.card img { width: 64px !important; }
+    .conf-news li.card a { font-size: 0.88rem; line-height: 1.3; }
+    .conf-news li.card p { display: none; }
+    .conf-news > section { margin-top: 1.25rem !important; }
 }
 
 /* Champion banner */

@@ -8,7 +8,10 @@
 (function () {
   "use strict";
 
-  const W = 960, ROW = 30, MARGIN = { top: 18, right: 176, bottom: 30, left: 34 };
+  // W follows the container (measured per draw) so the chart can sit in a half-width column
+  // without its text scaling down; ROW is the vertical pitch per team.
+  let W = 960;
+  const ROW = 30, MARGIN = { top: 18, right: 120, bottom: 30, left: 34 };
   const fmtDate = d3.timeFormat("%b %-d");
   const fmtRating = d3.format("+.2f");
   // Names come from the ESPN feed, not users, but the tooltip is innerHTML:
@@ -88,6 +91,7 @@
         return;
       }
       const theme = window.chartTheme();
+      W = Math.max(520, Math.round(chartEl.clientWidth) || 960);
       const dates = data.dates.map(d => new Date(d + "T12:00:00"));
       const teams = data.teams;
       const N = teams.length, D = dates.length;
@@ -106,6 +110,10 @@
       const colors = assignColors(teams, getComputedStyle(root).backgroundColor);
 
       chartEl.innerHTML = "";
+      // Evenly spaced date ticks sized to the plot width (d3's own picker crowds a half-width chart)
+      const nTicks = Math.max(2, Math.min(8, D, Math.floor((W - MARGIN.left - MARGIN.right) / 80)));
+      const tickDates = D < 2 ? dates : d3.range(nTicks).map(i => dates[Math.round(i * (D - 1) / (nTicks - 1))]);
+
       const svg = d3.select(chartEl).append("svg")
         .attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img")
         .attr("aria-label", `${data.conference} ${data.modelTitle} rating race, ${data.year}`);
@@ -122,7 +130,7 @@
         .attr("class", "rank-label").attr("x", MARGIN.left - 8).attr("y", y).attr("dy", "0.35em")
         .attr("text-anchor", "end").text(d => d);
       svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - MARGIN.bottom + 6})`)
-        .call(d3.axisBottom(x).ticks(Math.min(8, D)).tickFormat(d => d3.timeFormat(D > 60 ? "%b" : "%b %-d")(d)).tickSizeOuter(0));
+        .call(d3.axisBottom(x).tickValues(tickDates).tickFormat(d => d3.timeFormat(D > 60 ? "%b" : "%b %-d")(d)).tickSizeOuter(0));
 
       const line = d3.line()
         .defined((p) => p != null)

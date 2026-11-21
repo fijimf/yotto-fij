@@ -13,35 +13,16 @@
            th:text="${identity.abbreviation}">B1G</p>
         <img th:if="${identity.logoUrl}" id="conf-hero-logo" class="conf-hero__logo"
              hx-swap-oob="true" th:src="${identity.logoUrl}" th:alt="${identity.name}" />
+        <dl th:replace="~{fragments/conference-tiles :: tiles(true)}"></dl>
     </th:block>
 
-    <!-- Summary stat strip -->
-    <div class="conf-summary">
-        <div class="conf-summary__stat">
-            <span class="conf-summary__value" th:text="${detail.summary.ratingDisplay()}">12.45</span>
-            <span class="conf-summary__label">Avg Power Rating</span>
-        </div>
-        <div class="conf-summary__stat">
-            <span class="conf-summary__value" th:text="${detail.summary.rankDisplay()}">#3 of 32</span>
-            <span class="conf-summary__label">Conference Rank</span>
-        </div>
-        <div class="conf-summary__stat">
-            <span class="conf-summary__value" th:text="${detail.summary.record()}">280-150</span>
-            <span class="conf-summary__label">Overall Record</span>
-        </div>
-        <div class="conf-summary__stat">
-            <span class="conf-summary__value" th:text="${detail.summary.nonConfRecord()}">90-40</span>
-            <span class="conf-summary__label">Non-Conference</span>
-        </div>
-        <div class="conf-summary__stat" th:if="${detail.ncaa != null}">
-            <span class="conf-summary__value" th:text="${detail.ncaa.bidCount}">6</span>
-            <span class="conf-summary__label">NCAA Bids</span>
-        </div>
-    </div>
+
+  <!-- Desktop: standings/tournament column beside the rating race; narrow: race first, then tabs -->
+  <div class="conf-body">
 
     <!-- Rating race: bump chart of each member's national rank through the season
          (data from /api/charts/rating-river; drawn by js/rating-river.js) -->
-    <section class="rating-river card" data-rating-river
+    <section class="rating-river card conf-body__river" data-rating-river
              th:attr="data-conference-id=${conferenceId}, data-year=${detail.year}">
         <div class="rating-river__head">
             <h2 class="rating-river__title">Rating race</h2>
@@ -70,6 +51,7 @@
         <div class="viz-tip" data-river-tip></div>
     </section>
 
+    <div class="conf-body__main">
     <!-- Section tabs -->
     <nav class="conf-tabs">
         <button class="conf-tabs__tab conf-tabs__tab--active" type="button" data-conf-tab="standings">
@@ -207,6 +189,8 @@
             </table>
         </div>
     </div>
+    </div><!-- end conf-body__main -->
+  </div><!-- end conf-body -->
 
 </div>
 </body>

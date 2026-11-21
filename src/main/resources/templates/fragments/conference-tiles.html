@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- Conference hero headline tiles. Model: detail (ConferenceDetail). Rendered inline by
+     the conference page on first load and out-of-band (oob=true) by the season fragment
+     when HTMX swaps seasons, because the summary is season-scoped but lives in the hero. -->
+<dl th:fragment="tiles(oob)" id="conf-hero-tiles" class="hero-tiles"
+th:attr="hx-swap-oob=${oob} ? 'true' : null">
+    <div class="hero-tile">
+        <dt>Avg Power</dt>
+        <dd th:text="${detail.summary.ratingDisplay()}">12.45</dd>
+    </div>
+    <div class="hero-tile">
+        <dt>Conf Rank</dt>
+        <dd><span th:text="${detail.summary.conferenceRank != null ? '#' + detail.summary.conferenceRank : '—'}">#3</span>
+            <small th:if="${detail.summary.conferenceRank != null}"
+                   th:text="'of ' + ${detail.summary.rankedConferenceCount}">of 32</small></dd>
+    </div>
+    <div class="hero-tile">
+        <dt>Overall</dt>
+        <dd th:text="${detail.summary.record()}">280-150</dd>
+    </div>
+    <div class="hero-tile">
+        <dt>Non-Conf</dt>
+        <dd th:text="${detail.summary.nonConfRecord()}">90-40</dd>
+    </div>
+    <div class="hero-tile" th:if="${detail.ncaa != null}">
+        <dt>NCAA Bids</dt>
+        <dd th:text="${detail.ncaa.bidCount}">6</dd>
+    </div>
+</dl>
+</body>
+</html>

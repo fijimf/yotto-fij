@@ -13,13 +13,17 @@
     <!-- Conference header (name/abbr/logo are season-scoped; the season fragment
          swaps them out-of-band when a different season is selected) -->
     <div class="conf-hero">
-        <div class="conf-hero__logo-wrap" th:if="${identity.logoUrl}">
-            <img id="conf-hero-logo" th:src="${identity.logoUrl}" th:alt="${identity.name}" class="conf-hero__logo" />
+        <div class="conf-hero__identity">
+            <div class="conf-hero__logo-wrap" th:if="${identity.logoUrl}">
+                <img id="conf-hero-logo" th:src="${identity.logoUrl}" th:alt="${identity.name}" class="conf-hero__logo" />
+            </div>
+            <div class="conf-hero__info">
+                <h1 id="conf-hero-name" class="conf-hero__name" th:text="${identity.name}">Big Ten Conference</h1>
+                <p id="conf-hero-abbr" class="conf-hero__abbr" th:text="${identity.abbreviation}">B1G</p>
+            </div>
         </div>
-        <div class="conf-hero__info">
-            <h1 id="conf-hero-name" class="conf-hero__name" th:text="${identity.name}">Big Ten Conference</h1>
-            <p id="conf-hero-abbr" class="conf-hero__abbr" th:text="${identity.abbreviation}">B1G</p>
-        </div>
+        <!-- Season headline tiles; the season fragment swaps these out-of-band with the name/logo -->
+        <dl th:if="${detail != null}" th:replace="~{fragments/conference-tiles :: tiles(false)}"></dl>
     </div>
 
     <!-- Season selector -->
@@ -43,7 +47,9 @@
         <div th:replace="~{fragments/conference-season :: panel}"></div>
     </div>
 
-    <div th:replace="~{fragments/news-cards :: news-section}"></div>
+    <div class="conf-news">
+        <div th:replace="~{fragments/news-cards :: news-section}"></div>
+    </div>
 
 </main>
 

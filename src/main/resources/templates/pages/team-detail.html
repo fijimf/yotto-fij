@@ -40,31 +40,31 @@
             </div>
         </div>
 
-        <dl class="team-hero__tiles" th:if="${schedule != null}">
-            <div class="team-hero__tile">
+        <dl class="hero-tiles" th:if="${schedule != null}">
+            <div class="hero-tile">
                 <dt>Overall</dt>
                 <dd th:text="${schedule.record()}">22-5</dd>
             </div>
-            <div class="team-hero__tile" th:if="${schedule.conferenceName}">
+            <div class="hero-tile" th:if="${schedule.conferenceName}">
                 <dt>Conf</dt>
                 <dd th:text="${schedule.conferenceRecord()}">10-3</dd>
             </div>
-            <div class="team-hero__tile" th:if="${schedule.streak() != null}"
+            <div class="hero-tile" th:if="${schedule.streak() != null}"
                  th:attr="data-trend=${#strings.startsWith(schedule.streak(), 'W')} ? 'win' : 'loss'">
                 <dt>Streak</dt>
                 <dd th:text="${schedule.streak()}">W3</dd>
             </div>
-            <div class="team-hero__tile" th:if="${headline != null and headline.masseyRank != null}">
+            <div class="hero-tile" th:if="${headline != null and headline.masseyRank != null}">
                 <dt>Massey</dt>
                 <dd><span th:text="'#' + ${headline.masseyRank}">#46</span>
                     <small th:text="${#numbers.formatDecimal(headline.masseyRating, 1, 1)}">10.9</small></dd>
             </div>
-            <div class="team-hero__tile" th:if="${headline != null and headline.btRank != null}">
+            <div class="hero-tile" th:if="${headline != null and headline.btRank != null}">
                 <dt>Bradley-Terry</dt>
                 <dd><span th:text="'#' + ${headline.btRank}">#55</span>
                     <small th:text="${#numbers.formatDecimal(headline.btRating, 1, 2)}">1.66</small></dd>
             </div>
-            <div class="team-hero__tile" th:if="${headline != null and headline.rpiRank != null}">
+            <div class="hero-tile" th:if="${headline != null and headline.rpiRank != null}">
                 <dt>RPI</dt>
                 <dd><span th:text="'#' + ${headline.rpiRank}">#81</span>
                     <small th:text="${#numbers.formatDecimal(headline.rpi, 1, 3)}">0.583</small></dd>
